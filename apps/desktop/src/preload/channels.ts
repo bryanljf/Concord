@@ -25,6 +25,9 @@ export const EVENTS = {
   PRESENCE_STATUS: 'presence:status',
   NAVIGATE: 'ui:navigate',
   STREAM_TOGGLE: 'ui:stream-toggle-requested',
+  OPEN_SETTINGS: 'ui:open-settings',
+  SESSION_CHANGED: 'session:changed',
+  SETTINGS_CHANGED: 'settings:changed',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

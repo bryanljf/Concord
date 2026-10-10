@@ -37,11 +37,13 @@ const api: TelaoApi = {
   version: typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0',
 
   getSession: () => invoke<Session>(IPC.GET_SESSION),
+  onSessionChanged: (listener) => subscribe<Session>(EVENTS.SESSION_CHANGED, listener),
   login: (serverUrl, key) => invoke<UserInfo>(IPC.LOGIN, serverUrl, key),
   logout: () => invoke<void>(IPC.LOGOUT),
 
   getSettings: () => invoke<Settings>(IPC.GET_SETTINGS),
   updateSettings: (patch) => invoke<Settings>(IPC.UPDATE_SETTINGS, patch),
+  onSettingsChanged: (listener) => subscribe<Settings>(EVENTS.SETTINGS_CHANGED, listener),
 
   getRooms: () => invoke<RoomId[]>(IPC.GET_ROOMS),
   requestToken: (room) => invoke<TokenResponse>(IPC.REQUEST_TOKEN, room),
@@ -53,6 +55,7 @@ const api: TelaoApi = {
 
   onNavigate: (listener) => subscribe<NavigateTarget>(EVENTS.NAVIGATE, listener),
   onStreamToggleRequested: (listener) => subscribe<void>(EVENTS.STREAM_TOGGLE, () => listener()),
+  onOpenSettings: (listener) => subscribe<void>(EVENTS.OPEN_SETTINGS, () => listener()),
 
   hideToTray: () => ipcRenderer.send(IPC.HIDE_TO_TRAY),
   openExternal: (url) => invoke<void>(IPC.OPEN_EXTERNAL, url),

@@ -1,0 +1,36 @@
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.shell__banner {
+  grid-column: 1 / -1;
+}
+
+.shell__sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-secondary);
+}
+
+.shell__sidebar-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.shell__main {
+  display: grid;
+  grid-template-rows: var(--header-height) minmax(0, 1fr) var(--bottombar-height);
+  min-height: 0;
+  background: var(--bg-primary);
+}
+
+.shell__stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}

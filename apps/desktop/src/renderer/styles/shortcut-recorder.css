@@ -1,0 +1,57 @@
+.recorder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recorder__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recorder__box {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-strong);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.recorder__box:hover {
+  border-color: var(--text-muted);
+}
+
+.recorder__box--recording {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.recorder__box--recording .recorder__value {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.recorder__tip {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.recorder__hint {
+  font-size: 13px;
+  color: var(--danger);
+}

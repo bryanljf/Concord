@@ -63,6 +63,8 @@ export interface TelaoApi {
 
   // --- Session / onboarding -------------------------------------------------
   getSession(): Promise<Session>;
+  /** Fired after login/logout, and when a stored key is rejected during background revalidation. */
+  onSessionChanged(listener: (session: Session) => void): () => void;
   /**
    * Validates `key` against `GET /api/me` on `serverUrl`, stores both (key encrypted with
    * `safeStorage`) and returns the user. Rejects with an Error whose `message` is pt-BR and
@@ -74,6 +76,8 @@ export interface TelaoApi {
   // --- Settings ---------------------------------------------------------------
   getSettings(): Promise<Settings>;
   updateSettings(patch: Partial<Settings>): Promise<Settings>;
+  /** Fired after any change, including the tray checkboxes, so the UI never goes stale. */
+  onSettingsChanged(listener: (settings: Settings) => void): () => void;
 
   // --- telao-api calls (main adds the Authorization header) ------------------
   getRooms(): Promise<RoomId[]>;
@@ -88,6 +92,8 @@ export interface TelaoApi {
   onNavigate(listener: (target: NavigateTarget) => void): () => void;
   /** Tray item "Transmitir…" or the global shortcut; streaming itself arrives in Phase 3. */
   onStreamToggleRequested(listener: () => void): () => void;
+  /** Tray item "Configurações": the UI should open its settings view. */
+  onOpenSettings(listener: () => void): () => void;
 
   // --- Window ------------------------------------------------------------------
   hideToTray(): void;

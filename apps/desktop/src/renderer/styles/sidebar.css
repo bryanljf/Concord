@@ -1,0 +1,133 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.sidebar__brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: var(--header-height);
+  padding: 0 16px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.24);
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.sidebar__section {
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 16px 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sidebar__empty {
+  padding: 8px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.sidebar__rooms {
+  padding: 0 8px 8px;
+}
+
+.room {
+  margin-bottom: 2px;
+}
+
+.room__button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--transition),
+    color var(--transition);
+}
+
+.room__button:hover {
+  background: var(--bg-hover);
+  color: var(--text-normal);
+}
+
+.room__button[aria-current='true'] {
+  background: var(--bg-selected);
+  color: var(--text-strong);
+}
+
+.room__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room__count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.room__participants {
+  padding: 2px 0 4px 20px;
+}
+
+.participant {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 14px;
+  transition:
+    background-color var(--transition),
+    color var(--transition);
+}
+
+.participant:hover {
+  background: var(--bg-hover);
+  color: var(--text-normal);
+}
+
+.participant--streaming {
+  color: var(--text-normal);
+}
+
+.participant__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.participant__live {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.participant__live:hover .badge-live {
+  background: var(--live-hover);
+}

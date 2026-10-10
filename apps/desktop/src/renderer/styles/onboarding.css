@@ -1,0 +1,81 @@
+.onboarding {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+  background: var(--bg-tertiary);
+  overflow-y: auto;
+}
+
+.onboarding__card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 500px;
+  padding: 32px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow);
+}
+
+.onboarding__brand {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+}
+
+.onboarding__steps {
+  display: flex;
+  gap: 6px;
+}
+
+.onboarding__step {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-active);
+  transition: background-color var(--transition);
+}
+
+.onboarding__step--done {
+  background: var(--accent);
+}
+
+.onboarding__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.onboarding__form--center {
+  align-items: center;
+  text-align: center;
+}
+
+.onboarding__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.onboarding__subtitle {
+  color: var(--text-muted);
+}
+
+.onboarding__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.onboarding__actions--center {
+  justify-content: center;
+}
+
+.input-group__btn {
+  width: 40px;
+  height: 40px;
+}

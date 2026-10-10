@@ -23,6 +23,9 @@ const logger = log('app');
  */
 const APP_USER_MODEL_ID = 'com.telao.desktop';
 
+/** Delay between a `--server/--key` dev login and the `--room` navigation (see applyDevFlags). */
+const DEV_NAVIGATE_DELAY_MS = 1500;
+
 const cli = parseCliArgs(process.argv.slice(1));
 let quitting = false;
 
@@ -94,8 +97,10 @@ function bootstrap(): void {
     onOpen: () => window.show(),
     onToggle: () => window.toggle(),
     onStreamToggle: requestStreamToggle,
-    // No settings route exists in the contract yet: showing the window is the best we can do.
-    onOpenSettings: () => window.show(),
+    onOpenSettings: () => {
+      window.show();
+      window.send(EVENTS.OPEN_SETTINGS);
+    },
     onQuit: quit,
   });
 
@@ -127,15 +132,21 @@ function bootstrap(): void {
   if (!app.isPackaged) applyDevFlags();
 
   function applyDevFlags(): void {
+    const navigate = (): void => {
+      if (!cli.room) return;
+      logger.info(`dev navigation to #${cli.room} (--room)`);
+      window.send(EVENTS.NAVIGATE, { room: cli.room });
+    };
     if (cli.server && cli.key) {
       logger.info(`dev login on ${cli.server} (--server/--key)`);
       session
         .login(cli.server, cli.key)
+        // The renderer only listens for navigation once the workspace is mounted, which
+        // happens after it learns about the session: give it a moment.
+        .then(() => setTimeout(navigate, DEV_NAVIGATE_DELAY_MS))
         .catch((err: unknown) => logger.warn('dev login failed', err));
-    }
-    if (cli.room) {
-      logger.info(`dev navigation to #${cli.room} (--room)`);
-      window.send(EVENTS.NAVIGATE, { room: cli.room });
+    } else {
+      navigate();
     }
   }
 }

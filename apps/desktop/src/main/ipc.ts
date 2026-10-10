@@ -101,6 +101,12 @@ export function registerIpc(deps: IpcDeps): () => void {
   const unsubscribeStatus = presence.onStatus((status) =>
     window.send(EVENTS.PRESENCE_STATUS, status),
   );
+  const unsubscribeSession = session.onChange((current) =>
+    window.send(EVENTS.SESSION_CHANGED, current),
+  );
+  const unsubscribeSettings = settings.onChange((next) =>
+    window.send(EVENTS.SETTINGS_CHANGED, next),
+  );
   logger.info(`registered ${registered.length + 1} channels`);
 
   return () => {
@@ -108,5 +114,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeListener(IPC.HIDE_TO_TRAY, onHide);
     unsubscribeEvent();
     unsubscribeStatus();
+    unsubscribeSession();
+    unsubscribeSettings();
   };
 }
