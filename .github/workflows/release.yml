@@ -49,7 +49,27 @@ jobs:
             echo "@concord/process-audio has no prebuild script; skipping"
           fi
 
-      - name: Package and publish the installer
-        run: pnpm --filter @concord/desktop exec electron-builder --win --publish always
+      # electron-builder's own GitHub publisher raced on release creation and exited before the
+      # 116 MB installer finished uploading, so the upload is done explicitly with the gh CLI.
+      - name: Package the installer
+        run: pnpm --filter @concord/desktop exec electron-builder --win --publish never
+
+      - name: Publish the GitHub release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd apps/desktop/release
+          ls -la Concord-Setup-*.exe Concord-Setup-*.exe.blockmap latest.yml
+          version="${GITHUB_REF_NAME#v}"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
+              Concord-Setup-*.exe Concord-Setup-*.exe.blockmap latest.yml
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "Concord $version" --generate-notes \
+              Concord-Setup-*.exe Concord-Setup-*.exe.blockmap latest.yml
+          fi
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | "\(.name) \(.size)"'

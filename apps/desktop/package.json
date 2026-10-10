@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Concord — compartilhamento de tela companion do Discord",
+  "author": {
+    "name": "Bryan Franco"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
