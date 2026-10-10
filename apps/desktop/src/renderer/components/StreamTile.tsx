@@ -1,40 +1,120 @@
-import type { PresenceParticipant } from '@concord/shared';
-import { Avatar } from './Avatar';
+import { useAutoHide } from '../hooks/useAutoHide';
+import type { RemoteStream } from '../hooks/useRemoteStreams';
+import { useStreamStats } from '../hooks/useStreamStats';
+import { formatStats } from '../lib/streamStats';
+import type { VolumeSetting } from '../lib/volume';
+import { ExitFullscreenIcon, FullscreenIcon, PopOutIcon } from './icons';
+import { QualityBars } from './stream/QualityBars';
+import { StreamStatus } from './stream/StreamStatus';
+import { VideoSurface } from './stream/VideoSurface';
+import { VolumeControl } from './stream/VolumeControl';
 
-interface StreamTileProps {
-  participant: PresenceParticipant;
-  focused?: boolean;
-  /** When set, the tile is a button that brings this stream to the stage. */
-  onSelect?: () => void;
+interface FocusedTileProps {
+  stream: RemoteStream;
+  volume: VolumeSetting;
+  fullscreen: boolean;
+  onVolume(volume: number): void;
+  onToggleMute(): void;
+  onToggleFullscreen(): void;
+  onPopout(): void;
 }
 
-/** Placeholder for a live stream; the real video arrives in Phase 3. */
-export function StreamTile({ participant, focused = false, onSelect }: StreamTileProps) {
-  const className = focused ? 'tile tile--focused' : 'tile';
-  const body = (
-    <>
-      <span className="tile__badge badge-live">AO VIVO</span>
-      <Avatar id={participant.id} name={participant.name} size={focused ? 'lg' : 'md'} />
-      <span className="tile__name">{participant.name}</span>
-      <span className="tile__note">
-        {focused
-          ? `${participant.name} está ao vivo — o vídeo chega na Fase 3`
-          : 'Clique para destacar'}
-      </span>
-    </>
-  );
+/** The stream on the stage: video, auto-hiding controls, stats on hover (SPEC 5.5). */
+export function FocusedStreamTile({
+  stream,
+  volume,
+  fullscreen,
+  onVolume,
+  onToggleMute,
+  onToggleFullscreen,
+  onPopout,
+}: FocusedTileProps) {
+  const controls = useAutoHide(3000);
+  const stats = useStreamStats(stream.videoTrack, controls.visible);
+  const statsText = stats ? formatStats(stats) : null;
 
-  if (onSelect) {
-    return (
-      <button
-        type="button"
-        className={className}
-        aria-label={`Destacar a transmissão de ${participant.name}`}
-        onClick={onSelect}
+  return (
+    <div
+      className={controls.visible ? 'tile tile--focused tile--controls' : 'tile tile--focused'}
+      onMouseMove={controls.poke}
+      onMouseLeave={controls.hide}
+    >
+      <VideoSurface
+        track={stream.videoTrack}
+        className="tile__video"
+        onDoubleClick={onToggleFullscreen}
+      />
+      <StreamStatus stream={stream} />
+      <div
+        className="tile__top"
+        onMouseEnter={() => controls.hold(true)}
+        onMouseLeave={() => controls.hold(false)}
       >
-        {body}
-      </button>
-    );
-  }
-  return <div className={className}>{body}</div>;
+        <span className="tile__badge badge-live">AO VIVO</span>
+        <span className="tile__name">{stream.name}</span>
+        <QualityBars quality={stream.quality} />
+        <span className="tile__stats" data-tooltip="Resolução · fps · bitrate recebidos">
+          {statsText ?? 'medindo…'}
+        </span>
+      </div>
+      <div
+        className="tile__controls"
+        onMouseEnter={() => controls.hold(true)}
+        onMouseLeave={() => controls.hold(false)}
+      >
+        <VolumeControl
+          setting={volume}
+          name={stream.name}
+          onVolume={onVolume}
+          onToggleMute={onToggleMute}
+          onHold={controls.hold}
+        />
+        <div className="tile__actions">
+          <button
+            type="button"
+            className="icon-btn icon-btn--overlay"
+            aria-label="Abrir em janela separada"
+            data-tooltip="Janela separada"
+            onClick={onPopout}
+          >
+            <PopOutIcon size={18} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--overlay"
+            aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            data-tooltip={fullscreen ? 'Sair da tela cheia (Esc)' : 'Tela cheia (F11)'}
+            onClick={onToggleFullscreen}
+          >
+            {fullscreen ? <ExitFullscreenIcon size={18} /> : <FullscreenIcon size={18} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface MiniTileProps {
+  stream: RemoteStream;
+  onSelect(): void;
+}
+
+/** A mini tile in the strip (lowest simulcast layer); clicking swaps it onto the stage. */
+export function MiniStreamTile({ stream, onSelect }: MiniTileProps) {
+  return (
+    <button
+      type="button"
+      className="tile tile--mini"
+      aria-label={`Destacar a transmissão de ${stream.name}`}
+      data-tooltip="Clique para destacar"
+      onClick={onSelect}
+    >
+      <VideoSurface track={stream.videoTrack} className="tile__video" />
+      <StreamStatus stream={stream} compact />
+      <div className="tile__top tile__top--mini">
+        <span className="tile__name">{stream.name}</span>
+        <QualityBars quality={stream.quality} size={14} />
+      </div>
+    </button>
+  );
 }

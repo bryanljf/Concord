@@ -135,6 +135,10 @@ export function hardenWebContents(win: BrowserWindow, appOrigin: string): void {
 export function bindFullscreenEvents(win: BrowserWindow, send: Sender): void {
   win.on('enter-full-screen', () => send(EVENTS.FULLSCREEN_CHANGED, true));
   win.on('leave-full-screen', () => send(EVENTS.FULLSCREEN_CHANGED, false));
+  // A reloaded renderer starts without knowing the current state.
+  win.webContents.on('did-finish-load', () => {
+    if (win.isFullScreen()) send(EVENTS.FULLSCREEN_CHANGED, true);
+  });
 }
 
 /**

@@ -33,9 +33,14 @@ declare const __APP_VERSION__: string | undefined;
 async function invoke<T>(channel: IpcChannel, ...args: unknown[]): Promise<T> {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>;
   if (!result.ok) {
-    const error = new Error(result.message) as Error & { code?: string };
-    if (result.code) error.code = result.code;
-    throw error;
+    // Error instances crossing the context bridge keep only message/stack, so the failure is
+    // rejected as a plain object: the renderer's `toErrorMessage`/`errorCode` accept both.
+    const failure: { name: string; message: string; code?: string } = {
+      name: 'IpcError',
+      message: result.message,
+    };
+    if (result.code) failure.code = result.code;
+    throw failure;
   }
   return result.value;
 }

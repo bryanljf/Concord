@@ -1,21 +1,30 @@
-import { useCallback, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { concord } from '../lib/concord';
-import { useToast } from './useToast';
 
-export interface UseStreamToggle {
-  /** Start/stop streaming — until Phase 3 this only explains that streaming is not here yet. */
-  requestToggle(): void;
+interface UseStreamToggleOptions {
+  /** A broadcast is live or starting, so the request means "stop". */
+  streaming: boolean;
+  onStart(): void;
+  onStop(): void;
 }
 
-/** Handles "Transmitir…" requests from the tray/global shortcut and from the UI button. */
-export function useStreamToggle(): UseStreamToggle {
-  const toast = useToast();
+/**
+ * Tray item "Transmitir…" / "Parar transmissão" and the global shortcut both arrive as one
+ * toggle request from main: start opens the source picker, stop ends the broadcast.
+ */
+export function useStreamToggle({ streaming, onStart, onStop }: UseStreamToggleOptions): void {
+  const latest = useRef({ streaming, onStart, onStop });
+  useEffect(() => {
+    latest.current = { streaming, onStart, onStop };
+  }, [streaming, onStart, onStop]);
 
-  const requestToggle = useCallback(() => {
-    toast.show('Transmissão chega na próxima fase.');
-  }, [toast]);
-
-  useEffect(() => concord().onStreamToggleRequested(requestToggle), [requestToggle]);
-
-  return { requestToggle };
+  useEffect(
+    () =>
+      concord().onStreamToggleRequested(() => {
+        const { streaming: active, onStart: start, onStop: stop } = latest.current;
+        if (active) stop();
+        else start();
+      }),
+    [],
+  );
 }

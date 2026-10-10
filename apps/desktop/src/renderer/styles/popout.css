@@ -1,0 +1,124 @@
+/* Frameless pop-out window: the title bar is the drag region (SPEC 5.5). */
+.popout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #000;
+  color: var(--text-normal);
+}
+
+.popout__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 36px;
+  padding: 0 4px 0 10px;
+  background: var(--bg-tertiary);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.popout__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.popout__name {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popout__room {
+  color: var(--text-muted);
+}
+
+.popout__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.popout__actions .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.popout__actions .icon-btn--active {
+  color: var(--accent);
+}
+
+.popout__error {
+  flex: none;
+  padding: 6px 12px;
+  background: var(--live);
+  color: var(--text-on-accent);
+  font-size: 12px;
+}
+
+.popout__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.popout__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.popout__state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.popout__state--error {
+  color: var(--danger);
+}
+
+.popout__sub {
+  font-size: 12px;
+}
+
+.popout__notice {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 600;
+  transform: translateX(-50%);
+}
+
+.popout__notice--action {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+}

@@ -10,6 +10,7 @@
   --bg-selected: #404249;
   --bg-input: #1e1f22;
   --bg-overlay: rgba(0, 0, 0, 0.6);
+  --bg-elevated: #111214;
 
   --text-normal: #dbdee1;
   --text-muted: #949ba4;
@@ -42,11 +43,14 @@
   --font: 'Inter Variable', 'Noto Sans', 'Segoe UI', system-ui, sans-serif;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   --transition: 120ms ease;
+  --transition-slow: 200ms;
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --transition: 0ms;
+    --transition-slow: 0ms;
   }
 }
 
@@ -254,9 +258,134 @@ kbd {
   color: var(--text-strong);
 }
 
+.icon-btn:active:not(:disabled) {
+  background: var(--bg-active);
+}
+
 .icon-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Icon buttons drawn over video */
+.icon-btn--overlay {
+  color: var(--text-strong);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.icon-btn--overlay:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.icon-btn--overlay[aria-pressed='true'] {
+  color: var(--live);
+}
+
+/* Tooltips: CSS-only, from `data-tooltip` (the aria-label carries the same text). */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 200;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-strong);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  pointer-events: none;
+  transition:
+    opacity var(--transition),
+    transform var(--transition);
+  transition-delay: 0ms;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 350ms;
+}
+
+/* Below the control (top bars) and right-aligned, so they never run off the window edge. */
+.header__actions [data-tooltip]::after,
+.popout__actions [data-tooltip]::after,
+.picker__header [data-tooltip]::after,
+.picker__tabs [data-tooltip]::after,
+.tile__actions [data-tooltip]::after {
+  top: calc(100% + 8px);
+  right: 0;
+  bottom: auto;
+  left: auto;
+  transform: translate(0, -4px);
+}
+
+.tile__actions [data-tooltip]::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translate(0, 4px);
+}
+
+.header__actions [data-tooltip]:hover::after,
+.header__actions [data-tooltip]:focus-visible::after,
+.popout__actions [data-tooltip]:hover::after,
+.popout__actions [data-tooltip]:focus-visible::after,
+.picker__header [data-tooltip]:hover::after,
+.picker__header [data-tooltip]:focus-visible::after,
+.picker__tabs [data-tooltip]:hover::after,
+.picker__tabs [data-tooltip]:focus-visible::after,
+.tile__actions [data-tooltip]:hover::after,
+.tile__actions [data-tooltip]:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+/* Range slider (volume) */
+.range {
+  width: 120px;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.range::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  appearance: none;
+  transition: transform var(--transition);
+}
+
+.range:hover::-webkit-slider-thumb,
+.range:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.range:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 10px;
 }
 
 /* Form fields */

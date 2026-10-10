@@ -1,22 +1,35 @@
 import type { ReactNode } from 'react';
-import type { PresenceParticipant, RoomId } from '@concord/shared';
+import type { RoomId } from '@concord/shared';
+import type { BroadcastState } from '../hooks/useBroadcast';
+import type { RemoteStream } from '../hooks/useRemoteStreams';
 import type { RoomConnectionState } from '../hooks/useRoom';
+import type { StreamAudio } from '../hooks/useStreamAudio';
 import { Spinner } from './Spinner';
-import { StreamTile } from './StreamTile';
-import { MonitorOffIcon, SpeakerIcon, WarningIcon } from './icons';
+import { FocusedStreamTile, MiniStreamTile } from './StreamTile';
+import { HeadphonesIcon, MonitorOffIcon, SpeakerIcon, WarningIcon } from './icons';
+import { LocalPreviewTile } from './stream/LocalPreviewTile';
 import '../styles/stage.css';
 
 interface StageProps {
   currentRoom: RoomId | null;
   connectionState: RoomConnectionState;
   error: string | null;
-  /** Participants of the current room that are streaming (from presence). */
-  streamers: PresenceParticipant[];
+  /** Remote screen shares in the room (from livekit). */
+  streams: RemoteStream[];
   focusedId: string | null;
+  broadcast: BroadcastState;
+  audio: StreamAudio;
+  /** False when playback was blocked until a user gesture. */
+  audioPlayback: boolean;
+  fullscreen: boolean;
   /** Shortcut already formatted for display, e.g. "Ctrl+Shift+L". */
   shortcutLabel: string;
   onFocus(participantId: string): void;
   onRetry(): void;
+  onToggleFullscreen(): void;
+  onPopout(): void;
+  onEnableAudio(): void;
+  onStopBroadcast(): void;
 }
 
 interface EmptyStateProps {
@@ -43,12 +56,23 @@ export function Stage({
   currentRoom,
   connectionState,
   error,
-  streamers,
+  streams,
   focusedId,
+  broadcast,
+  audio,
+  audioPlayback,
+  fullscreen,
   shortcutLabel,
   onFocus,
   onRetry,
+  onToggleFullscreen,
+  onPopout,
+  onEnableAudio,
+  onStopBroadcast,
 }: StageProps) {
+  const live = broadcast.status === 'live';
+  const stageClass = live ? 'stage stage--live' : 'stage';
+
   if (!currentRoom) {
     return (
       <div className="stage">
@@ -86,31 +110,66 @@ export function Stage({
     );
   }
 
-  const focused = streamers.find((participant) => participant.id === focusedId) ?? null;
-  const others = streamers.filter((participant) => participant.id !== focused?.id);
+  const focused = streams.find((stream) => stream.participantId === focusedId) ?? null;
+  const others = streams.filter((stream) => stream.participantId !== focused?.participantId);
+  const localOnStage = broadcast.status === 'live' && !focused;
+  const hasStrip = others.length > 0 || (broadcast.status === 'live' && focused !== null);
 
   return (
-    <div className="stage">
+    <div className={stageClass}>
       {connectionState === 'reconnecting' && (
-        <div className="stage__reconnecting" role="status">
+        <div className="stage__notice stage__notice--warning" role="status">
+          <Spinner size="sm" label="Reconectando" />
           Reconectando à sala…
         </div>
       )}
+      {!audioPlayback && focused && (
+        <button
+          type="button"
+          className="stage__notice stage__notice--action"
+          onClick={onEnableAudio}
+        >
+          <HeadphonesIcon size={16} />
+          Clique para ativar o áudio das transmissões
+        </button>
+      )}
+      {live && (
+        <div className="stage__live-pill" role="status">
+          <span className="stage__live-dot" aria-hidden="true" />
+          VOCÊ ESTÁ AO VIVO
+        </div>
+      )}
+      {broadcast.status === 'starting' && (
+        <div className="stage__notice" role="status">
+          <Spinner size="sm" label="Iniciando" />
+          Iniciando a transmissão de {broadcast.sourceName}…
+        </div>
+      )}
+
       {focused ? (
-        <>
-          <div className="stage__focus">
-            <StreamTile participant={focused} focused />
-          </div>
-          {others.length > 0 && (
-            <ul className="stage__strip" aria-label="Outras transmissões">
-              {others.map((participant) => (
-                <li key={participant.id}>
-                  <StreamTile participant={participant} onSelect={() => onFocus(participant.id)} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+        <div className="stage__focus">
+          <FocusedStreamTile
+            key={focused.participantId}
+            stream={focused}
+            volume={audio.settingFor(focused.participantId)}
+            fullscreen={fullscreen}
+            onVolume={(volume) => audio.setVolume(focused.participantId, volume)}
+            onToggleMute={() => audio.toggleMute(focused.participantId)}
+            onToggleFullscreen={onToggleFullscreen}
+            onPopout={onPopout}
+          />
+        </div>
+      ) : localOnStage && broadcast.status === 'live' ? (
+        <div className="stage__focus">
+          <LocalPreviewTile
+            track={broadcast.videoTrack}
+            sourceName={broadcast.sourceName}
+            quality={broadcast.quality}
+            hasAudio={broadcast.hasAudio}
+            focused
+            onStop={onStopBroadcast}
+          />
+        </div>
       ) : (
         <EmptyState
           icon={<MonitorOffIcon size={64} />}
@@ -121,6 +180,28 @@ export function Stage({
             compartilhar sua tela.
           </p>
         </EmptyState>
+      )}
+
+      {hasStrip && !fullscreen && (
+        <ul className="stage__strip" aria-label="Outras transmissões">
+          {broadcast.status === 'live' && focused && (
+            <li key="local">
+              <LocalPreviewTile
+                track={broadcast.videoTrack}
+                sourceName={broadcast.sourceName}
+                quality={broadcast.quality}
+                hasAudio={broadcast.hasAudio}
+                focused={false}
+                onStop={onStopBroadcast}
+              />
+            </li>
+          )}
+          {others.map((stream) => (
+            <li key={stream.participantId}>
+              <MiniStreamTile stream={stream} onSelect={() => onFocus(stream.participantId)} />
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

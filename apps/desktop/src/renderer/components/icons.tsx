@@ -162,3 +162,121 @@ export function UsersIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function VolumeHighIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 5 6 9H2v6h4l5 4V5z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </Icon>
+  );
+}
+
+export function VolumeLowIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 5 6 9H2v6h4l5 4V5z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+    </Icon>
+  );
+}
+
+export function VolumeMutedIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 5 6 9H2v6h4l5 4V5z" />
+      <path d="m23 9-6 6" />
+      <path d="m17 9 6 6" />
+    </Icon>
+  );
+}
+
+export function ExitFullscreenIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+      <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+      <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+      <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+    </Icon>
+  );
+}
+
+export function PinIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 17v5" />
+      <path d="M9 3h6l-1 7 3 3H7l3-3-1-7z" />
+    </Icon>
+  );
+}
+
+export function WindowIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M7 6.5h.01" />
+      <path d="M10 6.5h.01" />
+    </Icon>
+  );
+}
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+      <path d="M21 3v6h-6" />
+    </Icon>
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m20 6-11 11-5-5" />
+    </Icon>
+  );
+}
+
+export function InfoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </Icon>
+  );
+}
+
+export function AudioWaveIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 12h2" />
+      <path d="M7 8v8" />
+      <path d="M11 4v16" />
+      <path d="M15 7v10" />
+      <path d="M19 10v4" />
+    </Icon>
+  );
+}
+
+export function HeadphonesIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    </Icon>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M12 15V3" />
+    </Icon>
+  );
+}

@@ -1,10 +1,14 @@
 import { BootScreen } from './components/BootScreen';
 import { Onboarding } from './components/onboarding/Onboarding';
+import { PopoutView } from './components/popout/PopoutView';
 import { ToastProvider } from './components/toast/ToastProvider';
 import { Workspace } from './components/Workspace';
 import { useSession } from './hooks/useSession';
+import { concord } from './lib/concord';
 
 export function App() {
+  // The pop-out BrowserWindow loads the same bundle; main tells the preload which one it is.
+  if (concord().windowKind === 'popout') return <PopoutView />;
   return (
     <ToastProvider>
       <Root />

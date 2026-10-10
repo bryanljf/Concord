@@ -1,14 +1,27 @@
 import type { RoomId } from '@concord/shared';
-import { FullscreenIcon, GearIcon, PopOutIcon } from './icons';
+import { ExitFullscreenIcon, FullscreenIcon, GearIcon, PopOutIcon } from './icons';
 import '../styles/header.css';
 
 interface HeaderProps {
   currentRoom: RoomId | null;
+  /** A remote stream is on the stage (pop-out and fullscreen act on it). */
+  hasFocusedStream: boolean;
+  fullscreen: boolean;
   onLeave(): void;
+  onToggleFullscreen(): void;
+  onPopout(): void;
   onOpenSettings(): void;
 }
 
-export function Header({ currentRoom, onLeave, onOpenSettings }: HeaderProps) {
+export function Header({
+  currentRoom,
+  hasFocusedStream,
+  fullscreen,
+  onLeave,
+  onToggleFullscreen,
+  onPopout,
+  onOpenSettings,
+}: HeaderProps) {
   return (
     <header className="header">
       <h1 className="header__title">
@@ -32,25 +45,29 @@ export function Header({ currentRoom, onLeave, onOpenSettings }: HeaderProps) {
         <button
           type="button"
           className="icon-btn"
-          disabled
-          title="Em breve"
-          aria-label="Tela cheia (em breve)"
+          disabled={!currentRoom}
+          data-tooltip={fullscreen ? 'Sair da tela cheia (Esc)' : 'Tela cheia (F11)'}
+          aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+          onClick={onToggleFullscreen}
         >
-          <FullscreenIcon />
+          {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
         </button>
         <button
           type="button"
           className="icon-btn"
-          disabled
-          title="Em breve"
-          aria-label="Abrir em janela separada (em breve)"
+          disabled={!hasFocusedStream}
+          data-tooltip={
+            hasFocusedStream ? 'Abrir em janela separada' : 'Destaque uma transmissão primeiro'
+          }
+          aria-label="Abrir a transmissão em destaque em uma janela separada"
+          onClick={onPopout}
         >
           <PopOutIcon />
         </button>
         <button
           type="button"
           className="icon-btn"
-          title="Configurações"
+          data-tooltip="Configurações"
           aria-label="Configurações"
           onClick={onOpenSettings}
         >

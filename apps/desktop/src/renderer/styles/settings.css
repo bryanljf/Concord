@@ -187,6 +187,39 @@
   gap: 6px 16px;
 }
 
+.settings__update {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings__update-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.settings__update-status--info {
+  color: var(--text-normal);
+}
+
+.settings__update-status--success {
+  color: var(--online);
+}
+
+.settings__update-status--error {
+  color: var(--danger);
+}
+
+.settings__progress {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
 .settings__about dt {
   color: var(--text-muted);
 }

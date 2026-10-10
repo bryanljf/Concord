@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { toErrorMessage } from './concord';
+import { errorCode, toErrorMessage } from './concord';
+
+describe('errorCode', () => {
+  it('reads the code main attaches to IPC rejections', () => {
+    const err = Object.assign(new Error('O Discord não está aberto.'), {
+      code: 'discord_not_running',
+    });
+    expect(errorCode(err)).toBe('discord_not_running');
+  });
+
+  it('is null for errors without a usable code', () => {
+    expect(errorCode(new Error('x'))).toBeNull();
+    expect(errorCode(Object.assign(new Error('x'), { code: '' }))).toBeNull();
+    expect(errorCode(Object.assign(new Error('x'), { code: 42 }))).toBeNull();
+    expect(errorCode('texto')).toBeNull();
+    expect(errorCode(null)).toBeNull();
+  });
+});
 
 describe('toErrorMessage', () => {
   it('returns the message of an Error', () => {

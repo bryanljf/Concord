@@ -47,3 +47,14 @@ export function toErrorMessage(err: unknown, fallback = FALLBACK_MESSAGE): strin
   const cleaned = raw.replace(IPC_WRAPPER, '').trim();
   return cleaned.length > 0 ? cleaned : fallback;
 }
+
+/**
+ * Machine-readable code main attaches to some IPC rejections (e.g. `startProcessAudio`:
+ * 'unsupported' | 'invalid_source' | 'window_process_unknown' | 'discord_not_running' |
+ * 'native_failure'); null when absent.
+ */
+export function errorCode(err: unknown): string | null {
+  if (typeof err !== 'object' || err === null || !('code' in err)) return null;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' && code.length > 0 ? code : null;
+}

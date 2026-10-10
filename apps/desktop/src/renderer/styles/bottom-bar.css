@@ -7,6 +7,39 @@
   box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.24);
 }
 
+.bottom-bar--live {
+  box-shadow:
+    0 -1px 0 rgba(0, 0, 0, 0.24),
+    inset 0 2px 0 var(--live);
+}
+
+.bottom-bar__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(218, 55, 60, 0.18);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.bottom-bar__live strong {
+  max-width: 260px;
+  overflow: hidden;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+}
+
+.bottom-bar__live-dot {
+  background: var(--live);
+}
+
 .bottom-bar__quality {
   margin-left: auto;
   color: var(--text-muted);

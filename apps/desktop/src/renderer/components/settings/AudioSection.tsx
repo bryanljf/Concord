@@ -62,8 +62,8 @@ export function AudioSection({ settings, onUpdate }: AudioSectionProps) {
           ))}
         </select>
         <p className="field__hint">
-          Independente do Discord: dá para mandar o som das streams para outro fone ou caixa. Vale a
-          partir da Fase 3.
+          Independente do Discord: dá para mandar o som das transmissões para outro fone ou caixa. A
+          troca vale na hora, inclusive na janela separada.
         </p>
       </div>
     </SettingsSection>

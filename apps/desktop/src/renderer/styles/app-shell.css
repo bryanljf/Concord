@@ -34,3 +34,21 @@
   min-height: 0;
   overflow: hidden;
 }
+
+/* Fullscreen: hide the chrome (not unmounting it keeps the <video> elements alive). */
+.shell--immersive {
+  grid-template-columns: 0 minmax(0, 1fr);
+  grid-template-rows: 0 minmax(0, 1fr);
+}
+
+.shell--immersive .shell__banner,
+.shell--immersive .shell__sidebar,
+.shell--immersive .header,
+.shell--immersive .bottom-bar {
+  display: none;
+}
+
+.shell--immersive .shell__main {
+  grid-template-rows: minmax(0, 1fr);
+  background: #000;
+}

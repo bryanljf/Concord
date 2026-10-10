@@ -1,21 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RoomId, TokenResponse } from '@concord/shared';
+import type { RoomId, TokenPurpose, TokenResponse } from '@concord/shared';
 import { ConnectionState, DisconnectReason, Room, RoomEvent } from 'livekit-client';
 import { concord, toErrorMessage } from '../lib/concord';
 
 export type RoomConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
 export interface UseRoom {
+  /** The livekit Room (stable for the life of the hook); other hooks subscribe to its events. */
+  room: Room;
   /** Room the user chose (kept while connecting and after an unexpected disconnect). */
   currentRoom: RoomId | null;
   connectionState: RoomConnectionState;
   error: string | null;
-  /** Participant whose stream the user asked to watch (consumed by the stage in Phase 3). */
+  /** Participant whose stream the user asked to watch. */
   focusedParticipantId: string | null;
-  /** Leaves the previous room (if any), requests a token and connects. */
-  join(roomId: RoomId, focusParticipantId?: string | null): Promise<void>;
+  /** False when the browser blocked audio playback: call `startAudio()` from a user gesture. */
+  audioPlayback: boolean;
+  /** Leaves the previous room (if any), requests a token and connects. Resolves true when connected. */
+  join(roomId: RoomId, focusParticipantId?: string | null): Promise<boolean>;
   leave(): Promise<void>;
   focus(participantId: string | null): void;
+  startAudio(): Promise<void>;
+}
+
+export interface UseRoomOptions {
+  /** `popout` asks concord-api for the hidden, subscribe-only identity. */
+  purpose?: TokenPurpose;
 }
 
 function toConnectionState(state: ConnectionState): RoomConnectionState {
@@ -33,7 +43,7 @@ function toConnectionState(state: ConnectionState): RoomConnectionState {
 }
 
 /** pt-BR message for disconnects the user did not ask for; null for client-initiated ones. */
-function disconnectMessage(reason: DisconnectReason | undefined): string | null {
+export function disconnectMessage(reason: DisconnectReason | undefined): string | null {
   switch (reason) {
     case undefined:
     case DisconnectReason.CLIENT_INITIATED:
@@ -52,8 +62,19 @@ function disconnectMessage(reason: DisconnectReason | undefined): string | null 
   }
 }
 
-export function useRoom(): UseRoom {
-  const roomRef = useRef<Room | null>(null);
+/**
+ * Room options (SPEC 5.6): adaptive stream picks the simulcast layer from the size of the
+ * attached <video>, dynacast lets the publisher pause layers nobody watches, and the Web Audio
+ * mix routes every remote audio track through an AudioContext + GainNode so per-stream volume
+ * can go above 100 % and the output device can be switched with `AudioContext.setSinkId`.
+ */
+export function createRoom(): Room {
+  return new Room({ adaptiveStream: true, dynacast: true, webAudioMix: true });
+}
+
+export function useRoom(options: UseRoomOptions = {}): UseRoom {
+  const { purpose = 'main' } = options;
+  const [room] = useState(createRoom);
   // Incremented on every join/leave so stale async work can bail out.
   const sequence = useRef(0);
   const currentRoomRef = useRef<RoomId | null>(null);
@@ -61,49 +82,53 @@ export function useRoom(): UseRoom {
   const [connectionState, setConnectionState] = useState<RoomConnectionState>('disconnected');
   const [error, setError] = useState<string | null>(null);
   const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
+  const [audioPlayback, setAudioPlayback] = useState(true);
 
-  const getRoom = useCallback((): Room => {
-    if (roomRef.current) return roomRef.current;
-    const room = new Room({ adaptiveStream: true, dynacast: true });
-    room.on(RoomEvent.ConnectionStateChanged, (state) => {
+  useEffect(() => {
+    const onState = (state: ConnectionState): void => {
       setConnectionState(toConnectionState(state));
-    });
-    room.on(RoomEvent.Disconnected, (reason) => {
+    };
+    const onDisconnected = (reason?: DisconnectReason): void => {
       const message = disconnectMessage(reason);
       if (message) setError(message);
-    });
-    roomRef.current = room;
-    return room;
-  }, []);
+    };
+    const onAudioPlayback = (playing: boolean): void => setAudioPlayback(playing);
+    room
+      .on(RoomEvent.ConnectionStateChanged, onState)
+      .on(RoomEvent.Disconnected, onDisconnected)
+      .on(RoomEvent.AudioPlaybackStatusChanged, onAudioPlayback);
+    return () => {
+      room
+        .off(RoomEvent.ConnectionStateChanged, onState)
+        .off(RoomEvent.Disconnected, onDisconnected)
+        .off(RoomEvent.AudioPlaybackStatusChanged, onAudioPlayback);
+    };
+  }, [room]);
 
+  // Disconnect when the owner unmounts (harmless before any connect, e.g. StrictMode).
   useEffect(
     () => () => {
-      const room = roomRef.current;
-      roomRef.current = null;
-      if (room) {
-        room.removeAllListeners();
-        void room.disconnect();
-      }
+      sequence.current += 1;
+      void room.disconnect();
     },
-    [],
+    [room],
   );
 
   const join = useCallback(
-    async (roomId: RoomId, focusParticipantId: string | null = null) => {
-      const room = getRoom();
+    async (roomId: RoomId, focusParticipantId: string | null = null): Promise<boolean> => {
       const alreadyThere =
         currentRoomRef.current === roomId && room.state !== ConnectionState.Disconnected;
       if (alreadyThere) {
         // Re-clicking the current room keeps the focus; a badge click re-targets it.
         if (focusParticipantId) setFocusedParticipantId(focusParticipantId);
-        return;
+        return room.state === ConnectionState.Connected;
       }
       setFocusedParticipantId(focusParticipantId);
 
       const seq = ++sequence.current;
       setError(null);
       if (room.state !== ConnectionState.Disconnected) await room.disconnect();
-      if (seq !== sequence.current) return;
+      if (seq !== sequence.current) return false;
 
       currentRoomRef.current = roomId;
       setCurrentRoom(roomId);
@@ -111,24 +136,26 @@ export function useRoom(): UseRoom {
 
       let grant: TokenResponse;
       try {
-        grant = await concord().requestToken(roomId);
+        grant = await concord().requestToken(roomId, purpose);
       } catch (err) {
-        if (seq !== sequence.current) return;
+        if (seq !== sequence.current) return false;
         setConnectionState('disconnected');
         setError(toErrorMessage(err, 'Não foi possível obter acesso à sala.'));
-        return;
+        return false;
       }
-      if (seq !== sequence.current) return;
+      if (seq !== sequence.current) return false;
 
       try {
         await room.connect(grant.url, grant.token, { autoSubscribe: false });
       } catch {
-        if (seq !== sequence.current) return;
+        if (seq !== sequence.current) return false;
         setConnectionState('disconnected');
         setError('Não foi possível conectar ao servidor de mídia.');
+        return false;
       }
+      return seq === sequence.current;
     },
-    [getRoom],
+    [room, purpose],
   );
 
   const leave = useCallback(async () => {
@@ -138,13 +165,27 @@ export function useRoom(): UseRoom {
     setError(null);
     setFocusedParticipantId(null);
     setConnectionState('disconnected');
-    const room = roomRef.current;
-    if (room && room.state !== ConnectionState.Disconnected) await room.disconnect();
-  }, []);
+    if (room.state !== ConnectionState.Disconnected) await room.disconnect();
+  }, [room]);
 
   const focus = useCallback((participantId: string | null) => {
     setFocusedParticipantId(participantId);
   }, []);
 
-  return { currentRoom, connectionState, error, focusedParticipantId, join, leave, focus };
+  const startAudio = useCallback(async () => {
+    await room.startAudio();
+  }, [room]);
+
+  return {
+    room,
+    currentRoom,
+    connectionState,
+    error,
+    focusedParticipantId,
+    audioPlayback,
+    join,
+    leave,
+    focus,
+    startAudio,
+  };
 }
