@@ -31,6 +31,7 @@ pnpm dev:livekit   # livekit-server local (janela própria)
 pnpm dev:api       # concord-api em http://127.0.0.1:3000 (lê infra/.env)
 pnpm dev           # app desktop com hot reload
 pnpm lint && pnpm typecheck && pnpm test
+pnpm --filter @concord/desktop dist   # instalador NSIS em apps/desktop/release
 ```
 
 Estrutura: `apps/desktop` (Electron + React), `apps/api` (Fastify), `packages/shared`
@@ -41,13 +42,13 @@ as convenções do código em [CLAUDE.md](CLAUDE.md).
 
 ## Estado
 
-| Fase                                    | Situação  |
-| --------------------------------------- | --------- |
-| 0 — Fundação do monorepo                | concluída |
-| 1 — Servidor (auth, tokens, presença)   | concluída |
-| 2 — Desktop: bandeja, onboarding, salas | concluída |
-| 3a — Transmitir e assistir              | próxima   |
-| 3b — Áudio por processo                 | pendente  |
-| 4 — Polimento da UI                     | pendente  |
-| 5 — Deploy na Oracle (opcional)         | pendente  |
-| 6 — Instalador e atualização automática | pendente  |
+| Fase                                    | Situação                        |
+| --------------------------------------- | ------------------------------- |
+| 0 — Fundação do monorepo                | concluída                       |
+| 1 — Servidor (auth, tokens, presença)   | concluída                       |
+| 2 — Desktop: bandeja, onboarding, salas | concluída                       |
+| 3a — Transmitir e assistir              | concluída                       |
+| 3b — Áudio por processo                 | concluída                       |
+| 4 — Polimento da UI                     | concluída                       |
+| 5 — Deploy na Oracle (opcional)         | preparada, não executada        |
+| 6 — Instalador e atualização automática | concluída (publicação pendente) |

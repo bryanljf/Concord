@@ -15,6 +15,7 @@ pnpm format               # prettier --write
 pnpm typecheck            # tsc em todos os pacotes
 pnpm test                 # vitest em todos os pacotes
 pnpm build                # build de todos os pacotes
+pnpm --filter @concord/desktop dist   # instalador NSIS (apps/desktop/release); publica no GitHub via release.yml
 ```
 
 Se o binário do Electron não baixar no `pnpm install`, rode
@@ -24,6 +25,7 @@ Dentro do VS Code, limpe `ELECTRON_RUN_AS_NODE` antes de iniciar o Electron manu
 ## Estrutura
 
 - `packages/shared` — tipos e constantes compartilhados (presença, DTOs, presets de qualidade). Exporta TS puro.
+- `packages/process-audio` — adaptador do addon `loopback-capture` (áudio por processo no Windows, binário pré-compilado); carregado em runtime pelo main, fora do bundle e fora do asar.
 - `apps/api` — concord-api (Fastify 5). `src/app.ts` monta o app (testável via `inject`), `src/index.ts` só dá `listen`.
 - `apps/desktop` — Electron 44 + electron-vite + React 19. `src/main` (processo principal: bandeja, presença SSE, settings), `src/preload` (ponte IPC; o contrato é `api.d.ts`), `src/renderer` (UI).
 - `infra/` — `livekit.yaml` compartilhado, `local/` (hospedagem no PC Windows), docker-compose, exemplos de `.env`/`users.json`.
