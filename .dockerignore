@@ -1,0 +1,18 @@
+# Contexto de build do apps/api/Dockerfile (contexto = raiz do repositório). O Dockerfile só
+# copia manifestos, pnpm-lock.yaml, apps/api/src e packages/shared/src; o resto fica de fora
+# para o contexto ser pequeno e nenhum segredo chegar ao daemon do Docker.
+.git
+**/node_modules
+**/out
+**/dist
+**/release
+**/coverage
+**/*.log
+infra/local/bin
+infra/local/.pids
+
+# Segredos: nunca entram na imagem (o compose os entrega por env_file e volume).
+**/.env
+**/.env.*
+!**/.env.example
+**/users.json

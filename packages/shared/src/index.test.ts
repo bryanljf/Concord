@@ -1,11 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyPresenceEvent,
+  AUXILIARY_IDENTITY_SEPARATOR,
+  auxiliaryIdentity,
+  isAuxiliaryIdentity,
   QUALITY_PRESETS,
   ROOM_ID_PATTERN,
   type PresenceParticipant,
   type PresenceSnapshot,
 } from './index';
+
+describe('auxiliary identities', () => {
+  it('derives the pop-out identity from the user id', () => {
+    expect(auxiliaryIdentity('bryan', 'popout')).toBe('bryan~popout');
+    expect(auxiliaryIdentity('bryan', 'popout')).toBe(`bryan${AUXILIARY_IDENTITY_SEPARATOR}popout`);
+  });
+
+  it('recognises auxiliary identities and leaves regular ids alone', () => {
+    expect(isAuxiliaryIdentity(auxiliaryIdentity('ana', 'popout'))).toBe(true);
+    expect(isAuxiliaryIdentity('bryan~popout')).toBe(true);
+    expect(isAuxiliaryIdentity('bryan')).toBe(false);
+    expect(isAuxiliaryIdentity('bryan-popout')).toBe(false);
+    expect(isAuxiliaryIdentity('')).toBe(false);
+  });
+
+  it('uses a separator that can never appear in a user or room id', () => {
+    expect(ROOM_ID_PATTERN.test(`a${AUXILIARY_IDENTITY_SEPARATOR}b`)).toBe(false);
+  });
+});
 
 describe('QUALITY_PRESETS', () => {
   it('uses motion hint only for the game preset', () => {

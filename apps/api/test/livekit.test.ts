@@ -8,7 +8,12 @@ import {
 } from 'livekit-server-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { TOKEN_TTL_SECONDS } from '@concord/shared';
-import { createRoomToken, fetchRoomState, isScreenShareVideo } from '../src/livekit';
+import {
+  createRoomToken,
+  fetchRoomState,
+  isAuxiliaryParticipant,
+  isScreenShareVideo,
+} from '../src/livekit';
 import { ALICE, API_KEY, API_SECRET, testConfig } from './helpers';
 
 describe('createRoomToken', () => {
@@ -30,6 +35,40 @@ describe('createRoomToken', () => {
     expect(exp).toBeGreaterThanOrEqual(before + TOKEN_TTL_SECONDS);
     expect(exp).toBeLessThanOrEqual(before + TOKEN_TTL_SECONDS + 5);
     expect(Math.abs(expiresAt - exp * 1000)).toBeLessThanOrEqual(1000);
+  });
+
+  it('issues a hidden, subscribe-only token under the pop-out identity', async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const { token, expiresAt } = await createRoomToken(
+      testConfig().livekit,
+      ALICE,
+      'geral',
+      'popout',
+    );
+    const claims = await new TokenVerifier(API_KEY, API_SECRET).verify(token);
+    expect(claims.sub).toBe('alice~popout');
+    expect(claims.name).toBe('Alice');
+    expect(claims.video).toEqual({
+      roomJoin: true,
+      room: 'geral',
+      canSubscribe: true,
+      canPublish: false,
+      canPublishData: false,
+      hidden: true,
+    });
+    const exp = claims.exp ?? 0;
+    expect(exp).toBeGreaterThanOrEqual(before + TOKEN_TTL_SECONDS);
+    expect(Math.abs(expiresAt - exp * 1000)).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe('isAuxiliaryParticipant', () => {
+  it.each<[string, boolean]>([
+    ['alice', false],
+    ['alice~popout', true],
+    ['alice-popout', false],
+  ])('%s -> %s', (identity, expected) => {
+    expect(isAuxiliaryParticipant(new ParticipantInfo({ identity }))).toBe(expected);
   });
 });
 
@@ -86,6 +125,27 @@ describe('fetchRoomState', () => {
       jogos: [],
     });
     expect(roomService.listParticipants).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves auxiliary identities (pop-out windows) out of the state', async () => {
+    const roomService = {
+      listRooms: vi.fn(async () => [new Room({ name: 'geral', sid: 'RM_1' })]),
+      listParticipants: vi.fn(async () => [
+        new ParticipantInfo({ identity: 'ana', name: 'Ana', joinedAt: 1_700_000_000n }),
+        new ParticipantInfo({
+          identity: 'ana~popout',
+          name: 'Ana',
+          joinedAt: 1_700_000_005n,
+          tracks: [
+            new TrackInfo({ sid: 'TR_x', type: TrackType.VIDEO, source: TrackSource.SCREEN_SHARE }),
+          ],
+        }),
+      ]),
+    };
+
+    await expect(fetchRoomState(roomService)).resolves.toEqual({
+      geral: [{ id: 'ana', name: 'Ana', joinedAt: 1_700_000_000_000, screenTracks: [] }],
+    });
   });
 
   it('returns an empty state when there are no rooms', async () => {

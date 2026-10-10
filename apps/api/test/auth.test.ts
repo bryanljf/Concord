@@ -41,6 +41,10 @@ describe('parseUsersFile', () => {
     ['a missing users array', '{}'],
     ['a non-object entry', file(['x'])],
     ['an invalid id', file([{ id: 'A!', displayName: 'A', key }])],
+    [
+      'an id that looks like an auxiliary identity',
+      file([{ id: 'ana~popout', displayName: 'A', key }]),
+    ],
     ['a duplicate id', file([ALICE, { ...BOB, id: ALICE.id }])],
     ['an empty displayName', file([{ id: 'ana', displayName: ' ', key }])],
     ['a short key', file([{ id: 'ana', displayName: 'Ana', key: 'short' }])],

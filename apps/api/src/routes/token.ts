@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { ApiErrorResponse, TokenRequest, TokenResponse } from '@concord/shared';
+import type { ApiErrorResponse, TokenPurpose, TokenRequest, TokenResponse } from '@concord/shared';
 import { getUser, requireUser, type UserStore } from '../auth';
 import type { ApiConfig } from '../config';
 import { createRoomToken } from '../livekit';
@@ -9,11 +9,14 @@ export interface TokenRoutesOptions {
   users: UserStore;
 }
 
+const TOKEN_PURPOSES = ['main', 'popout'] as const satisfies readonly TokenPurpose[];
+
 const bodySchema = {
   type: 'object',
   required: ['room'],
   properties: {
     room: { type: 'string', minLength: 1, maxLength: 64 },
+    purpose: { type: 'string', enum: TOKEN_PURPOSES },
   },
 } as const;
 
@@ -35,12 +38,17 @@ export const tokenRoutes: FastifyPluginAsync<TokenRoutesOptions> = async (
       preHandler: requireUser(users),
     },
     async (request, reply): Promise<TokenResponse | ApiErrorResponse> => {
-      const { room } = request.body;
+      const { room, purpose = 'main' } = request.body;
       if (!config.rooms.includes(room)) {
         reply.code(400);
         return { error: 'unknown_room', message: `A sala "${room}" não existe.` };
       }
-      const { token, expiresAt } = await createRoomToken(config.livekit, getUser(request), room);
+      const { token, expiresAt } = await createRoomToken(
+        config.livekit,
+        getUser(request),
+        room,
+        purpose,
+      );
       const { url, localUrl } = config.livekit;
       return { token, url: localUrl && isLoopback(request.ip) ? localUrl : url, expiresAt };
     },

@@ -57,7 +57,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   const { config, users, presence } = options;
   const app = Fastify({
     logger: options.logger ?? false,
-    trustProxy: config.trustProxy,
+    // One hop (Caddy): the client IP is the last X-Forwarded-For entry; a spoofed header is ignored.
+    trustProxy: config.trustProxy ? 1 : false,
     // Lets close() finish promptly even while SSE connections are open.
     forceCloseConnections: true,
   });

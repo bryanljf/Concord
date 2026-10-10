@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { WebhookEvent, WebhookReceiver } from 'livekit-server-sdk';
 import type { ApiErrorResponse, HealthResponse } from '@concord/shared';
-import { isScreenShareVideo, toParticipantIdentity } from '../livekit';
+import { isAuxiliaryParticipant, isScreenShareVideo, toParticipantIdentity } from '../livekit';
 import type { Logger } from '../logger';
 import type { PresenceStore } from '../presence-store';
 
@@ -10,12 +10,23 @@ export interface LivekitWebhookRoutesOptions {
   presence: PresenceStore;
 }
 
-/** Applies one verified LiveKit webhook event to the presence store. */
+/**
+ * Applies one verified LiveKit webhook event to the presence store. Events about auxiliary
+ * identities (pop-out windows) are dropped: the person is already represented by their main
+ * connection.
+ */
 export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, log: Logger): void {
   const room = event.room?.name;
   const { participant, track } = event;
   if (!room) {
     log.debug({ event: event.event }, 'ignoring LiveKit webhook without a room');
+    return;
+  }
+  if (participant && isAuxiliaryParticipant(participant)) {
+    log.debug(
+      { event: event.event, room, identity: participant.identity },
+      'ignoring LiveKit webhook for an auxiliary identity',
+    );
     return;
   }
   switch (event.event) {

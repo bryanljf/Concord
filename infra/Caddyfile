@@ -1,0 +1,19 @@
+# Caddy na VM Oracle (Fase 5, SPEC 4.5) — PREPARADO, AINDA NÃO EXECUTADO.
+# Roda com network_mode: host (infra/docker-compose.yml), por isso os upstreams são portas do
+# host: 3000 = api (publicada só em 127.0.0.1) e 7880 = livekit-server (sinalização WebSocket).
+# HTTPS automático via Let's Encrypt para {$DOMAIN} (variável DOMAIN do infra/.env). Exige que
+# o DNS já aponte para a VM e que as portas 80 e 443 estejam abertas (Security List + iptables).
+{$DOMAIN} {
+	# concord-api: /api/health, /api/me, /api/rooms, /api/token, /api/presence (SSE).
+	# O webhook do LiveKit vai direto em 127.0.0.1:3000 e nem passa por aqui.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	# Todo o resto é o LiveKit (wss://<domínio>/rtc ...). O reverse_proxy repassa o upgrade
+	# para WebSocket sozinho. A mídia WebRTC (UDP 50000-50200 / TCP 7881) vai direto ao
+	# livekit-server, sem passar pelo Caddy.
+	handle {
+		reverse_proxy 127.0.0.1:7880
+	}
+}

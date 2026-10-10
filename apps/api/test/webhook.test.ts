@@ -67,6 +67,29 @@ describe('POST /api/livekit/webhook', () => {
     await app.close();
   });
 
+  it('ignores every event about an auxiliary identity (pop-out window)', async () => {
+    const { app, presence } = testApp();
+    const events: PresenceEvent[] = [];
+    presence.subscribe((event) => events.push(event));
+    const anaPopout = { sid: 'PA_3', identity: 'ana~popout', name: 'Ana', joinedAt: '1700000020' };
+
+    const sequence = [
+      { event: 'participant_joined', room, participant: anaPopout },
+      { event: 'track_published', room, participant: anaPopout, track: screenTrack },
+      { event: 'track_unpublished', room, participant: anaPopout, track: screenTrack },
+      { event: 'participant_left', room, participant: anaPopout },
+    ];
+    for (const event of sequence) {
+      const res = await postWebhook(app, event);
+      expect(res.statusCode, event.event).toBe(200);
+      expect(res.json()).toEqual({ ok: true });
+    }
+
+    expect(events).toEqual([]);
+    expect(presence.snapshot()).toEqual({ rooms: { geral: [], jogos: [] } });
+    await app.close();
+  });
+
   it('creates the participant when a screen track is published before the join event', async () => {
     const { app, presence } = testApp();
     const res = await postWebhook(app, {
@@ -124,6 +147,26 @@ describe('applyWebhookEvent', () => {
       log,
     );
     expect(log.debug).toHaveBeenCalledTimes(2);
+    expect(presence.snapshot()).toEqual({ rooms: { geral: [] } });
+  });
+
+  it('drops auxiliary identities at debug level but still closes the room', () => {
+    const presence = new PresenceStore(['geral']);
+    const log = fakeLogger();
+    presence.join('geral', { id: 'alice', name: 'Alice', joinedAt: 1 });
+    const popout = { ...alice, identity: 'alice~popout' };
+    applyWebhookEvent(
+      presence,
+      WebhookEvent.fromJson({ event: 'participant_joined', room, participant: popout }),
+      log,
+    );
+    expect(log.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: 'alice~popout', room: 'geral' }),
+      expect.any(String),
+    );
+    expect(presence.snapshot().rooms.geral).toHaveLength(1);
+
+    applyWebhookEvent(presence, WebhookEvent.fromJson({ event: 'room_finished', room }), log);
     expect(presence.snapshot()).toEqual({ rooms: { geral: [] } });
   });
 });

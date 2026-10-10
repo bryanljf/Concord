@@ -43,6 +43,24 @@ describe('startResync', () => {
     expect(log.warn).not.toHaveBeenCalled();
   });
 
+  it('never lets auxiliary identities into presence', async () => {
+    const presence = new PresenceStore(['geral']);
+    const roomService = {
+      listRooms: vi.fn(async () => [new Room({ name: 'geral' })]),
+      listParticipants: vi.fn(async () => [
+        new ParticipantInfo({ identity: 'alice~popout', name: 'Alice', joinedAt: 11n }),
+        new ParticipantInfo({ identity: 'alice', name: 'Alice', joinedAt: 10n }),
+      ]),
+    };
+    const resync = startResync({ presence, roomService, log: fakeLogger() });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(presence.snapshot().rooms.geral).toEqual([
+      { id: 'alice', name: 'Alice', streaming: false, joinedAt: 10_000 },
+    ]);
+    resync.stop();
+  });
+
   it('honours the initial delay', async () => {
     const roomService = fakeRoomService(async () => []);
     const resync = startResync({
