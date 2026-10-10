@@ -9,6 +9,7 @@ import type {
   PresenceSnapshot,
   QualityPresetId,
   RoomId,
+  TokenPurpose,
   TokenResponse,
   UserInfo,
 } from '@concord/shared';
@@ -56,6 +57,63 @@ export interface NavigateTarget {
   participantId?: string;
 }
 
+// --- Capture / streaming (Phase 3) ----------------------------------------------
+
+export interface CaptureSource {
+  /** `desktopCapturer` id: `window:<hwnd>:0` or `screen:<n>:0`. */
+  id: string;
+  name: string;
+  kind: 'window' | 'screen';
+  /** PNG data URL, refreshed on every `getCaptureSources()` call. */
+  thumbnailDataUrl: string;
+  appIconDataUrl: string | null;
+}
+
+export interface CaptureSelection {
+  sourceId: string;
+  /** Add Electron's system loopback audio (whole system, including the Discord call). */
+  systemAudio: boolean;
+}
+
+/** What this instance is currently publishing; owned by the renderer, mirrored by main. */
+export interface StreamingState {
+  active: boolean;
+  room: RoomId | null;
+  sourceName: string | null;
+  quality: QualityPresetId | null;
+}
+
+export interface PopoutTarget {
+  room: RoomId;
+  participantId: string;
+}
+
+// --- Updates (Phase 6) -------------------------------------------------------------
+
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'up_to_date'; version: string }
+  | { state: 'available'; version: string }
+  | { state: 'downloading'; version: string; percent: number }
+  | { state: 'ready'; version: string }
+  | { state: 'error'; message: string }
+  /** Development build or a platform without an updater. */
+  | { state: 'unsupported'; reason: string };
+
+// --- Process audio (Phase 3b) ---------------------------------------------------------
+
+export interface ProcessAudioSupport {
+  supported: boolean;
+  /** pt-BR explanation when unsupported (old Windows, missing native module, ...). */
+  reason: string | null;
+}
+
+export interface ProcessAudioFormat {
+  sampleRate: number;
+  channels: number;
+}
+
 export interface ConcordApi {
   platform: string;
   /** App version from package.json. */
@@ -81,7 +139,8 @@ export interface ConcordApi {
 
   // --- concord-api calls (main adds the Authorization header) ------------------
   getRooms(): Promise<RoomId[]>;
-  requestToken(room: RoomId): Promise<TokenResponse>;
+  /** `purpose: 'popout'` yields a hidden, subscribe-only identity for the pop-out window. */
+  requestToken(room: RoomId, purpose?: TokenPurpose): Promise<TokenResponse>;
 
   // --- Presence (SSE lives in main) --------------------------------------------
   getPresence(): Promise<PresenceState>;
@@ -96,8 +155,50 @@ export interface ConcordApi {
   onOpenSettings(listener: () => void): () => void;
 
   // --- Window ------------------------------------------------------------------
+  /** Which BrowserWindow this renderer lives in. */
+  windowKind: 'main' | 'popout';
   hideToTray(): void;
   openExternal(url: string): Promise<void>;
+  setFullscreen(enabled: boolean): Promise<void>;
+  onFullscreenChanged(listener: (enabled: boolean) => void): () => void;
+
+  // --- Capture / streaming (Phase 3) ---------------------------------------------
+  getCaptureSources(): Promise<CaptureSource[]>;
+  /**
+   * Must be called right before `navigator.mediaDevices.getDisplayMedia()`: main answers the
+   * next display-media request with this source (and loopback audio when `systemAudio`).
+   */
+  selectCaptureSource(selection: CaptureSelection): Promise<void>;
+  /** The renderer reports what it publishes; main updates tray/tooltip and pop-outs. */
+  setStreamingState(state: StreamingState): Promise<void>;
+  getStreamingState(): Promise<StreamingState>;
+  onStreamingStateChanged(listener: (state: StreamingState) => void): () => void;
+
+  // --- Pop-out window -------------------------------------------------------------
+  /** Opens (or re-targets) the frameless pop-out window showing one participant's stream. */
+  openPopout(target: PopoutTarget): Promise<void>;
+  closePopout(): Promise<void>;
+  /** In the pop-out renderer: what to show. Null in the main window. */
+  getPopoutTarget(): Promise<PopoutTarget | null>;
+  setAlwaysOnTop(enabled: boolean): Promise<void>;
+
+  // --- Updates (Phase 6) ----------------------------------------------------------
+  getUpdateStatus(): Promise<UpdateStatus>;
+  checkForUpdates(): Promise<UpdateStatus>;
+  /** Quits and installs a `ready` update. */
+  installUpdate(): Promise<void>;
+  onUpdateStatus(listener: (status: UpdateStatus) => void): () => void;
+
+  // --- Process audio (Phase 3b) ---------------------------------------------------
+  getProcessAudioSupport(): Promise<ProcessAudioSupport>;
+  /**
+   * Window source: captures only that window's process tree. Screen source: captures
+   * everything except Discord's process tree. PCM arrives through `onProcessAudioData` as
+   * interleaved float32 frames in the returned format.
+   */
+  startProcessAudio(sourceId: string): Promise<ProcessAudioFormat>;
+  stopProcessAudio(): Promise<void>;
+  onProcessAudioData(listener: (chunk: Float32Array) => void): () => void;
 }
 
 declare global {

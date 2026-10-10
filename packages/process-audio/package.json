@@ -1,0 +1,20 @@
+{
+  "name": "@concord/process-audio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Windows per-process audio capture (Process Loopback) for Concord",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "node-addon-api": "8.9.2",
+    "node-gyp-build": "4.8.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "prebuildify": "6.0.1"
+  }
+}

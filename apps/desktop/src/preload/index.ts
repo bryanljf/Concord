@@ -1,14 +1,27 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { PresenceEvent, RoomId, TokenResponse, UserInfo } from '@concord/shared';
 import type {
+  CaptureSource,
+  ConcordApi,
   NavigateTarget,
+  PopoutTarget,
   PresenceConnectionStatus,
   PresenceState,
+  ProcessAudioFormat,
+  ProcessAudioSupport,
   Session,
   Settings,
-  ConcordApi,
+  StreamingState,
+  UpdateStatus,
 } from './api';
-import { EVENTS, IPC, type EventChannel, type IpcChannel, type IpcResult } from './channels';
+import {
+  EVENTS,
+  IPC,
+  WINDOW_KIND_ARG,
+  type EventChannel,
+  type IpcChannel,
+  type IpcResult,
+} from './channels';
 
 /**
  * Injected at build time by `define` in electron.vite.config.ts (the sandboxed preload cannot
@@ -46,7 +59,7 @@ const api: ConcordApi = {
   onSettingsChanged: (listener) => subscribe<Settings>(EVENTS.SETTINGS_CHANGED, listener),
 
   getRooms: () => invoke<RoomId[]>(IPC.GET_ROOMS),
-  requestToken: (room) => invoke<TokenResponse>(IPC.REQUEST_TOKEN, room),
+  requestToken: (room, purpose) => invoke<TokenResponse>(IPC.REQUEST_TOKEN, room, purpose),
 
   getPresence: () => invoke<PresenceState>(IPC.GET_PRESENCE),
   onPresenceEvent: (listener) => subscribe<PresenceEvent>(EVENTS.PRESENCE_EVENT, listener),
@@ -57,8 +70,39 @@ const api: ConcordApi = {
   onStreamToggleRequested: (listener) => subscribe<void>(EVENTS.STREAM_TOGGLE, () => listener()),
   onOpenSettings: (listener) => subscribe<void>(EVENTS.OPEN_SETTINGS, () => listener()),
 
+  windowKind: readWindowKind(process.argv),
   hideToTray: () => ipcRenderer.send(IPC.HIDE_TO_TRAY),
   openExternal: (url) => invoke<void>(IPC.OPEN_EXTERNAL, url),
+  setFullscreen: (enabled) => invoke<void>(IPC.SET_FULLSCREEN, enabled),
+  onFullscreenChanged: (listener) => subscribe<boolean>(EVENTS.FULLSCREEN_CHANGED, listener),
+
+  getCaptureSources: () => invoke<CaptureSource[]>(IPC.GET_CAPTURE_SOURCES),
+  selectCaptureSource: (selection) => invoke<void>(IPC.SELECT_CAPTURE_SOURCE, selection),
+  setStreamingState: (state) => invoke<void>(IPC.SET_STREAMING_STATE, state),
+  getStreamingState: () => invoke<StreamingState>(IPC.GET_STREAMING_STATE),
+  onStreamingStateChanged: (listener) =>
+    subscribe<StreamingState>(EVENTS.STREAMING_STATE, listener),
+
+  openPopout: (target) => invoke<void>(IPC.OPEN_POPOUT, target),
+  closePopout: () => invoke<void>(IPC.CLOSE_POPOUT),
+  getPopoutTarget: () => invoke<PopoutTarget | null>(IPC.GET_POPOUT_TARGET),
+  setAlwaysOnTop: (enabled) => invoke<void>(IPC.SET_ALWAYS_ON_TOP, enabled),
+
+  getUpdateStatus: () => invoke<UpdateStatus>(IPC.GET_UPDATE_STATUS),
+  checkForUpdates: () => invoke<UpdateStatus>(IPC.CHECK_FOR_UPDATES),
+  installUpdate: () => invoke<void>(IPC.INSTALL_UPDATE),
+  onUpdateStatus: (listener) => subscribe<UpdateStatus>(EVENTS.UPDATE_STATUS, listener),
+
+  getProcessAudioSupport: () => invoke<ProcessAudioSupport>(IPC.PROCESS_AUDIO_SUPPORT),
+  startProcessAudio: (sourceId) => invoke<ProcessAudioFormat>(IPC.PROCESS_AUDIO_START, sourceId),
+  stopProcessAudio: () => invoke<void>(IPC.PROCESS_AUDIO_STOP),
+  onProcessAudioData: (listener) => subscribe<Float32Array>(EVENTS.PROCESS_AUDIO_DATA, listener),
 };
+
+/** Main passes `--concord-window=<kind>` through `webPreferences.additionalArguments`. */
+function readWindowKind(argv: readonly string[]): 'main' | 'popout' {
+  const flag = argv.find((arg) => arg.startsWith(WINDOW_KIND_ARG));
+  return flag?.slice(WINDOW_KIND_ARG.length) === 'popout' ? 'popout' : 'main';
+}
 
 contextBridge.exposeInMainWorld('concord', api);

@@ -77,8 +77,27 @@ export interface RoomsResponse {
   rooms: RoomId[];
 }
 
+/**
+ * `main`: the regular participant (publishes and subscribes). `popout`: a hidden, subscribe-only
+ * identity used by the pop-out window, so one person can hold two LiveKit connections.
+ */
+export type TokenPurpose = 'main' | 'popout';
+
 export interface TokenRequest {
   room: RoomId;
+  purpose?: TokenPurpose;
+}
+
+/** Appended to the user id for auxiliary identities (`bryan~popout`). */
+export const AUXILIARY_IDENTITY_SEPARATOR = '~';
+
+/** Auxiliary identities never appear in presence and cannot publish. */
+export function isAuxiliaryIdentity(identity: string): boolean {
+  return identity.includes(AUXILIARY_IDENTITY_SEPARATOR);
+}
+
+export function auxiliaryIdentity(userId: string, purpose: Exclude<TokenPurpose, 'main'>): string {
+  return `${userId}${AUXILIARY_IDENTITY_SEPARATOR}${purpose}`;
 }
 
 export interface TokenResponse {
