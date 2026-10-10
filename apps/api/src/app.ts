@@ -56,7 +56,9 @@ function toClientError(error: FastifyError, statusCode: number): ApiErrorRespons
 export function buildApp(options: BuildAppOptions): FastifyInstance {
   const { config, users, presence } = options;
   // One hop (Caddy): the client IP is the last X-Forwarded-For entry; a spoofed header is ignored.
-  const trustProxy: FastifyServerOptions['trustProxy'] = config.trustProxy ? 1 : false;
+  const trustProxy: FastifyServerOptions['trustProxy'] = config.trustProxy
+    ? (_address: string, hop: number) => hop === 0
+    : false;
   const app = Fastify({
     logger: options.logger ?? false,
     trustProxy,
