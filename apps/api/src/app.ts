@@ -55,10 +55,11 @@ function toClientError(error: FastifyError, statusCode: number): ApiErrorRespons
 /** Builds the HTTP app without listening; fully exercisable through `app.inject()`. */
 export function buildApp(options: BuildAppOptions): FastifyInstance {
   const { config, users, presence } = options;
+  // One hop (Caddy): the client IP is the last X-Forwarded-For entry; a spoofed header is ignored.
+  const trustProxy: FastifyServerOptions['trustProxy'] = config.trustProxy ? 1 : false;
   const app = Fastify({
     logger: options.logger ?? false,
-    // One hop (Caddy): the client IP is the last X-Forwarded-For entry; a spoofed header is ignored.
-    trustProxy: config.trustProxy ? 1 : false,
+    trustProxy,
     // Lets close() finish promptly even while SSE connections are open.
     forceCloseConnections: true,
   });
