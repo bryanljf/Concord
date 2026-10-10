@@ -32,12 +32,12 @@ jobs:
       - run: pnpm --filter @concord/process-audio test
 
       - name: Load the addon with Node
-        run: node packages/process-audio/scripts/smoke.cjs
+        run: node packages/process-audio/scripts/smoke.js
 
       - name: Load the addon with Electron's runtime (ELECTRON_RUN_AS_NODE)
         env:
           ELECTRON_RUN_AS_NODE: '1'
-        run: pnpm --filter @concord/desktop exec electron ../../packages/process-audio/scripts/smoke.cjs
+        run: pnpm --filter @concord/desktop exec electron ../../packages/process-audio/scripts/smoke.js
 
       - name: Record the binary that passed
         shell: pwsh

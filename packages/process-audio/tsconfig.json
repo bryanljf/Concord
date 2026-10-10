@@ -5,5 +5,5 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["index.d.ts", "index.js", "src/**/*.ts"]
+  "include": ["index.d.ts", "index.js", "scripts/**/*.js", "test/**/*.ts"]
 }
