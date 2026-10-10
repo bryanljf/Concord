@@ -55,9 +55,11 @@ nsis:
   shortcutName: Concord
 
 # electron-updater reads this (as app-update.yml next to the asar) to find releases.
-# OWNER is a placeholder for the GitHub user/organisation that hosts the repository; keep it in
+# GitHub user that hosts the repository; keep it in
 # sync with "repository.url" in package.json.
 publish:
   provider: github
-  owner: OWNER
+  owner: bryanljf
+  # Publish immediately (not as a draft) so electron-updater sees the release right away.
+  releaseType: release
   repo: Concord

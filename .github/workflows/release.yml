@@ -3,7 +3,7 @@ name: Release
 # Pushing a tag such as v0.1.0 builds the Windows installer and uploads it, with the
 # latest.yml electron-updater needs, to a GitHub release for that tag.
 #
-# electron-builder creates the release as a DRAFT: review it on GitHub and press "Publish"
+# electron-builder publishes the release immediately (releaseType: release in electron-builder.yml)
 # so the installed apps start seeing the update. The tag must match "version" in
 # apps/desktop/package.json (checked below).
 on:

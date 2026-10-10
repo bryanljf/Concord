@@ -13,7 +13,7 @@ Requisitos: Windows 10 ou 11 de 64 bits. Não precisa de conta de administrador.
 
 ## 1. Baixar o instalador
 
-1. Abra a página de versões do projeto: `https://github.com/OWNER/Concord/releases/latest`
+1. Abra a página de versões do projeto: `https://github.com/bryanljf/Concord/releases/latest`
    (quem hospeda te passa o link certo).
 2. Em **Assets**, baixe o arquivo **`Concord-Setup-<versão>.exe`** (por exemplo
    `Concord-Setup-0.1.0.exe`). Ignore os outros arquivos (`latest.yml`, `.blockmap`): eles
