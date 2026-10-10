@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PresenceParticipant, PresenceSnapshot } from '@telao/shared';
+import type { PresenceParticipant, PresenceSnapshot } from '@concord/shared';
 import {
   knownParticipants,
   mergeRoomIds,

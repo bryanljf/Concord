@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { ROOM_ID_PATTERN, type RoomId } from '@telao/shared';
+import { ROOM_ID_PATTERN, type RoomId } from '@concord/shared';
 
 export interface LiveKitConfig {
   /** URL (ws:// or wss://) handed to clients in the token response. */

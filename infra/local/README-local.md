@@ -1,6 +1,6 @@
-# Hospedar o Telão no seu próprio PC (Windows)
+# Hospedar o Concord no seu próprio PC (Windows)
 
-Esta é a alternativa à VM da Oracle (Fase 5): o servidor do Telão (`livekit-server` + `api`)
+Esta é a alternativa à VM da Oracle (Fase 5): o servidor do Concord (`livekit-server` + `api`)
 roda no **seu PC**, sem Docker. Serve bem para um grupo de ~10 amigos **se** a sua internet
 tiver upload suficiente (veja [Upload](#upload-a-conta-que-importa)) e o provedor te der um
 IP público (veja [CGNAT](#cgnat-quando-o-provedor-não-dá-ip-público)).
@@ -15,15 +15,15 @@ script não consegue fazer por você (roteador, DuckDNS, provedor) e como testar
 - Git (para clonar o repositório).
 - Internet com **upload alto** (fibra), de preferência com **IP público** no roteador.
 - Acesso ao painel do seu roteador (para o port forwarding).
-- O PC precisa **ficar ligado** enquanto o pessoal usa o Telão.
+- O PC precisa **ficar ligado** enquanto o pessoal usa o Concord.
 
 ## Passo a passo
 
 1. Clonar e instalar:
 
    ```powershell
-   git clone <url-do-repositorio> Telao
-   cd Telao
+   git clone <url-do-repositorio> Concord
+   cd Concord
    pnpm install
    ```
 
@@ -43,8 +43,8 @@ script não consegue fazer por você (roteador, DuckDNS, provedor) e como testar
    pessoa digita no app, junto com a URL do servidor:
 
    ```powershell
-   pnpm --filter @telao/api user:add bryan Bryan
-   pnpm --filter @telao/api user:add joao João
+   pnpm --filter @concord/api user:add bryan Bryan
+   pnpm --filter @concord/api user:add joao João
    ```
 
    As chaves ficam em `infra/users.json` (fora do git). Para revogar alguém, apague a entrada;
@@ -58,7 +58,7 @@ script não consegue fazer por você (roteador, DuckDNS, provedor) e como testar
 
    Na primeira vez o script baixa o `livekit-server` v1.13.9 (~19 MB) para `infra/local/bin/`
    e confere o SHA256 com o `checksums.txt` da release (se não bater, ele descarta o arquivo e
-   para). Depois abre duas janelas, **"Telao - LiveKit"** e **"Telao - api"**, espera as duas
+   para). Depois abre duas janelas, **"Concord - LiveKit"** e **"Concord - api"**, espera as duas
    responderem e imprime a URL que os amigos devem digitar no app, a tabela de port forwarding
    e os avisos pendentes (firewall, `LIVEKIT_URL` x IP público).
 
@@ -69,7 +69,7 @@ script não consegue fazer por você (roteador, DuckDNS, provedor) e como testar
    ```
 
    Se você não estiver como administrador, o script explica e se oferece para abrir a janela
-   elevada. Ele cria três regras de entrada chamadas `Telao ...` (TCP 3000; TCP 7880 e 7881;
+   elevada. Ele cria três regras de entrada chamadas `Concord ...` (TCP 3000; TCP 7880 e 7881;
    UDP 50000–50200). Se o Windows mostrar o aviso "Permitir acesso" do `livekit-server.exe`
    ou do `node.exe`, marque redes **privadas e públicas** e permita.
 
@@ -108,10 +108,10 @@ A maioria dos provedores troca o seu IP público de tempos em tempos. Se os amig
 direto, a URL deles quebra quando isso acontece. Solução grátis: um nome fixo no
 [DuckDNS](https://www.duckdns.org) que aponta sempre para o IP atual.
 
-1. Entre no DuckDNS (login com GitHub/Google), crie um subdomínio (ex.: `telao`) e anote o
+1. Entre no DuckDNS (login com GitHub/Google), crie um subdomínio (ex.: `concord`) e anote o
    **token** da sua conta.
-2. Use o nome no `infra/.env`: `LIVEKIT_URL=ws://telao.duckdns.org:7880`, e passe para os amigos
-   `http://telao.duckdns.org:3000`.
+2. Use o nome no `infra/.env`: `LIVEKIT_URL=ws://concord.duckdns.org:7880`, e passe para os amigos
+   `http://concord.duckdns.org:3000`.
 3. Mantenha o IP atualizado. A URL de atualização do DuckDNS é
    `https://www.duckdns.org/update?domains=SEUNOME&token=SEUTOKEN&ip=` (com `ip=` vazio, ele
    usa o IP de quem chamou). Crie uma tarefa agendada que chama essa URL a cada 5 minutos
@@ -120,10 +120,10 @@ direto, a URL deles quebra quando isso acontece. Solução grátis: um nome fixo
    ```powershell
    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -Command "Invoke-WebRequest -UseBasicParsing ''https://www.duckdns.org/update?domains=SEUNOME&token=SEUTOKEN&ip='' | Out-Null"'
    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)
-   Register-ScheduledTask -TaskName 'Telao DuckDNS' -Action $action -Trigger $trigger -Description 'Atualiza o IP publico no DuckDNS'
+   Register-ScheduledTask -TaskName 'Concord DuckDNS' -Action $action -Trigger $trigger -Description 'Atualiza o IP publico no DuckDNS'
    ```
 
-   Para conferir: `Start-ScheduledTask -TaskName 'Telao DuckDNS'` e depois `nslookup telao.duckdns.org`
+   Para conferir: `Start-ScheduledTask -TaskName 'Concord DuckDNS'` e depois `nslookup concord.duckdns.org`
    deve mostrar o mesmo IP de <https://api.ipify.org>. O `start.ps1` também avisa se
    `LIVEKIT_URL` não bate com o IP público do momento.
 
@@ -185,7 +185,7 @@ Meça o seu upload em <https://www.speedtest.net> (número "Upload").
 
 ## Firewall, energia e outros detalhes
 
-- **Firewall do Windows**: as regras `Telao ...` (passo 5). Antivírus de terceiros com firewall
+- **Firewall do Windows**: as regras `Concord ...` (passo 5). Antivírus de terceiros com firewall
   próprio também precisam liberar as mesmas portas.
 - **O PC precisa ficar ligado** e sem dormir: Configurações > Sistema > Energia > Tela e
   suspensão > "Nunca" para suspensão quando ligado na tomada (ou
@@ -193,7 +193,7 @@ Meça o seu upload em <https://www.speedtest.net> (número "Upload").
   `start.ps1` de novo).
 - **Sem TLS (ws:// e http://)**: na hospedagem local não existe certificado, então os amigos
   usam `http://...:3000` e o LiveKit `ws://...:7880`. Isso é aceitável aqui porque **só o app
-  Electron do Telão** se conecta (ele aceita `ws://`; navegadores exigiriam `wss://`). A mídia
+  Electron do Concord** se conecta (ele aceita `ws://`; navegadores exigiriam `wss://`). A mídia
   WebRTC em si é sempre criptografada (DTLS-SRTP); só a sinalização e as chamadas ao api vão em
   texto. A chave de acesso de cada amigo viaja nessas chamadas, então não use em redes públicas
   hostis. Se quiser TLS, use a opção Oracle (Caddy cuida de tudo) ou habilite TURN/TLS no
@@ -212,7 +212,7 @@ Com o `start.ps1` no ar:
 
 1. **Health do api**: <http://127.0.0.1:3000/api/health> tem que responder `{"ok":true}`.
    `http://127.0.0.1:7880/` responde `OK` (o LiveKit).
-2. **Logs do LiveKit**: na janela "Telao - LiveKit" (cópia em `infra/local/livekit.log`) deve
+2. **Logs do LiveKit**: na janela "Concord - LiveKit" (cópia em `infra/local/livekit.log`) deve
    aparecer `starting LiveKit server {"portHttp": 7880, ... "version": "1.13.9", "rtc.portTCP": 7881, "rtc.portICERange": [50000, 50200]}`
    e `using external IPs {"ips": ["SEU-IP-PUBLICO/192.168.x.x", ...], "advertiseInternalIP": true}`.
    Duas linhas que aparecem **sempre no Windows** e não são problema: `ERROR ... CPU monitoring
@@ -232,14 +232,14 @@ capacity management is unavailable`. Se o `.env` estiver sem segredo o LiveKit n
    A resposta traz `token` e `url`. Na página de teste informe a URL do LiveKit e o token e
    rode. Feito **no PC que hospeda**, use `ws://127.0.0.1:7880` (os navegadores deixam uma
    página https falar com `ws://` só para localhost). De outro PC, a página não aceita `ws://`
-   (conteúdo misto): o teste real de fora é o próprio app do Telão, ou o passo 3 para as
+   (conteúdo misto): o teste real de fora é o próprio app do Concord, ou o passo 3 para as
    portas TCP. A mídia UDP só é validada por uma sessão de verdade: se o app conecta mas o
    vídeo não aparece, o problema é a faixa UDP 50000–50200 (roteador ou firewall).
 
 5. **Presença**: com o app de dois usuários conectado, `http://127.0.0.1:3000/api/presence`
    (SSE) mostra os eventos `participant_joined`, `stream_started` etc. Se não mostra nada, o
    webhook do LiveKit não está chegando ao api: confira na janela do LiveKit por erros de
-   `webhook` e se `LIVEKIT_API_KEY=telao` no `.env` é igual a `webhook.api_key` no yaml.
+   `webhook` e se `LIVEKIT_API_KEY=concord` no `.env` é igual a `webhook.api_key` no yaml.
 
 ## Manutenção
 
@@ -251,7 +251,7 @@ capacity management is unavailable`. Se o `.env` estiver sem segredo o LiveKit n
   `infra/docker-compose.dev.yml` para manter igual). Na próxima execução o script vê que o
   binário em `infra/local/bin/` é de outra versão, baixa a nova e confere o SHA256. Antes de
   subir de versão, leia as notas da release em <https://github.com/livekit/livekit/releases>.
-- **Atualizar o Telão**: `git pull`, `pnpm install`, `-Stop` e `start.ps1`.
+- **Atualizar o Concord**: `git pull`, `pnpm install`, `-Stop` e `start.ps1`.
 - **Backup**: `infra/users.json` e `infra/.env` (os dois estão fora do git).
 - **Só o LiveKit** (desenvolvimento): `start.ps1 -LiveKitOnly` e rode o api com `pnpm dev:api`
   em outro terminal (o api lê o mesmo `infra/.env`). Quem prefere Docker Desktop usa

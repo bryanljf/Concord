@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { WebhookEvent } from 'livekit-server-sdk';
 import { describe, expect, it } from 'vitest';
-import type { ApiErrorResponse, PresenceEvent } from '@telao/shared';
+import type { ApiErrorResponse, PresenceEvent } from '@concord/shared';
 import { PresenceStore } from '../src/presence-store';
 import { applyWebhookEvent } from '../src/routes/livekit-webhook';
 import { fakeLogger, signWebhook, testApp } from './helpers';

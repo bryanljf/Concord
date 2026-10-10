@@ -6,7 +6,7 @@ import type {
   TokenRequest,
   TokenResponse,
   UserInfo,
-} from '@telao/shared';
+} from '@concord/shared';
 
 export const API_TIMEOUT_MS = 10_000;
 
@@ -58,7 +58,7 @@ export function normalizeServerUrl(input: string): string {
   } catch {
     throw new ApiClientError(
       'invalid_url',
-      'URL do servidor inválida. Use algo como https://telao.exemplo.com ou http://192.168.0.10:3000.',
+      'URL do servidor inválida. Use algo como https://concord.exemplo.com ou http://192.168.0.10:3000.',
     );
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {

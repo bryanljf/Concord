@@ -32,7 +32,7 @@ import {
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'telao-settings-'));
+  dir = mkdtempSync(join(tmpdir(), 'concord-settings-'));
   electronMock.userDataDir = dir;
   electronMock.encryptionAvailable = true;
 });
@@ -134,10 +134,10 @@ describe('createSettingsStore', () => {
   it('repairs invalid fields and ignores unknown ones when loading', () => {
     writeFileSync(
       join(dir, 'settings.json'),
-      JSON.stringify({ serverUrl: 'https://telao.example', launchAtLogin: 'no', foo: 1 }),
+      JSON.stringify({ serverUrl: 'https://concord.example', launchAtLogin: 'no', foo: 1 }),
     );
     const store = createSettingsStore();
-    expect(store.get()).toEqual({ ...defaultSettings(), serverUrl: 'https://telao.example' });
+    expect(store.get()).toEqual({ ...defaultSettings(), serverUrl: 'https://concord.example' });
   });
 
   it('falls back to defaults when the file is not valid JSON', () => {

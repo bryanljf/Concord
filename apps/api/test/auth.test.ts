@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ApiErrorResponse, MeResponse } from '@telao/shared';
+import type { ApiErrorResponse, MeResponse } from '@concord/shared';
 import { parseBearer, parseUsersFile, UsersFileError, UserStore } from '../src/auth';
 import { ALICE, BOB, bearer, testApp } from './helpers';
 

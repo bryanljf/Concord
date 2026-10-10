@@ -1,7 +1,7 @@
 /**
  * Adds a user to users.json and prints the generated access key.
  *
- *   pnpm --filter @telao/api user:add <id> <displayName> [--admin]
+ *   pnpm --filter @concord/api user:add <id> <displayName> [--admin]
  *
  * The file path comes from USERS_FILE (default: infra/users.json at the repo root).
  */
@@ -22,7 +22,7 @@ const [id, ...nameParts] = positional;
 const displayName = nameParts.join(' ').trim();
 
 if (!id || !displayName) {
-  console.error('Uso: pnpm --filter @telao/api user:add <id> <nome de exibição> [--admin]');
+  console.error('Uso: pnpm --filter @concord/api user:add <id> <nome de exibição> [--admin]');
   process.exit(2);
 }
 if (!USER_ID_PATTERN.test(id)) {

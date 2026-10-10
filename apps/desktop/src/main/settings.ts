@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { QUALITY_PRESETS, type UserInfo } from '@telao/shared';
+import { QUALITY_PRESETS, type UserInfo } from '@concord/shared';
 import type { Settings } from '../preload/api';
 import { log } from './log';
 

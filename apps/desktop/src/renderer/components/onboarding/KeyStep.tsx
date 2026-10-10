@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import type { UserInfo } from '@telao/shared';
-import { toErrorMessage } from '../../lib/telao';
+import type { UserInfo } from '@concord/shared';
+import { toErrorMessage } from '../../lib/concord';
 import { Avatar } from '../Avatar';
 import { Spinner } from '../Spinner';
 import { EyeIcon, EyeOffIcon } from '../icons';

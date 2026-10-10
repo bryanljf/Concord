@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RoomId, TokenResponse } from '@telao/shared';
+import type { RoomId, TokenResponse } from '@concord/shared';
 import { ConnectionState, DisconnectReason, Room, RoomEvent } from 'livekit-client';
-import { telao, toErrorMessage } from '../lib/telao';
+import { concord, toErrorMessage } from '../lib/concord';
 
 export type RoomConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -111,7 +111,7 @@ export function useRoom(): UseRoom {
 
       let grant: TokenResponse;
       try {
-        grant = await telao().requestToken(roomId);
+        grant = await concord().requestToken(roomId);
       } catch (err) {
         if (seq !== sequence.current) return;
         setConnectionState('disconnected');

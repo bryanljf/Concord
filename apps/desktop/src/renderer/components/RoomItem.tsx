@@ -1,4 +1,4 @@
-import type { PresenceParticipant, RoomId } from '@telao/shared';
+import type { PresenceParticipant, RoomId } from '@concord/shared';
 import { pluralize } from '../lib/format';
 import { ParticipantRow } from './ParticipantRow';
 import { SpeakerIcon } from './icons';

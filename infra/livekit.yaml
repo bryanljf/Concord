@@ -1,4 +1,4 @@
-# Configuração do livekit-server (SFU) do Telão — versão fixada: v1.13.9.
+# Configuração do livekit-server (SFU) do Concord — versão fixada: v1.13.9.
 # O mesmo arquivo serve para a hospedagem local (infra/local/start.ps1) e para a
 # Oracle (Fase 5, Docker). Referência completa das chaves:
 # https://github.com/livekit/livekit/blob/master/config-sample.yaml
@@ -36,17 +36,17 @@ webhook:
   urls:
     - http://127.0.0.1:3000/api/livekit/webhook
   # Chave usada para assinar os webhooks. Precisa ser uma das chaves do servidor (ver abaixo).
-  api_key: telao
+  api_key: concord
 
 logging:
   level: info
 
 # Chaves de API: NÃO ficam neste arquivo (ele é versionado). O id da chave é fixo e
-# público ("telao"); só o segredo é sigiloso e vem do infra/.env (LIVEKIT_API_SECRET).
-# start.ps1 e o docker-compose injetam a variável de ambiente LIVEKIT_KEYS="telao: <segredo>",
+# público ("concord"); só o segredo é sigiloso e vem do infra/.env (LIVEKIT_API_SECRET).
+# start.ps1 e o docker-compose injetam a variável de ambiente LIVEKIT_KEYS="concord: <segredo>",
 # que o livekit-server lê como se aqui existisse:
 # keys:
-#   telao: <segredo>
+#   concord: <segredo>
 
 # TURN embutido: DESLIGADO no MVP (todo mundo tem internet residencial normal).
 # Se alguém ficar numa rede que bloqueia UDP e o fallback TCP (7881) não bastar, habilite
@@ -55,7 +55,7 @@ logging:
 # firewall/roteador. Sem certificado, prefira a opção Oracle (Caddy já cuida do TLS).
 # turn:
 #   enabled: true
-#   domain: telao.duckdns.org
+#   domain: concord.duckdns.org
 #   tls_port: 5349
 #   udp_port: 3478
 #   cert_file: /caminho/para/fullchain.pem

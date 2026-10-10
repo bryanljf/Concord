@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PresenceSnapshot, RoomId } from '@telao/shared';
+import type { PresenceSnapshot, RoomId } from '@concord/shared';
 import { mergeRoomIds } from '../lib/presence';
-import { telao, type PresenceConnectionStatus } from '../lib/telao';
+import { concord, type PresenceConnectionStatus } from '../lib/concord';
 
 /**
  * Rooms configured on the server (`GET /api/rooms`), merged with any room seen in presence.
@@ -17,7 +17,7 @@ export function useRooms(snapshot: PresenceSnapshot, status: PresenceConnectionS
     if (!connected && attempted.current) return;
     attempted.current = true;
     let active = true;
-    telao()
+    concord()
       .getRooms()
       .then(
         (rooms) => {

@@ -7,7 +7,7 @@ import {
   type ParticipantInfo,
   type TrackInfo,
 } from 'livekit-server-sdk';
-import { TOKEN_TTL_SECONDS, type RoomId } from '@telao/shared';
+import { TOKEN_TTL_SECONDS, type RoomId } from '@concord/shared';
 import type { User } from './auth';
 import type { LiveKitConfig } from './config';
 import type { ParticipantIdentity, ParticipantState, RoomState } from './presence-store';

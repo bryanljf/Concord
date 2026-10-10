@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { PresenceParticipant, RoomId } from '@telao/shared';
+import type { PresenceParticipant, RoomId } from '@concord/shared';
 import type { RoomConnectionState } from '../hooks/useRoom';
 import { Spinner } from './Spinner';
 import { StreamTile } from './StreamTile';

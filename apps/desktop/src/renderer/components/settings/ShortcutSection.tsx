@@ -1,4 +1,4 @@
-import type { Settings } from '../../lib/telao';
+import type { Settings } from '../../lib/concord';
 import { ShortcutRecorder } from '../ShortcutRecorder';
 import { SettingsSection } from './SettingsSection';
 

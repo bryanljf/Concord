@@ -30,9 +30,9 @@ export function testConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     rooms: ['geral', 'jogos'],
     usersFile: 'unused/users.json',
     livekit: {
-      url: 'wss://telao.example',
+      url: 'wss://concord.example',
       localUrl: undefined,
-      apiUrl: 'https://telao.example',
+      apiUrl: 'https://concord.example',
       apiKey: API_KEY,
       apiSecret: API_SECRET,
     },

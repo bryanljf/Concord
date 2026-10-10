@@ -20,7 +20,7 @@ room:
 webhook:
   urls:
     - http://host.docker.internal:3000/api/livekit/webhook
-  api_key: telao
+  api_key: concord
 
 logging:
   level: info

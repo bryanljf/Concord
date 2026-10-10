@@ -46,7 +46,7 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
     minWidth: 900,
     minHeight: 560,
     backgroundColor: '#313338',
-    title: 'Telão',
+    title: 'Concord',
     icon: resourcePath('icon.png'),
     show: false,
     autoHideMenuBar: true,
@@ -106,7 +106,7 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
     win.hide();
     if (!deps.settings.get().trayNoticeShown) {
       deps.notifier.show({
-        title: 'O Telão continua na bandeja',
+        title: 'O Concord continua na bandeja',
         body: 'Clique no ícone perto do relógio para abrir. Para sair, use o menu da bandeja.',
       });
       deps.settings.update({ trayNoticeShown: true });

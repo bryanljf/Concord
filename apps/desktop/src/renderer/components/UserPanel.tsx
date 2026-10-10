@@ -1,6 +1,6 @@
-import type { UserInfo } from '@telao/shared';
+import type { UserInfo } from '@concord/shared';
 import { statusLabel, statusShortLabel, statusTone } from '../lib/presence';
-import type { PresenceConnectionStatus } from '../lib/telao';
+import type { PresenceConnectionStatus } from '../lib/concord';
 import { Avatar } from './Avatar';
 import { GearIcon } from './icons';
 import '../styles/user-panel.css';

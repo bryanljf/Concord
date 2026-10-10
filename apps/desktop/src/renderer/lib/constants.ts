@@ -1,4 +1,4 @@
-/** Fallback telao-api URL when the build did not define `VITE_DEFAULT_SERVER`. */
+/** Fallback concord-api URL when the build did not define `VITE_DEFAULT_SERVER`. */
 export const DEFAULT_SERVER_URL: string =
   import.meta.env.VITE_DEFAULT_SERVER ?? 'http://127.0.0.1:3000';
 

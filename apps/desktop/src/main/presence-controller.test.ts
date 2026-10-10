@@ -1,4 +1,4 @@
-import type { PresenceEvent, PresenceSnapshot } from '@telao/shared';
+import type { PresenceEvent, PresenceSnapshot } from '@concord/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { NavigateTarget, PresenceConnectionStatus, Session } from '../preload/api';
 import type { ProcessWatcher } from './discord-watcher';

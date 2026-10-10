@@ -1,5 +1,5 @@
 import { formatRetryIn } from '../lib/format';
-import type { PresenceConnectionStatus } from '../lib/telao';
+import type { PresenceConnectionStatus } from '../lib/concord';
 import { Spinner } from './Spinner';
 import { WarningIcon } from './icons';
 import '../styles/banner.css';

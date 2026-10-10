@@ -30,7 +30,7 @@ async function readUsers(path: string): Promise<UserStore> {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return fail(
         `arquivo de usuários não encontrado em ${path}.\n` +
-          'Crie o primeiro usuário com: pnpm --filter @telao/api user:add <id> <nome>',
+          'Crie o primeiro usuário com: pnpm --filter @concord/api user:add <id> <nome>',
       );
     }
     if (err instanceof UsersFileError) return fail(`${path}: ${err.message}`);
@@ -58,7 +58,7 @@ const resync = startResync({
 const usersWatcher = watchUsersFile({ path: config.usersFile, store: users, log: app.log });
 app.log.info(
   { rooms: config.rooms, users: users.size, usersFile: config.usersFile },
-  'telao-api pronto',
+  'concord-api pronto',
 );
 
 let shuttingDown = false;

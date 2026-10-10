@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { MeResponse } from '@telao/shared';
+import type { MeResponse } from '@concord/shared';
 import { getUser, requireUser, toUserInfo, type UserStore } from '../auth';
 
 export interface MeRoutesOptions {

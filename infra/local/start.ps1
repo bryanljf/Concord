@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Sobe (ou para) o servidor do Telão neste PC Windows, sem Docker: livekit-server + api.
+    Sobe (ou para) o servidor do Concord neste PC Windows, sem Docker: livekit-server + api.
 
 .DESCRIPTION
     Uso (no PowerShell, de qualquer pasta):
@@ -260,7 +260,7 @@ function Initialize-EnvFile {
     }
     Write-Host ''
     Write-Info 'Depois crie os usuários (um por amigo) e rode este script de novo:'
-    Write-Info '  pnpm --filter @telao/api user:add <id> <nome>     (na raiz do repositório)'
+    Write-Info '  pnpm --filter @concord/api user:add <id> <nome>     (na raiz do repositório)'
     Write-Info "  $ScriptCommand"
     exit 1
 }
@@ -295,7 +295,7 @@ function Test-EnvConfig($Vars) {
         if ($line -match '^\s*api_key:\s*(\S+)') { $yamlKey = $Matches[1] }
     }
     if ($yamlKey -and $yamlKey -ne $apiKey) {
-        Write-Fail "LIVEKIT_API_KEY=$apiKey no .env, mas webhook.api_key: $yamlKey em infra\livekit.yaml. Precisam ser iguais (padrão: telao)."
+        Write-Fail "LIVEKIT_API_KEY=$apiKey no .env, mas webhook.api_key: $yamlKey em infra\livekit.yaml. Precisam ser iguais (padrão: concord)."
         exit 1
     }
     if ((Get-EnvValue $Vars 'LIVEKIT_LOCAL_URL') -eq '') {
@@ -328,7 +328,7 @@ function Test-ProcessAlive([int]$ProcessId) {
     return [bool](Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
 }
 
-function Stop-Telao {
+function Stop-Concord {
     $entries = @(Read-Pids)
     if ($entries.Count -eq 0) {
         Write-Info 'Nada registrado em infra\local\.pids (nada iniciado por este script, ou já parado).'
@@ -349,7 +349,7 @@ function Stop-Telao {
             Write-Step "Parando livekit-server órfão (PID $($_.Id))"
             Stop-Process -Id $_.Id -Force
         }
-    Write-Ok 'Telão parado.'
+    Write-Ok 'Concord parado.'
 }
 
 # Abre uma janela própria do PowerShell que roda o comando, espelha a saída em um log e
@@ -400,9 +400,9 @@ function Add-FirewallRules {
         return
     }
     $rules = @(
-        @{ Name = "Telao api (TCP $ApiPort)"; Protocol = 'TCP'; Port = @("$ApiPort") },
-        @{ Name = "Telao LiveKit sinalizacao (TCP $LiveKitPort,$LiveKitTcpPort)"; Protocol = 'TCP'; Port = @("$LiveKitPort", "$LiveKitTcpPort") },
-        @{ Name = "Telao LiveKit midia (UDP $UdpRangeStart-$UdpRangeEnd)"; Protocol = 'UDP'; Port = @("$UdpRangeStart-$UdpRangeEnd") }
+        @{ Name = "Concord api (TCP $ApiPort)"; Protocol = 'TCP'; Port = @("$ApiPort") },
+        @{ Name = "Concord LiveKit sinalizacao (TCP $LiveKitPort,$LiveKitTcpPort)"; Protocol = 'TCP'; Port = @("$LiveKitPort", "$LiveKitTcpPort") },
+        @{ Name = "Concord LiveKit midia (UDP $UdpRangeStart-$UdpRangeEnd)"; Protocol = 'UDP'; Port = @("$UdpRangeStart-$UdpRangeEnd") }
     )
     Write-Step 'Criando regras de entrada no Firewall do Windows'
     foreach ($rule in $rules) {
@@ -410,11 +410,11 @@ function Add-FirewallRules {
             Write-Ok "já existe: $($rule.Name)"
             continue
         }
-        New-NetFirewallRule -DisplayName $rule.Name -Description 'Telao (compartilhamento de tela) - hospedagem local' `
+        New-NetFirewallRule -DisplayName $rule.Name -Description 'Concord (compartilhamento de tela) - hospedagem local' `
             -Direction Inbound -Action Allow -Protocol $rule.Protocol -LocalPort $rule.Port -Profile Any | Out-Null
         Write-Ok "criada: $($rule.Name)"
     }
-    Write-Info "Para remover depois: Get-NetFirewallRule -DisplayName 'Telao*' | Remove-NetFirewallRule"
+    Write-Info "Para remover depois: Get-NetFirewallRule -DisplayName 'Concord*' | Remove-NetFirewallRule"
 }
 
 # ----------------------------------------------------------------------------
@@ -462,7 +462,7 @@ function Show-Summary($Vars) {
 
     Write-Host ''
     Write-Host '==========================================================================' -ForegroundColor Green
-    Write-Host '  Telão no ar!' -ForegroundColor Green
+    Write-Host '  Concord no ar!' -ForegroundColor Green
     Write-Host '=========================================================================='
     if ($LiveKitOnly) {
         Write-Host '  Só o LiveKit foi iniciado. Suba o api você mesmo:   pnpm dev:api'
@@ -479,15 +479,15 @@ function Show-Summary($Vars) {
     Write-Host "    UDP $UdpRangeStart-$UdpRangeEnd       LiveKit: mídia"
     Write-Host '--------------------------------------------------------------------------'
     Test-LiveKitUrl (Get-EnvValue $Vars 'LIVEKIT_URL') $publicIp
-    $firewallRules = @(Get-NetFirewallRule -DisplayName 'Telao*' -ErrorAction SilentlyContinue)
+    $firewallRules = @(Get-NetFirewallRule -DisplayName 'Concord*' -ErrorAction SilentlyContinue)
     if ($firewallRules.Count -gt 0) {
-        Write-Ok "Firewall do Windows: $($firewallRules.Count) regra(s) 'Telao*' encontrada(s)"
+        Write-Ok "Firewall do Windows: $($firewallRules.Count) regra(s) 'Concord*' encontrada(s)"
     } else {
-        Write-Warn "Firewall do Windows: nenhuma regra 'Telao*'. Rode uma vez, como administrador:"
+        Write-Warn "Firewall do Windows: nenhuma regra 'Concord*'. Rode uma vez, como administrador:"
         Write-Info "  $ScriptCommand -Firewall"
     }
     Write-Host '--------------------------------------------------------------------------'
-    Write-Host "  Logs: janelas 'Telao - LiveKit' / 'Telao - api' (cópia em infra\local\*.log)."
+    Write-Host "  Logs: janelas 'Concord - LiveKit' / 'Concord - api' (cópia em infra\local\*.log)."
     Write-Host "  Para parar:  $ScriptCommand -Stop"
     Write-Host '=========================================================================='
 }
@@ -496,10 +496,10 @@ function Show-Summary($Vars) {
 # Fluxo principal
 # ----------------------------------------------------------------------------
 try {
-    if ($Stop) { Stop-Telao; exit 0 }
+    if ($Stop) { Stop-Concord; exit 0 }
     if ($Firewall) { Add-FirewallRules; exit 0 }
 
-    Write-Host "Telão - hospedagem local  (repositório: $RepoRoot)"
+    Write-Host "Concord - hospedagem local  (repositório: $RepoRoot)"
 
     if (-not (Test-Path -LiteralPath $EnvFile)) { Initialize-EnvFile }   # termina o script
 
@@ -515,7 +515,7 @@ try {
     if (-not $LiveKitOnly) {
         if (-not (Test-Path -LiteralPath $UsersFile)) {
             Write-Fail "não existe $UsersFile. Crie pelo menos um usuário (na raiz do repositório):"
-            Write-Info '  pnpm --filter @telao/api user:add <id> <nome>'
+            Write-Info '  pnpm --filter @concord/api user:add <id> <nome>'
             exit 1
         }
         if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
@@ -531,7 +531,7 @@ try {
     $alive = @(Read-Pids | Where-Object { Test-ProcessAlive $_.ProcessId })
     if ($alive.Count -gt 0) {
         $list = ($alive | ForEach-Object { "$($_.Name)=$($_.ProcessId)" }) -join ', '
-        Write-Fail "já existe um Telão iniciado por este script ($list). Pare antes com:  $ScriptCommand -Stop"
+        Write-Fail "já existe um Concord iniciado por este script ($list). Pare antes com:  $ScriptCommand -Stop"
         exit 1
     }
     Remove-Item -LiteralPath $PidsFile -Force -ErrorAction SilentlyContinue
@@ -546,15 +546,15 @@ try {
         }
     }
 
-    Write-Step "Iniciando livekit-server (janela 'Telao - LiveKit')"
+    Write-Step "Iniciando livekit-server (janela 'Concord - LiveKit')"
     $liveKitCommand = "& '$($LiveKitExe.Replace("'", "''"))' --config '$($LiveKitConfig.Replace("'", "''"))'"
-    $liveKitPid = Start-ConsoleWindow -Title 'Telao - LiveKit' -CommandLine $liveKitCommand -WorkingDirectory $LocalDir -LogFile $LiveKitLog
+    $liveKitPid = Start-ConsoleWindow -Title 'Concord - LiveKit' -CommandLine $liveKitCommand -WorkingDirectory $LocalDir -LogFile $LiveKitLog
     Set-Content -LiteralPath $PidsFile -Value "livekit=$liveKitPid" -Encoding ASCII
     Write-Ok "PID $liveKitPid"
 
     if (-not $LiveKitOnly) {
-        Write-Step "Iniciando api (janela 'Telao - api')"
-        $apiPid = Start-ConsoleWindow -Title 'Telao - api' -CommandLine 'pnpm --filter @telao/api start' -WorkingDirectory $RepoRoot -LogFile $ApiLog
+        Write-Step "Iniciando api (janela 'Concord - api')"
+        $apiPid = Start-ConsoleWindow -Title 'Concord - api' -CommandLine 'pnpm --filter @concord/api start' -WorkingDirectory $RepoRoot -LogFile $ApiLog
         Add-Content -LiteralPath $PidsFile -Value "api=$apiPid" -Encoding ASCII
         Write-Ok "PID $apiPid"
     }
@@ -564,14 +564,14 @@ try {
     if (Wait-Http "http://127.0.0.1:$LiveKitPort/" 'OK' $HealthTimeoutSeconds) {
         Write-Ok "LiveKit respondeu em http://127.0.0.1:$LiveKitPort/"
     } else {
-        Write-Fail "LiveKit não respondeu em http://127.0.0.1:$LiveKitPort/. Veja a janela 'Telao - LiveKit' ou $LiveKitLog"
+        Write-Fail "LiveKit não respondeu em http://127.0.0.1:$LiveKitPort/. Veja a janela 'Concord - LiveKit' ou $LiveKitLog"
         $healthy = $false
     }
     if (-not $LiveKitOnly) {
         if (Wait-Http "http://127.0.0.1:$ApiPort/api/health" '"ok":true' $HealthTimeoutSeconds) {
             Write-Ok "api respondeu em http://127.0.0.1:$ApiPort/api/health"
         } else {
-            Write-Fail "api não respondeu em http://127.0.0.1:$ApiPort/api/health. Veja a janela 'Telao - api' ou $ApiLog"
+            Write-Fail "api não respondeu em http://127.0.0.1:$ApiPort/api/health. Veja a janela 'Concord - api' ou $ApiLog"
             $healthy = $false
         }
     }

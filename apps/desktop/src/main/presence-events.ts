@@ -1,4 +1,4 @@
-import type { PresenceEvent, PresenceParticipant, PresenceSnapshot } from '@telao/shared';
+import type { PresenceEvent, PresenceParticipant, PresenceSnapshot } from '@concord/shared';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

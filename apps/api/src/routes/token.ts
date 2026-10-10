@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { ApiErrorResponse, TokenRequest, TokenResponse } from '@telao/shared';
+import type { ApiErrorResponse, TokenRequest, TokenResponse } from '@concord/shared';
 import { getUser, requireUser, type UserStore } from '../auth';
 import type { ApiConfig } from '../config';
 import { createRoomToken } from '../livekit';

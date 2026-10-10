@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { WebhookEvent, WebhookReceiver } from 'livekit-server-sdk';
-import type { ApiErrorResponse, HealthResponse } from '@telao/shared';
+import type { ApiErrorResponse, HealthResponse } from '@concord/shared';
 import { isScreenShareVideo, toParticipantIdentity } from '../livekit';
 import type { Logger } from '../logger';
 import type { PresenceStore } from '../presence-store';

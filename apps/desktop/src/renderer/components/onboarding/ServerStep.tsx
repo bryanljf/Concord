@@ -22,7 +22,7 @@ export function ServerStep({ value, onSubmit }: ServerStepProps) {
 
   return (
     <form className="onboarding__form" onSubmit={handleSubmit}>
-      <h1 className="onboarding__title">Bem-vindo ao Telão</h1>
+      <h1 className="onboarding__title">Bem-vindo ao Concord</h1>
       <p className="onboarding__subtitle">
         Compartilhamento de tela para o grupo, sem depender do Go Live do Discord. Primeiro, diga
         onde está o servidor.
@@ -50,7 +50,7 @@ export function ServerStep({ value, onSubmit }: ServerStepProps) {
         />
         <p className="field__hint" id="server-url-hint">
           Se o servidor roda no PC de um amigo, use o IP dele — ex.: http://IP-DO-AMIGO:3000. Se
-          roda na nuvem, use o domínio — ex.: https://telao.exemplo.org.
+          roda na nuvem, use o domínio — ex.: https://concord.exemplo.org.
         </p>
         {error && (
           <p className="field__error" role="alert">

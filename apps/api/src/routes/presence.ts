@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { SSE_HEARTBEAT_MS, type PresenceEvent } from '@telao/shared';
+import { SSE_HEARTBEAT_MS, type PresenceEvent } from '@concord/shared';
 import { requireUser, type UserStore } from '../auth';
 import type { PresenceStore } from '../presence-store';
 

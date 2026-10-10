@@ -1,5 +1,5 @@
 import { PROJECT_URL } from '../../lib/constants';
-import { telao } from '../../lib/telao';
+import { concord } from '../../lib/concord';
 import { ExternalLinkIcon } from '../icons';
 import { SettingsSection } from './SettingsSection';
 
@@ -12,7 +12,7 @@ export function AboutSection({ version, platform }: AboutSectionProps) {
   return (
     <SettingsSection id="sobre" title="Sobre">
       <dl className="settings__about">
-        <dt>Telão</dt>
+        <dt>Concord</dt>
         <dd>versão {version}</dd>
         <dt>Plataforma</dt>
         <dd>{platform}</dd>
@@ -21,7 +21,7 @@ export function AboutSection({ version, platform }: AboutSectionProps) {
         <button
           type="button"
           className="btn btn--sm"
-          onClick={() => void telao().openExternal(PROJECT_URL)}
+          onClick={() => void concord().openExternal(PROJECT_URL)}
         >
           <ExternalLinkIcon size={16} />
           Projeto no GitHub

@@ -1,4 +1,4 @@
-import type { PresenceEvent } from '@telao/shared';
+import type { PresenceEvent } from '@concord/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PresenceConnectionStatus } from '../preload/api';
 import { backoffDelay, BACKOFF_MAX_MS, BACKOFF_MIN_MS, PresenceClient } from './presence-client';

@@ -3,7 +3,9 @@ import { ApiClientError, createApiClient, normalizeServerUrl } from './api-clien
 
 describe('normalizeServerUrl', () => {
   it('keeps scheme, host and port only', () => {
-    expect(normalizeServerUrl('  https://telao.duckdns.org/  ')).toBe('https://telao.duckdns.org');
+    expect(normalizeServerUrl('  https://concord.duckdns.org/  ')).toBe(
+      'https://concord.duckdns.org',
+    );
     expect(normalizeServerUrl('http://192.168.0.10:3000/api/')).toBe('http://192.168.0.10:3000');
     expect(normalizeServerUrl('https://user:pw@host.example/x?y=1#z')).toBe('https://host.example');
     expect(normalizeServerUrl('HTTP://Example.COM:80')).toBe('http://example.com');
@@ -20,7 +22,7 @@ describe('normalizeServerUrl', () => {
       return 'no error';
     };
     expect(message('   ')).toBe('Informe a URL do servidor.');
-    expect(message('telao.duckdns.org')).toMatch(/http:\/\/ ou https:\/\//);
+    expect(message('concord.duckdns.org')).toMatch(/http:\/\/ ou https:\/\//);
     expect(message('localhost:3000')).toMatch(/http:\/\/ ou https:\/\//);
     expect(message('ftp://host')).toMatch(/http:\/\/ ou https:\/\//);
     expect(message('http://')).toMatch(/inválida/);

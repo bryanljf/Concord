@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import type { PresenceSnapshot, RoomId } from '@telao/shared';
+import type { PresenceSnapshot, RoomId } from '@concord/shared';
 import { useNow } from '../hooks/useNow';
 import { participantsOf } from '../lib/presence';
 import { RoomItem } from './RoomItem';
@@ -29,7 +29,7 @@ export function Sidebar({ rooms, snapshot, currentRoom, onJoin, onWatch }: Sideb
 
   return (
     <nav className="sidebar" aria-label="Salas" onKeyDown={handleKeyDown}>
-      <div className="sidebar__brand">TELÃO</div>
+      <div className="sidebar__brand">CONCORD</div>
       <h2 className="sidebar__section">
         <span>Salas</span>
         <span aria-hidden="true">{rooms.length}</span>

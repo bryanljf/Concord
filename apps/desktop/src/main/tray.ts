@@ -29,11 +29,11 @@ export interface TrayHandle {
 export function trayTooltip(status: TrayStatus): string {
   switch (status.state) {
     case 'offline':
-      return 'Telão — desconectado';
+      return 'Concord — desconectado';
     case 'idle':
-      return 'Telão — conectado';
+      return 'Concord — conectado';
     case 'live':
-      return `Telão — ${status.detail ?? 'alguém ao vivo'}`;
+      return `Concord — ${status.detail ?? 'alguém ao vivo'}`;
   }
 }
 
@@ -57,7 +57,7 @@ export function createTray(deps: TrayDeps): TrayHandle {
   function buildMenu(): Menu {
     const settings = deps.settings.get();
     const template: MenuItemConstructorOptions[] = [
-      { label: 'Abrir Telão', click: () => deps.onOpen() },
+      { label: 'Abrir Concord', click: () => deps.onOpen() },
       { label: 'Transmitir…', click: () => deps.onStreamToggle() },
       // Streaming arrives in Phase 3; the item exists so the layout is final.
       { label: 'Parar transmissão', visible: false, enabled: false },

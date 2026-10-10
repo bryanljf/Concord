@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { applyPresenceEvent, type PresenceSnapshot } from '@telao/shared';
-import { telao, type PresenceConnectionStatus, type PresenceState } from '../lib/telao';
+import { applyPresenceEvent, type PresenceSnapshot } from '@concord/shared';
+import { concord, type PresenceConnectionStatus, type PresenceState } from '../lib/concord';
 
 const EMPTY_SNAPSHOT: PresenceSnapshot = { rooms: {} };
 const INITIAL_STATUS: PresenceConnectionStatus = { state: 'idle', reason: 'no_session' };
@@ -11,7 +11,7 @@ export function usePresence(): PresenceState {
   const [status, setStatus] = useState<PresenceConnectionStatus>(INITIAL_STATUS);
 
   useEffect(() => {
-    const api = telao();
+    const api = concord();
     let active = true;
     // Subscribe before fetching so nothing emitted in between is lost.
     const unsubscribeEvents = api.onPresenceEvent((event) => {

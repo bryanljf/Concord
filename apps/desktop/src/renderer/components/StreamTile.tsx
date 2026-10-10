@@ -1,4 +1,4 @@
-import type { PresenceParticipant } from '@telao/shared';
+import type { PresenceParticipant } from '@concord/shared';
 import { Avatar } from './Avatar';
 
 interface StreamTileProps {

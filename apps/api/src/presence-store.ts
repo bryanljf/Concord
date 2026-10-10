@@ -1,4 +1,4 @@
-import type { PresenceEvent, PresenceParticipant, PresenceSnapshot, RoomId } from '@telao/shared';
+import type { PresenceEvent, PresenceParticipant, PresenceSnapshot, RoomId } from '@concord/shared';
 
 export interface ParticipantIdentity {
   id: string;

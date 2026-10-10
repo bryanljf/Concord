@@ -1,5 +1,5 @@
-import { QUALITY_PRESETS, type QualityPresetId } from '@telao/shared';
-import type { Settings } from '../../lib/telao';
+import { QUALITY_PRESETS, type QualityPresetId } from '@concord/shared';
+import type { Settings } from '../../lib/concord';
 import { SettingsSection } from './SettingsSection';
 
 interface StreamingSectionProps {

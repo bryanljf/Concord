@@ -1,5 +1,5 @@
 import { ipcMain, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
-import { ROOM_ID_PATTERN } from '@telao/shared';
+import { ROOM_ID_PATTERN } from '@concord/shared';
 import type { Settings } from '../preload/api';
 import { EVENTS, IPC, type IpcChannel, type IpcResult } from '../preload/channels';
 import type { ApiClient } from './api-client';

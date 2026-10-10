@@ -7,9 +7,9 @@ describe('normalizeServerUrl', () => {
       ok: true,
       url: 'http://127.0.0.1:3000',
     });
-    expect(normalizeServerUrl('https://telao.exemplo.org/api/health')).toEqual({
+    expect(normalizeServerUrl('https://concord.exemplo.org/api/health')).toEqual({
       ok: true,
-      url: 'https://telao.exemplo.org',
+      url: 'https://concord.exemplo.org',
     });
   });
 
@@ -22,13 +22,13 @@ describe('normalizeServerUrl', () => {
       ok: true,
       url: 'http://localhost:3000',
     });
-    expect(normalizeServerUrl('telao.duckdns.org')).toEqual({
+    expect(normalizeServerUrl('concord.duckdns.org')).toEqual({
       ok: true,
-      url: 'https://telao.duckdns.org',
+      url: 'https://concord.duckdns.org',
     });
-    expect(normalizeServerUrl('  telao.exemplo.org:8443 ')).toEqual({
+    expect(normalizeServerUrl('  concord.exemplo.org:8443 ')).toEqual({
       ok: true,
-      url: 'http://telao.exemplo.org:8443',
+      url: 'http://concord.exemplo.org:8443',
     });
   });
 

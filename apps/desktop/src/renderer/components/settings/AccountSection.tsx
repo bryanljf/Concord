@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { UserInfo } from '@telao/shared';
+import type { UserInfo } from '@concord/shared';
 import { Avatar } from '../Avatar';
 import { SettingsSection } from './SettingsSection';
 

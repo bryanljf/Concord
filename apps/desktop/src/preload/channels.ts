@@ -4,7 +4,7 @@
  * runtime imports: it is bundled into both the main and the sandboxed preload bundle.
  */
 
-/** Renderer → main requests (`invoke`), one per method of `TelaoApi`. */
+/** Renderer → main requests (`invoke`), one per method of `ConcordApi`. */
 export const IPC = {
   GET_SESSION: 'session:get',
   LOGIN: 'session:login',
@@ -19,7 +19,7 @@ export const IPC = {
   OPEN_EXTERNAL: 'shell:open-external',
 } as const;
 
-/** Main → renderer pushes (`webContents.send`), one per `on*` method of `TelaoApi`. */
+/** Main → renderer pushes (`webContents.send`), one per `on*` method of `ConcordApi`. */
 export const EVENTS = {
   PRESENCE_EVENT: 'presence:event',
   PRESENCE_STATUS: 'presence:status',

@@ -11,11 +11,11 @@ import { trayTooltip } from './tray';
 
 describe('trayTooltip', () => {
   it('describes each tray state in pt-BR', () => {
-    expect(trayTooltip({ state: 'offline', detail: null })).toBe('Telão — desconectado');
-    expect(trayTooltip({ state: 'idle', detail: null })).toBe('Telão — conectado');
+    expect(trayTooltip({ state: 'offline', detail: null })).toBe('Concord — desconectado');
+    expect(trayTooltip({ state: 'idle', detail: null })).toBe('Concord — conectado');
     expect(trayTooltip({ state: 'live', detail: 'Fulano ao vivo em #jogos' })).toBe(
-      'Telão — Fulano ao vivo em #jogos',
+      'Concord — Fulano ao vivo em #jogos',
     );
-    expect(trayTooltip({ state: 'live', detail: null })).toBe('Telão — alguém ao vivo');
+    expect(trayTooltip({ state: 'live', detail: null })).toBe('Concord — alguém ao vivo');
   });
 });

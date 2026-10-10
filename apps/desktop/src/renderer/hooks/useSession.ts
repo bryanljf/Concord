@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { UserInfo } from '@telao/shared';
-import { telao, toErrorMessage } from '../lib/telao';
+import type { UserInfo } from '@concord/shared';
+import { concord, toErrorMessage } from '../lib/concord';
 
 /** Which onboarding flow (if any) must be shown before the main UI. */
 export type OnboardingMode = 'none' | 'full' | 'rekey';
@@ -41,7 +41,7 @@ export function useSession(): UseSession {
 
   useEffect(() => {
     let active = true;
-    telao()
+    concord()
       .getSession()
       .then(
         (session) => {
@@ -68,7 +68,7 @@ export function useSession(): UseSession {
   // revalidation that rejected the stored key). Our own login/logout calls are ignored here.
   useEffect(
     () =>
-      telao().onSessionChanged((session) => {
+      concord().onSessionChanged((session) => {
         if (localLogin.current) return;
         setState((prev) => {
           const sameUser =
@@ -90,7 +90,7 @@ export function useSession(): UseSession {
   const login = useCallback(async (serverUrl: string, key: string) => {
     localLogin.current = true;
     try {
-      const user = await telao().login(serverUrl, key);
+      const user = await concord().login(serverUrl, key);
       setState((prev) => ({ ...prev, serverUrl, user, error: null }));
       return user;
     } finally {
@@ -103,12 +103,12 @@ export function useSession(): UseSession {
   }, []);
 
   const logout = useCallback(async () => {
-    await telao().logout();
+    await concord().logout();
     setState((prev) => ({ ...prev, user: null, onboarding: 'full' }));
   }, []);
 
   const startRekey = useCallback(async () => {
-    await telao().logout();
+    await concord().logout();
     setState((prev) => ({ ...prev, user: null, onboarding: 'rekey' }));
   }, []);
 

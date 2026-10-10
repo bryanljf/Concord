@@ -21,7 +21,7 @@ const logger = log('app');
  * Must match `appId` in electron-builder.yml (Phase 6) so Windows attributes notifications to
  * the installed app. In development the executable path is used, as Electron recommends.
  */
-const APP_USER_MODEL_ID = 'com.telao.desktop';
+const APP_USER_MODEL_ID = 'com.concord.desktop';
 
 /** Delay between a `--server/--key` dev login and the `--room` navigation (see applyDevFlags). */
 const DEV_NAVIGATE_DELAY_MS = 1500;

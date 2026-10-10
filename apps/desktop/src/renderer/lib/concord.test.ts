@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toErrorMessage } from './telao';
+import { toErrorMessage } from './concord';
 
 describe('toErrorMessage', () => {
   it('returns the message of an Error', () => {
@@ -14,11 +14,11 @@ describe('toErrorMessage', () => {
   it('strips the Electron IPC wrapper', () => {
     expect(
       toErrorMessage(
-        new Error("Error invoking remote method 'telao:login': Error: Chave inválida."),
+        new Error("Error invoking remote method 'concord:login': Error: Chave inválida."),
       ),
     ).toBe('Chave inválida.');
     expect(
-      toErrorMessage(new Error("Error invoking remote method 'telao:login': Acesso negado.")),
+      toErrorMessage(new Error("Error invoking remote method 'concord:login': Acesso negado.")),
     ).toBe('Acesso negado.');
   });
 

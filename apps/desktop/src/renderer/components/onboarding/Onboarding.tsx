@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { UserInfo } from '@telao/shared';
+import type { UserInfo } from '@concord/shared';
 import { DEFAULT_SERVER_URL } from '../../lib/constants';
 import { KeyStep } from './KeyStep';
 import { PreferencesStep } from './PreferencesStep';
@@ -30,7 +30,7 @@ export function Onboarding({ flow, initialServerUrl, onLogin, onFinish }: Onboar
   return (
     <div className="onboarding">
       <div className="onboarding__card">
-        <div className="onboarding__brand">TELÃO</div>
+        <div className="onboarding__brand">CONCORD</div>
         {flow === 'full' && (
           <ol
             className="onboarding__steps"

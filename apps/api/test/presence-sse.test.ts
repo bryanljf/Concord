@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import type { ApiErrorResponse, PresenceEvent } from '@telao/shared';
+import type { ApiErrorResponse, PresenceEvent } from '@concord/shared';
 import { ALICE, bearer, testApp, waitFor } from './helpers';
 
 /** Splits an SSE body into frames (the text between blank lines). */

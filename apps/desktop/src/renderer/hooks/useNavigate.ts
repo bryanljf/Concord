@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { telao, type NavigateTarget } from '../lib/telao';
+import { concord, type NavigateTarget } from '../lib/concord';
 
 export interface UseNavigate {
   /** Pending request from main (tray, notification click); null when none. */
@@ -11,7 +11,7 @@ export interface UseNavigate {
 export function useNavigate(): UseNavigate {
   const [target, setTarget] = useState<NavigateTarget | null>(null);
 
-  useEffect(() => telao().onNavigate((next) => setTarget(next)), []);
+  useEffect(() => concord().onNavigate((next) => setTarget(next)), []);
 
   const consume = useCallback(() => setTarget(null), []);
 

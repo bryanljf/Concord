@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { PresenceParticipant, RoomId, UserInfo } from '@telao/shared';
-import type { Settings } from '../../lib/telao';
+import type { PresenceParticipant, RoomId, UserInfo } from '@concord/shared';
+import type { Settings } from '../../lib/concord';
 import { CloseIcon } from '../icons';
 import { AboutSection } from './AboutSection';
 import { AccountSection } from './AccountSection';

@@ -10,8 +10,8 @@ const define = {
 export default defineConfig({
   main: {
     define,
-    // @telao/shared ships TS source, so it must be bundled rather than required at runtime.
-    build: { externalizeDeps: { exclude: ['@telao/shared'] } },
+    // @concord/shared ships TS source, so it must be bundled rather than required at runtime.
+    build: { externalizeDeps: { exclude: ['@concord/shared'] } },
   },
   preload: {
     define,

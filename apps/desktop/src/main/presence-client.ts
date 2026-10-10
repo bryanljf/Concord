@@ -3,7 +3,7 @@ import {
   SSE_HEARTBEAT_MS,
   type PresenceEvent,
   type PresenceSnapshot,
-} from '@telao/shared';
+} from '@concord/shared';
 import type { ReadableStreamReadResult } from 'node:stream/web';
 import type { PresenceConnectionStatus, PresenceState } from '../preload/api';
 import {

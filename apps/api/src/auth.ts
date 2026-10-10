@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { ApiErrorResponse, UserInfo } from '@telao/shared';
+import type { ApiErrorResponse, UserInfo } from '@concord/shared';
 
 export interface User {
   id: string;

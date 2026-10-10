@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { telao, toErrorMessage, type Settings } from '../lib/telao';
+import { concord, toErrorMessage, type Settings } from '../lib/concord';
 
 export interface UseSettings {
   /** Null until loaded. */
@@ -19,7 +19,7 @@ export function useSettings(): UseSettings {
 
   useEffect(() => {
     let active = true;
-    telao()
+    concord()
       .getSettings()
       .then(
         (loaded) => {
@@ -42,7 +42,7 @@ export function useSettings(): UseSettings {
   // Changes made outside this UI (tray checkboxes, dev flags) are pushed by main.
   useEffect(
     () =>
-      telao().onSettingsChanged((next) => {
+      concord().onSettingsChanged((next) => {
         latest.current = next;
         setSettings(next);
       }),
@@ -57,7 +57,7 @@ export function useSettings(): UseSettings {
       setSettings(optimistic);
     }
     try {
-      const saved = await telao().updateSettings(patch);
+      const saved = await concord().updateSettings(patch);
       latest.current = saved;
       setSettings(saved);
       setError(null);

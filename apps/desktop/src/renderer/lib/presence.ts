@@ -1,4 +1,4 @@
-import type { PresenceParticipant, PresenceSnapshot, RoomId } from '@telao/shared';
+import type { PresenceParticipant, PresenceSnapshot, RoomId } from '@concord/shared';
 import type { PresenceConnectionStatus } from '../../preload/api';
 import { formatRetryIn } from './format';
 

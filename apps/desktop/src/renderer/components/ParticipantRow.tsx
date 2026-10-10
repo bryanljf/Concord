@@ -1,4 +1,4 @@
-import type { PresenceParticipant, RoomId } from '@telao/shared';
+import type { PresenceParticipant, RoomId } from '@concord/shared';
 import { formatJoinedAgo } from '../lib/format';
 import { Avatar } from './Avatar';
 

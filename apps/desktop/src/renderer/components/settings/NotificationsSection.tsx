@@ -1,5 +1,5 @@
-import type { PresenceParticipant, RoomId } from '@telao/shared';
-import type { Settings } from '../../lib/telao';
+import type { PresenceParticipant, RoomId } from '@concord/shared';
+import type { Settings } from '../../lib/concord';
 import { SettingsSection } from './SettingsSection';
 
 interface NotificationsSectionProps {

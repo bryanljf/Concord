@@ -1,4 +1,4 @@
-import { QUALITY_PRESETS, type QualityPresetId } from '@telao/shared';
+import { QUALITY_PRESETS, type QualityPresetId } from '@concord/shared';
 import { MonitorIcon, StopIcon } from './icons';
 import '../styles/bottom-bar.css';
 

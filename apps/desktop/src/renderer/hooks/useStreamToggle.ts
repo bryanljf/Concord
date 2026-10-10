@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { telao } from '../lib/telao';
+import { concord } from '../lib/concord';
 import { useToast } from './useToast';
 
 export interface UseStreamToggle {
@@ -15,7 +15,7 @@ export function useStreamToggle(): UseStreamToggle {
     toast.show('Transmissão chega na próxima fase.');
   }, [toast]);
 
-  useEffect(() => telao().onStreamToggleRequested(requestToggle), [requestToggle]);
+  useEffect(() => concord().onStreamToggleRequested(requestToggle), [requestToggle]);
 
   return { requestToggle };
 }

@@ -1,7 +1,7 @@
 /**
- * Contract between the Electron main process and the renderer, exposed as `window.telao`
+ * Contract between the Electron main process and the renderer, exposed as `window.concord`
  * by `src/preload/index.ts`. The main process owns: settings, the encrypted access key,
- * every HTTP call to telao-api, the presence SSE connection, tray and notifications.
+ * every HTTP call to concord-api, the presence SSE connection, tray and notifications.
  * The renderer only talks to LiveKit directly (media), using tokens obtained here.
  */
 import type {
@@ -11,11 +11,11 @@ import type {
   RoomId,
   TokenResponse,
   UserInfo,
-} from '@telao/shared';
+} from '@concord/shared';
 
 /** Persisted preferences (JSON file in `app.getPath('userData')`). */
 export interface Settings {
-  /** Base URL of telao-api, e.g. "http://127.0.0.1:3000" or "https://telao.duckdns.org". */
+  /** Base URL of concord-api, e.g. "http://127.0.0.1:3000" or "https://concord.duckdns.org". */
   serverUrl: string;
   launchAtLogin: boolean;
   /** Keep the presence connection only while Discord is running ("Abrir junto com o Discord"). */
@@ -56,7 +56,7 @@ export interface NavigateTarget {
   participantId?: string;
 }
 
-export interface TelaoApi {
+export interface ConcordApi {
   platform: string;
   /** App version from package.json. */
   version: string;
@@ -79,7 +79,7 @@ export interface TelaoApi {
   /** Fired after any change, including the tray checkboxes, so the UI never goes stale. */
   onSettingsChanged(listener: (settings: Settings) => void): () => void;
 
-  // --- telao-api calls (main adds the Authorization header) ------------------
+  // --- concord-api calls (main adds the Authorization header) ------------------
   getRooms(): Promise<RoomId[]>;
   requestToken(room: RoomId): Promise<TokenResponse>;
 
@@ -102,6 +102,6 @@ export interface TelaoApi {
 
 declare global {
   interface Window {
-    telao: TelaoApi;
+    concord: ConcordApi;
   }
 }

@@ -1,4 +1,4 @@
-# Telão — guia rápido para o Claude Code
+# Concord — guia rápido para o Claude Code
 
 Companion de compartilhamento de tela para um grupo fechado de amigos (o Discord continua para voz/chat).
 **Leia `SPEC.md` antes de qualquer fase.** Execute uma fase por vez e pare no fim de cada uma.
@@ -24,7 +24,7 @@ Dentro do VS Code, limpe `ELECTRON_RUN_AS_NODE` antes de iniciar o Electron manu
 ## Estrutura
 
 - `packages/shared` — tipos e constantes compartilhados (presença, DTOs, presets de qualidade). Exporta TS puro.
-- `apps/api` — telao-api (Fastify 5). `src/app.ts` monta o app (testável via `inject`), `src/index.ts` só dá `listen`.
+- `apps/api` — concord-api (Fastify 5). `src/app.ts` monta o app (testável via `inject`), `src/index.ts` só dá `listen`.
 - `apps/desktop` — Electron 44 + electron-vite + React 19. `src/main` (processo principal: bandeja, presença SSE, settings), `src/preload` (ponte IPC; o contrato é `api.d.ts`), `src/renderer` (UI).
 - `infra/` — `livekit.yaml` compartilhado, `local/` (hospedagem no PC Windows), docker-compose, exemplos de `.env`/`users.json`.
 

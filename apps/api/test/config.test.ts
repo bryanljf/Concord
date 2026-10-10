@@ -3,23 +3,23 @@ import { describe, expect, it } from 'vitest';
 import { ConfigError, deriveLiveKitApiUrl, loadConfig, parseRooms } from '../src/config';
 
 const base = {
-  LIVEKIT_URL: 'wss://telao.example',
+  LIVEKIT_URL: 'wss://concord.example',
   LIVEKIT_API_KEY: 'key',
   LIVEKIT_API_SECRET: 'secret',
 };
 
 describe('loadConfig', () => {
   it('applies defaults', () => {
-    expect(loadConfig(base, '/srv/telao/apps/api')).toEqual({
+    expect(loadConfig(base, '/srv/concord/apps/api')).toEqual({
       host: '127.0.0.1',
       port: 3000,
       trustProxy: false,
       rooms: ['geral'],
-      usersFile: resolve('/srv/telao/apps/api', '../../infra/users.json'),
+      usersFile: resolve('/srv/concord/apps/api', '../../infra/users.json'),
       livekit: {
-        url: 'wss://telao.example',
+        url: 'wss://concord.example',
         localUrl: undefined,
-        apiUrl: 'https://telao.example',
+        apiUrl: 'https://concord.example',
         apiKey: 'key',
         apiSecret: 'secret',
       },
@@ -44,7 +44,7 @@ describe('loadConfig', () => {
       rooms: ['geral', 'jogos', 'filme'],
       usersFile: resolve('/srv', 'data/users.json'),
       livekit: {
-        url: 'wss://telao.example',
+        url: 'wss://concord.example',
         localUrl: 'ws://127.0.0.1:7880',
         apiUrl: 'http://127.0.0.1:7880',
         apiKey: 'key',
@@ -85,14 +85,14 @@ describe('parseRooms', () => {
 describe('deriveLiveKitApiUrl', () => {
   it.each([
     ['ws://127.0.0.1:7880', 'http://127.0.0.1:7880'],
-    ['wss://telao.example/', 'https://telao.example'],
+    ['wss://concord.example/', 'https://concord.example'],
     ['http://localhost:7880', 'http://localhost:7880'],
-    ['https://telao.example/rtc', 'https://telao.example/rtc'],
+    ['https://concord.example/rtc', 'https://concord.example/rtc'],
   ])('maps %s to %s', (input, expected) => {
     expect(deriveLiveKitApiUrl(input)).toBe(expected);
   });
 
-  it.each(['not a url', 'ftp://telao.example'])('rejects %j', (input) => {
+  it.each(['not a url', 'ftp://concord.example'])('rejects %j', (input) => {
     expect(() => deriveLiveKitApiUrl(input)).toThrow(ConfigError);
   });
 });

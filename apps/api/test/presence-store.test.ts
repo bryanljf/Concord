@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { PresenceEvent } from '@telao/shared';
+import type { PresenceEvent } from '@concord/shared';
 import { PresenceStore } from '../src/presence-store';
 
 const alice = { id: 'alice', name: 'Alice', joinedAt: 1_000 };

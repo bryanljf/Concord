@@ -1,4 +1,4 @@
-# SPEC — "Telão": compartilhamento de tela companion do Discord
+# SPEC — "Concord": compartilhamento de tela companion do Discord
 
 > Documento de especificação para execução com o **Claude Code**.
 > Claude: leia este arquivo inteiro antes de começar. Execute **uma fase por vez** (seção 9), pare no fim de cada fase, mostre o que foi feito e como testar, e só avance quando o usuário confirmar.
@@ -10,8 +10,8 @@
 Um grupo de ~10 amigos na mesma cidade (Brasil) usa o Discord para voz e chat, mas o **Go Live (compartilhamento de tela) do Discord está bloqueado/instável para usuários brasileiros**. Em vez de usar VPN, vamos criar um **app companion próprio** só para transmissão de tela:
 
 - O Discord continua sendo usado para **voz e texto**.
-- O **Telão** (nome provisório) roda **na bandeja do Windows**, inicia junto com o sistema (oculto), avisa quando alguém começa a transmitir e abre uma janela **com visual inspirado no Discord** para assistir/transmitir.
-- A mídia passa por um **servidor LiveKit (SFU WebRTC) self-hosted** em uma VM **Oracle Cloud Always Free** (ARM Ampere A1) que já existe e **roda também um servidor de Minecraft** — o Telão precisa conviver com ele sem atrapalhar.
+- O **Concord** (nome provisório) roda **na bandeja do Windows**, inicia junto com o sistema (oculto), avisa quando alguém começa a transmitir e abre uma janela **com visual inspirado no Discord** para assistir/transmitir.
+- A mídia passa por um **servidor LiveKit (SFU WebRTC) self-hosted** em uma VM **Oracle Cloud Always Free** (ARM Ampere A1) que já existe e **roda também um servidor de Minecraft** — o Concord precisa conviver com ele sem atrapalhar.
 
 ### Objetivos
 - Transmissão de tela/janela com **áudio do app** (som do jogo), até 1080p60, latência baixa (< 300 ms ponta a ponta na mesma cidade).
@@ -34,7 +34,7 @@ Um grupo de ~10 amigos na mesma cidade (Brasil) usa o Discord para voz e chat, m
 ┌───────────────────────────── PC de cada amigo (Windows) ─────────────────────────────┐
 │  Discord (voz/chat)                                                                  │
 │                                                                                      │
-│  Telão (Electron)                                                                    │
+│  Concord (Electron)                                                                    │
 │   ├─ main process: bandeja, autostart, atalho global, captura de tela/áudio,         │
 │   │                watcher do processo Discord, auto-update                          │
 │   ├─ preload: ponte IPC tipada (contextIsolation)                                    │
@@ -44,10 +44,10 @@ Um grupo de ~10 amigos na mesma cidade (Brasil) usa o Discord para voz e chat, m
                ▼                                      ▼
 ┌──────────────────────────── VM Oracle Always Free (Ubuntu ARM64) ────────────────────┐
 │  Caddy (HTTPS automático, Let's Encrypt)                                             │
-│   ├─ https://<dominio>/api/*   → telao-api  (Fastify, Node 22)                       │
+│   ├─ https://<dominio>/api/*   → concord-api  (Fastify, Node 22)                       │
 │   └─ wss://<dominio>/rtc       → livekit-server                                      │
-│  livekit-server (network_mode: host)  ── webhooks ──► telao-api                      │
-│  telao-api: emite tokens LiveKit, valida chaves de usuário, expõe presença via SSE   │
+│  livekit-server (network_mode: host)  ── webhooks ──► concord-api                      │
+│  concord-api: emite tokens LiveKit, valida chaves de usuário, expõe presença via SSE   │
 │  [já existente] servidor Minecraft (porta 25565) — NÃO MEXER                         │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -69,7 +69,7 @@ Um grupo de ~10 amigos na mesma cidade (Brasil) usa o Discord para voz e chat, m
 ## 3. Estrutura do repositório
 
 ```
-telao/
+concord/
 ├─ SPEC.md                    ← este arquivo
 ├─ CLAUDE.md                  ← gerar na Fase 0 (resumo curto: comandos, convenções)
 ├─ package.json               ← scripts raiz (dev, build, lint, test, typecheck)
@@ -78,7 +78,7 @@ telao/
 ├─ packages/
 │  └─ shared/                 ← tipos e constantes (rooms, eventos de presença, DTOs da API)
 ├─ apps/
-│  ├─ api/                    ← telao-api (Fastify)
+│  ├─ api/                    ← concord-api (Fastify)
 │  │  ├─ src/
 │  │  │  ├─ index.ts
 │  │  │  ├─ routes/token.ts
@@ -88,7 +88,7 @@ telao/
 │  │  │  └─ presence-store.ts
 │  │  ├─ test/
 │  │  └─ Dockerfile
-│  └─ desktop/                ← Telão (Electron)
+│  └─ desktop/                ← Concord (Electron)
 │     ├─ electron.vite.config.ts
 │     ├─ electron-builder.yml
 │     ├─ resources/           ← ícones próprios (bandeja: normal / ao vivo / desconectado)
@@ -178,10 +178,10 @@ telao/
 
 ### 4.7 Hospedagem local (no PC de alguém do grupo, sem Oracle)
 
-Alternativa à VM: o mesmo `telao-api` + `livekit-server` rodam **nativamente no Windows** de quem hospeda (sem Docker, sem Caddy, sem TLS — o app Electron aceita `http://` e `ws://`).
+Alternativa à VM: o mesmo `concord-api` + `livekit-server` rodam **nativamente no Windows** de quem hospeda (sem Docker, sem Caddy, sem TLS — o app Electron aceita `http://` e `ws://`).
 
 - `infra/local/start.ps1` baixa o binário oficial do LiveKit (versão fixa + verificação de checksum), carrega `infra/.env`, sobe os dois processos e imprime a URL que os amigos digitam no app (`http://<ip-publico-ou-ddns>:3000`). Switches: `-LiveKitOnly`, `-Stop`, `-Firewall`.
-- A API key do LiveKit é o identificador fixo `telao`; só o segredo é aleatório (`LIVEKIT_API_SECRET`). Assim `infra/livekit.yaml` é idêntico nos dois modos e o segredo entra por `LIVEKIT_KEYS`.
+- A API key do LiveKit é o identificador fixo `concord`; só o segredo é aleatório (`LIVEKIT_API_SECRET`). Assim `infra/livekit.yaml` é idêntico nos dois modos e o segredo entra por `LIVEKIT_KEYS`.
 - `LIVEKIT_LOCAL_URL` (ex.: `ws://127.0.0.1:7880`): devolvido pelo `/api/token` quando a requisição vem de loopback, para quem hospeda não depender de NAT hairpinning do roteador.
 - Roteador: encaminhar TCP 3000, 7880, 7881 e UDP 50000–50200; DuckDNS opcional para IP dinâmico.
 - Riscos específicos: **CGNAT** (sem IPv4 público → não funciona sem IPv6/túnel), **upload residencial** (o SFU envia uma cópia por espectador: 6 Mbps × 9 espectadores ≈ 54 Mbps), o PC precisa ficar ligado.
@@ -193,14 +193,14 @@ Alternativa à VM: o mesmo `telao-api` + `livekit-server` rodam **nativamente no
 
 ### 5.1 Segurança do Electron (obrigatório)
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` no renderer.
-- Preload expõe API mínima e tipada via `contextBridge` (`window.telao.*`).
+- Preload expõe API mínima e tipada via `contextBridge` (`window.concord.*`).
 - CSP restrita (só o próprio bundle + `https://<dominio>` + `wss://<dominio>`).
 - `app.requestSingleInstanceLock()` — segunda instância só foca a janela existente.
 - Chave do usuário guardada com `safeStorage` (DPAPI no Windows), não em texto puro.
 
 ### 5.2 Ciclo de vida, bandeja e autostart
 - Ícone na bandeja com 3 estados: **conectado**, **alguém ao vivo** (badge vermelho), **desconectado/erro**.
-- Menu da bandeja: `Abrir Telão`, `Transmitir…` (abre o seletor), `Parar transmissão` (se ativo), `Iniciar com o Windows ✓`, `Abrir junto com o Discord ✓`, `Configurações`, `Sair`.
+- Menu da bandeja: `Abrir Concord`, `Transmitir…` (abre o seletor), `Parar transmissão` (se ativo), `Iniciar com o Windows ✓`, `Abrir junto com o Discord ✓`, `Configurações`, `Sair`.
 - Fechar a janela (X) **esconde** para a bandeja (não sai). Primeira vez: notificação explicando isso.
 - **Autostart**: `app.setLoginItemSettings({ openAtLogin, args: ['--hidden'] })`. Com `--hidden`, não mostrar janela.
 - **Modo "junto com o Discord"** (`discord-watcher.ts`): a cada 10 s verifica se existe processo `Discord.exe` (ou `DiscordPTB.exe`/`DiscordCanary.exe`). Se o Discord abrir → conecta à presença; se o Discord fechar e não houver transmissão ativa → desconecta e fica ocioso. Implementar com `tasklist /FO CSV /NH` (sem dependência nativa) e abstrair para facilitar Linux depois.
@@ -220,7 +220,7 @@ Alternativa à VM: o mesmo `telao-api` + `livekit-server` rodam **nativamente no
 Layout de referência (cores/estrutura inspiradas, **sem assets do Discord**):
 ```
 ┌──────────┬───────────────────────────────────────────────┐
-│ TELÃO    │  #jogos                          [⛶] [⇱] [⚙] │
+│ CONCORD    │  #jogos                          [⛶] [⇱] [⚙] │
 │          ├───────────────────────────────────────────────┤
 │ SALAS    │                                               │
 │ 🔊 geral │            STREAM EM DESTAQUE                 │
@@ -269,7 +269,7 @@ Layout de referência (cores/estrutura inspiradas, **sem assets do Discord**):
 Servidor/chave (trocar), iniciar com Windows, abrir com Discord, atalho global (gravador de tecla), qualidade padrão, codec, notificações (por sala/pessoa), dispositivo de saída de áudio das streams (`setSinkId`), "Verificar atualizações", "Sobre".
 
 ### 5.9 Auto-update e distribuição
-- `electron-builder` alvo **NSIS** (`oneClick: true`, instalação por usuário, sem admin), nome `Telao-Setup-<versão>.exe`.
+- `electron-builder` alvo **NSIS** (`oneClick: true`, instalação por usuário, sem admin), nome `Concord-Setup-<versão>.exe`.
 - `electron-updater` com provider **GitHub Releases** (repo privado ou público — perguntar ao usuário). Checa ao iniciar e a cada 6 h; baixa em segundo plano; aplica ao sair ou com botão "Reiniciar para atualizar".
 - Sem certificado de assinatura de código: documentar no README que o **SmartScreen** vai avisar na primeira instalação ("Mais informações → Executar assim mesmo").
 - GitHub Action `release.yml`: em tag `v*`, build Windows (`windows-latest`) e publica no Release.
@@ -280,8 +280,8 @@ Servidor/chave (trocar), iniciar com Windows, abrir com Discord, atalho global (
 - **Chave e preferências**: arquivo `settings.json` em `userData` escrito atomicamente (sem `electron-store`, que é ESM-only); a chave fica em `encryptedKey` via `safeStorage` (DPAPI).
 - **CSP**: `script-src 'self'` continua estrito, mas `connect-src` aceita `http: https: ws: wss:` porque a URL do servidor é configurável pelo usuário (hospedagem local em `http://`). Hosts específicos não podem ser fixados.
 - **Flags de linha de comando**: `--hidden`, `--user-data-dir=<pasta>` (duas instâncias para teste) e, só fora do pacote, `--server=<url> --key=<chave> --room=<sala>` para login/entrada automáticos em testes.
-- **Contrato main ↔ renderer**: `apps/desktop/src/preload/api.d.ts` (`window.telao`) é a única fronteira; mudanças passam por ali primeiro. Os handlers IPC devolvem um envelope `{ ok, value | message }` para que a mensagem pt-BR chegue limpa ao renderer.
-- **Notificações no Windows**: o `main` registra o AppUserModelId `com.telao.desktop`; o `appId` do electron-builder (Fase 6) **tem** de ser o mesmo.
+- **Contrato main ↔ renderer**: `apps/desktop/src/preload/api.d.ts` (`window.concord`) é a única fronteira; mudanças passam por ali primeiro. Os handlers IPC devolvem um envelope `{ ok, value | message }` para que a mensagem pt-BR chegue limpa ao renderer.
+- **Notificações no Windows**: o `main` registra o AppUserModelId `com.concord.desktop`; o `appId` do electron-builder (Fase 6) **tem** de ser o mesmo.
 
 ---
 
@@ -302,7 +302,7 @@ export const QUALITY_PRESETS = { /* conforme tabela 5.6 */ } as const;
 
 ## 7. Orçamento de recursos na VM (convivência com o Minecraft)
 - Limite Always Free A1: **2 OCPU / 12 GB** somados por conta (confirmar no console — contas antigas podem ter mais).
-- Telão total (livekit + api + caddy): **≤ 1,5 CPU e ≤ 1,4 GB RAM** pelos limites do compose.
+- Concord total (livekit + api + caddy): **≤ 1,5 CPU e ≤ 1,4 GB RAM** pelos limites do compose.
 - Tráfego: ~6 GB/h numa call típica (1 stream, 4–5 assistindo); pior caso ~50 GB/h. Limite grátis: **10 TB/mês** de saída.
 - Antes do deploy, rodar `free -h`, `nproc`, `docker ps`/`systemctl` para ver o que o Minecraft usa e **mostrar ao usuário** antes de subir qualquer coisa.
 
@@ -336,7 +336,7 @@ Gerar um passo a passo detalhado contendo:
 - Scaffold `apps/desktop` com electron-vite (React + TS), `apps/api` (Fastify), `packages/shared`.
 - Gerar `CLAUDE.md` curto (comandos, estrutura, convenções da seção 10).
 - `git init` + primeiro commit (perguntar antes de criar repo remoto).
-- **Pronto quando**: `pnpm dev` abre uma janela Electron "Olá Telão" e `pnpm --filter api dev` responde `/api/health`.
+- **Pronto quando**: `pnpm dev` abre uma janela Electron "Olá Concord" e `pnpm --filter api dev` responde `/api/health`.
 
 ### Fase 1 — Servidor local
 - Auth por chave, `/api/me`, `/api/rooms`, `/api/token`, script `user:add`.
@@ -378,7 +378,7 @@ Gerar um passo a passo detalhado contendo:
 
 ### Fase 7 (opcional) — Integração com o Discord
 - **7a**: Discord RPC local para detectar o canal de voz atual e sugerir/entrar automaticamente na sala correspondente (mapeamento canal→sala nas configurações). Verificar antes se os escopos necessários estão disponíveis para um app pessoal (dono + testers); se não estiverem, reportar e não insistir.
-- **7b**: plugin Vencord/Equicord que mostra botão "Transmitir no Telão" e o badge AO VIVO dentro do Discord, conversando com o app via `http://127.0.0.1:<porta>` local. **Avisar o usuário que client mods violam os Termos do Discord** e só fazer com confirmação explícita.
+- **7b**: plugin Vencord/Equicord que mostra botão "Transmitir no Concord" e o badge AO VIVO dentro do Discord, conversando com o app via `http://127.0.0.1:<porta>` local. **Avisar o usuário que client mods violam os Termos do Discord** e só fazer com confirmação explícita.
 
 ---
 

@@ -8,7 +8,7 @@ import { ALICE, BOB, fakeLogger, waitFor } from './helpers';
 
 describe('watchUsersFile', () => {
   it('reloads on change and keeps the previous users when the file is invalid', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'telao-users-'));
+    const dir = await mkdtemp(join(tmpdir(), 'concord-users-'));
     const path = join(dir, 'users.json');
     await writeFile(path, JSON.stringify({ users: [ALICE] }));
     const store = await UserStore.fromFile(path);

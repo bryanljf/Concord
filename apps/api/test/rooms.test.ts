@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ApiErrorResponse, RoomsResponse } from '@telao/shared';
+import type { ApiErrorResponse, RoomsResponse } from '@concord/shared';
 import { ALICE, bearer, testApp } from './helpers';
 
 describe('GET /api/rooms', () => {

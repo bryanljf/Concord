@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { PresenceEvent, RoomId, TokenResponse, UserInfo } from '@telao/shared';
+import type { PresenceEvent, RoomId, TokenResponse, UserInfo } from '@concord/shared';
 import type {
   NavigateTarget,
   PresenceConnectionStatus,
   PresenceState,
   Session,
   Settings,
-  TelaoApi,
+  ConcordApi,
 } from './api';
 import { EVENTS, IPC, type EventChannel, type IpcChannel, type IpcResult } from './channels';
 
@@ -32,7 +32,7 @@ function subscribe<T>(channel: EventChannel, listener: (payload: T) => void): ()
   };
 }
 
-const api: TelaoApi = {
+const api: ConcordApi = {
   platform: process.platform,
   version: typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0',
 
@@ -61,4 +61,4 @@ const api: TelaoApi = {
   openExternal: (url) => invoke<void>(IPC.OPEN_EXTERNAL, url),
 };
 
-contextBridge.exposeInMainWorld('telao', api);
+contextBridge.exposeInMainWorld('concord', api);

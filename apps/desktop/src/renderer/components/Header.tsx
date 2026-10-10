@@ -1,4 +1,4 @@
-import type { RoomId } from '@telao/shared';
+import type { RoomId } from '@concord/shared';
 import { FullscreenIcon, GearIcon, PopOutIcon } from './icons';
 import '../styles/header.css';
 

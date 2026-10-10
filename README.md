@@ -1,12 +1,12 @@
-# Telão
+# Concord
 
 Compartilhamento de tela para um grupo fechado de amigos, feito para conviver com o Discord:
-a voz e o chat continuam lá; o Telão só transmite a tela (com o áudio do jogo) por um
+a voz e o chat continuam lá; o Concord só transmite a tela (com o áudio do jogo) por um
 servidor [LiveKit](https://livekit.io) próprio, sem passar por VPN.
 
 - **App desktop** (Windows, Electron): fica na bandeja, avisa quando alguém entra ao vivo e
   abre uma janela com visual inspirado no Discord para assistir ou transmitir.
-- **Servidor** (`telao-api` + `livekit-server`): pode rodar **no PC de alguém do grupo**
+- **Servidor** (`concord-api` + `livekit-server`): pode rodar **no PC de alguém do grupo**
   (Windows, sem Docker) ou numa **VM Oracle Cloud Always Free** (Docker + Caddy).
 
 ## Hospedar
@@ -16,7 +16,7 @@ servidor [LiveKit](https://livekit.io) próprio, sem passar por VPN.
 | No seu PC (Windows)   | [infra/local/README-local.md](infra/local/README-local.md) |
 | Oracle Cloud (Fase 5) | `infra/README-deploy.md` (ainda não escrito)               |
 
-Em resumo, no PC: `pnpm install`, `pnpm --filter @telao/api user:add <id> <nome>` para cada
+Em resumo, no PC: `pnpm install`, `pnpm --filter @concord/api user:add <id> <nome>` para cada
 amigo (o comando imprime a chave de acesso), e `powershell -ExecutionPolicy Bypass -File
 infra\local\start.ps1`. O script cria o `infra/.env`, baixa o LiveKit (versão fixa, SHA256
 conferido), sobe tudo e mostra o endereço que os amigos digitam no app.
@@ -28,7 +28,7 @@ Requisitos: Node 22+ e pnpm 12.
 ```bash
 pnpm install
 pnpm dev:livekit   # livekit-server local (janela própria)
-pnpm dev:api       # telao-api em http://127.0.0.1:3000 (lê infra/.env)
+pnpm dev:api       # concord-api em http://127.0.0.1:3000 (lê infra/.env)
 pnpm dev           # app desktop com hot reload
 pnpm lint && pnpm typecheck && pnpm test
 ```

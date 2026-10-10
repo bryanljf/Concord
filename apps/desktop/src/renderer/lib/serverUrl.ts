@@ -7,7 +7,7 @@ function looksLocal(hostname: string): boolean {
 }
 
 /**
- * Normalizes what the user typed into a base URL for telao-api: adds a scheme when missing
+ * Normalizes what the user typed into a base URL for concord-api: adds a scheme when missing
  * (http for IPs/localhost/explicit ports, https otherwise), drops trailing slashes and paths.
  */
 export function normalizeServerUrl(input: string): ServerUrlResult {

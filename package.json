@@ -1,5 +1,5 @@
 {
-  "name": "telao",
+  "name": "concord",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.10.1",
@@ -7,8 +7,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @telao/desktop dev",
-    "dev:api": "pnpm --filter @telao/api dev",
+    "dev": "pnpm --filter @concord/desktop dev",
+    "dev:api": "pnpm --filter @concord/api dev",
     "dev:livekit": "powershell -ExecutionPolicy Bypass -File infra/local/start.ps1 -LiveKitOnly",
     "build": "pnpm -r build",
     "lint": "eslint . && prettier --check .",

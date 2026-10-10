@@ -10,7 +10,7 @@ describe('parseCliArgs', () => {
     expect(
       parseCliArgs([
         '--hidden',
-        '--user-data-dir=C:\\tmp\\telao-b',
+        '--user-data-dir=C:\\tmp\\concord-b',
         '--server',
         'http://127.0.0.1:3000',
         '--key=abc',
@@ -19,7 +19,7 @@ describe('parseCliArgs', () => {
       ]),
     ).toEqual({
       hidden: true,
-      userDataDir: 'C:\\tmp\\telao-b',
+      userDataDir: 'C:\\tmp\\concord-b',
       server: 'http://127.0.0.1:3000',
       key: 'abc',
       room: 'jogos',

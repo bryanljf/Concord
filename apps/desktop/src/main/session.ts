@@ -1,4 +1,4 @@
-import type { UserInfo } from '@telao/shared';
+import type { UserInfo } from '@concord/shared';
 import type { Session } from '../preload/api';
 import {
   ApiClientError,

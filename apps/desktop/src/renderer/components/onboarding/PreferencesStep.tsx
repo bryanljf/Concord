@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useSettings } from '../../hooks/useSettings';
 import { DEFAULT_SHORTCUT } from '../../lib/constants';
-import { getPlatform, toErrorMessage, type Settings } from '../../lib/telao';
+import { getPlatform, toErrorMessage, type Settings } from '../../lib/concord';
 import { ShortcutRecorder } from '../ShortcutRecorder';
 import { Spinner } from '../Spinner';
 

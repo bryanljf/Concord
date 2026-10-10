@@ -7,7 +7,7 @@ import {
   TrackType,
 } from 'livekit-server-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { TOKEN_TTL_SECONDS } from '@telao/shared';
+import { TOKEN_TTL_SECONDS } from '@concord/shared';
 import { createRoomToken, fetchRoomState, isScreenShareVideo } from '../src/livekit';
 import { ALICE, API_KEY, API_SECRET, testConfig } from './helpers';
 

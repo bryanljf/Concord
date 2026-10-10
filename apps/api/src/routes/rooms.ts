@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { RoomId, RoomsResponse } from '@telao/shared';
+import type { RoomId, RoomsResponse } from '@concord/shared';
 import { requireUser, type UserStore } from '../auth';
 
 export interface RoomsRoutesOptions {

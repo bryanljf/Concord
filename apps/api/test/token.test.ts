@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { TokenVerifier } from 'livekit-server-sdk';
 import { describe, expect, it } from 'vitest';
-import { TOKEN_TTL_SECONDS, type ApiErrorResponse, type TokenResponse } from '@telao/shared';
+import { TOKEN_TTL_SECONDS, type ApiErrorResponse, type TokenResponse } from '@concord/shared';
 import { ALICE, API_KEY, API_SECRET, bearer, testApp, testConfig } from './helpers';
 
 function requestToken(app: FastifyInstance, payload: object, remoteAddress?: string) {
@@ -74,7 +74,7 @@ describe('POST /api/token', () => {
 
   describe('LiveKit URL selection', () => {
     const localUrl = 'ws://127.0.0.1:7880';
-    const publicUrl = 'wss://telao.example';
+    const publicUrl = 'wss://concord.example';
 
     it.each<[string, string]>([
       ['127.0.0.1', localUrl],

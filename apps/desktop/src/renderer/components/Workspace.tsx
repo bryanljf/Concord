@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { UserInfo } from '@telao/shared';
+import type { UserInfo } from '@concord/shared';
 import { useNavigate } from '../hooks/useNavigate';
 import { usePresence } from '../hooks/usePresence';
 import { useRoom } from '../hooks/useRoom';
@@ -10,7 +10,7 @@ import { useToast } from '../hooks/useToast';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { formatShortcut } from '../lib/format';
 import { knownParticipants, resolveFocus, streamersOf } from '../lib/presence';
-import { getPlatform, telao, toErrorMessage, type Settings } from '../lib/telao';
+import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
 import { AppShell } from './AppShell';
 import { BottomBar } from './BottomBar';
 import { ConnectionBanner } from './ConnectionBanner';
@@ -68,7 +68,7 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   // Tray menu "Configurações".
-  useEffect(() => telao().onOpenSettings(openSettings), [openSettings]);
+  useEffect(() => concord().onOpenSettings(openSettings), [openSettings]);
 
   return (
     <>
@@ -121,7 +121,7 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
           rooms={rooms}
           participants={participants}
           platform={platform}
-          version={telao().version}
+          version={concord().version}
           onUpdate={saveSettings}
           onClose={closeSettings}
           onRekey={onRekey}

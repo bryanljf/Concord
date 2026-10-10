@@ -4,7 +4,7 @@ import type {
   PresenceState,
   Session,
   Settings,
-  TelaoApi,
+  ConcordApi,
 } from '../../preload/api';
 
 export type {
@@ -13,12 +13,12 @@ export type {
   PresenceState,
   Session,
   Settings,
-  TelaoApi,
+  ConcordApi,
 };
 
 /** The typed bridge exposed by the preload script (`contextBridge`). */
-export function telao(): TelaoApi {
-  const api: TelaoApi | undefined = window.telao;
+export function concord(): ConcordApi {
+  const api: ConcordApi | undefined = window.concord;
   if (!api) throw new Error('A ponte com o aplicativo não está disponível.');
   return api;
 }
@@ -26,7 +26,7 @@ export function telao(): TelaoApi {
 /** `process.platform` of the main process ("win32" when the bridge is missing, e.g. in tests). */
 export function getPlatform(): string {
   if (typeof window === 'undefined') return 'win32';
-  const api: TelaoApi | undefined = window.telao;
+  const api: ConcordApi | undefined = window.concord;
   return api?.platform ?? 'win32';
 }
 

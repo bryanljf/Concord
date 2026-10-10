@@ -6,7 +6,7 @@ import Fastify, {
   type FastifyServerOptions,
 } from 'fastify';
 import type { WebhookReceiver } from 'livekit-server-sdk';
-import type { ApiErrorResponse } from '@telao/shared';
+import type { ApiErrorResponse } from '@concord/shared';
 import type { UserStore } from './auth';
 import type { ApiConfig } from './config';
 import { createWebhookReceiver } from './livekit';

@@ -11,7 +11,7 @@
 #   docker compose --env-file infra/.env -f infra/docker-compose.dev.yml up
 #
 # - LIVEKIT_API_KEY / LIVEKIT_API_SECRET vêm do infra/.env (interpolação do compose) e viram
-#   a variável LIVEKIT_KEYS="telao: <segredo>", que o livekit-server lê (não há `keys:` no yaml).
+#   a variável LIVEKIT_KEYS="concord: <segredo>", que o livekit-server lê (não há `keys:` no yaml).
 # - Config montada: infra/local/livekit.docker.yaml (webhook -> host.docker.internal, onde o
 #   api roda; use_external_ip desligado).
 # - O container não conhece o IP da sua máquina: NODE_IP é o IP que o LiveKit anuncia aos
@@ -23,7 +23,7 @@ services:
     image: livekit/livekit-server:v1.13.9
     command: ['--config', '/etc/livekit.yaml']
     environment:
-      LIVEKIT_KEYS: '${LIVEKIT_API_KEY:-telao}: ${LIVEKIT_API_SECRET:?defina LIVEKIT_API_SECRET em infra/.env}'
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY:-concord}: ${LIVEKIT_API_SECRET:?defina LIVEKIT_API_SECRET em infra/.env}'
       NODE_IP: '${NODE_IP:-127.0.0.1}'
     volumes:
       - ./local/livekit.docker.yaml:/etc/livekit.yaml:ro
