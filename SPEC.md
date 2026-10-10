@@ -415,6 +415,8 @@ Gerar um passo a passo detalhado contendo:
 | Linux (algum amigo) | Electron funciona; captura via PipeWire; áudio por processo fica para depois |
 
 ## 13. Perguntas em aberto (perguntar ao usuário quando chegar a hora)
+
+> **Respondidas em 2026-10-10**: (1) nome final **Concord**, ícone mantido; (2) hospedagem **só no PC do usuário** por enquanto (seção 4.7), sem DuckDNS; a Fase 5 (Oracle) fica apenas **preparada** (arquivos em `infra/`), sem deploy; (3) sem Oracle por ora; (4) repositório GitHub **público**; (5) todos usam **Windows 11**; (6) salas: `geral` por padrão (ajustável em `ROOMS`).
 1. Nome final do app e ícone.
 2. Domínio: DuckDNS ou próprio? Qual subdomínio?
 3. Região home da conta Oracle do amigo e quanto de CPU/RAM o Minecraft usa.
