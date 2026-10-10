@@ -60,4 +60,11 @@ export type EventChannel = (typeof EVENTS)[keyof typeof EVENTS];
  * renderer receives the pt-BR text as-is instead of Electron's "Error invoking remote method"
  * wrapper; the preload turns `ok: false` back into a rejected promise.
  */
-export type IpcResult<T> = { ok: true; value: T } | { ok: false; message: string };
+export type IpcResult<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false;
+      message: string;
+      /** Machine-readable reason when the renderer must branch (e.g. `discord_not_running`). */
+      code?: string;
+    };

@@ -13,6 +13,7 @@ import { parseCaptureSelection, type CaptureService } from './capture';
 import { log } from './log';
 import { parsePopoutTarget, type PopoutManager } from './popout';
 import type { PresenceClient } from './presence-client';
+import { ProcessAudioError } from './audio';
 import type { ProcessAudioBridge } from './process-audio';
 import type { SessionManager } from './session';
 import { SettingsValidationError, type SettingsStore } from './settings';
@@ -58,7 +59,8 @@ function userMessage(err: unknown): string {
   if (
     err instanceof UserFacingError ||
     err instanceof ApiClientError ||
-    err instanceof SettingsValidationError
+    err instanceof SettingsValidationError ||
+    err instanceof ProcessAudioError
   ) {
     return err.message;
   }
@@ -86,6 +88,7 @@ export function registerIpc(deps: IpcDeps): () => void {
         return result;
       } catch (err) {
         const failure: IpcResult<T> = { ok: false, message: userMessage(err) };
+        if (err instanceof ProcessAudioError) failure.code = err.code;
         return failure;
       }
     });

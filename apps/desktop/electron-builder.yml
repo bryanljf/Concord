@@ -24,6 +24,8 @@ files:
 # Native prebuilds must stay outside the asar so Node can dlopen them.
 asarUnpack:
   - '**/node_modules/@concord/process-audio/**'
+  # Native addon with its prebuilt .node binary (loaded through `bindings`).
+  - '**/node_modules/loopback-capture/**'
 
 # Tray and notification icons are read from disk at runtime (src/main/resources.ts looks in
 # <resourcesPath>/resources first).

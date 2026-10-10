@@ -32,7 +32,11 @@ declare const __APP_VERSION__: string | undefined;
 /** Calls a main-process handler and turns its `IpcResult` envelope back into a value or Error. */
 async function invoke<T>(channel: IpcChannel, ...args: unknown[]): Promise<T> {
   const result = (await ipcRenderer.invoke(channel, ...args)) as IpcResult<T>;
-  if (!result.ok) throw new Error(result.message);
+  if (!result.ok) {
+    const error = new Error(result.message) as Error & { code?: string };
+    if (result.code) error.code = result.code;
+    throw error;
+  }
   return result.value;
 }
 
