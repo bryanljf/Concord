@@ -5,3 +5,5 @@ packages:
 allowBuilds:
   electron: true
   esbuild: true
+  # Squirrel installer tooling pulled in by electron-builder; unused (NSIS) and must not fail CI.
+  electron-winstaller: false
