@@ -1,0 +1,61 @@
+# electron-builder configuration (SPEC 5.9, Phase 6).
+# Reference: https://www.electron.build/configuration
+
+# Must equal APP_USER_MODEL_ID in src/main/index.ts, or Windows will not attribute
+# notifications to the installed app.
+appId: com.concord.desktop
+productName: Concord
+
+# Written into the packed package.json so Electron's `app.getName()` is "Concord" (userData in
+# %APPDATA%\Concord) instead of the npm package name "@concord/desktop". Development runs
+# keep the npm name, so nothing moves for people already using `pnpm dev`.
+extraMetadata:
+  productName: Concord
+
+directories:
+  output: release
+  buildResources: resources
+
+# electron-vite writes the bundles to out/; production node_modules are added automatically.
+files:
+  - out/**
+  - package.json
+
+# Native prebuilds must stay outside the asar so Node can dlopen them.
+asarUnpack:
+  - '**/node_modules/@concord/process-audio/**'
+
+# Tray and notification icons are read from disk at runtime (src/main/resources.ts looks in
+# <resourcesPath>/resources first).
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - '**/*.png'
+
+# @concord/process-audio ships prebuilt binaries; nothing is compiled while packaging.
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # A 256x256 PNG; electron-builder converts it to .ico.
+  icon: resources/icon.png
+
+nsis:
+  oneClick: true
+  # Per-user install (no admin prompt), under %LOCALAPPDATA%\Programs\Concord.
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  artifactName: Concord-Setup-${version}.${ext}
+  shortcutName: Concord
+
+# electron-updater reads this (as app-update.yml next to the asar) to find releases.
+# OWNER is a placeholder for the GitHub user/organisation that hosts the repository; keep it in
+# sync with "repository.url" in package.json.
+publish:
+  provider: github
+  owner: OWNER
+  repo: Concord

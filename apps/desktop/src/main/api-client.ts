@@ -3,6 +3,7 @@ import type {
   MeResponse,
   RoomId,
   RoomsResponse,
+  TokenPurpose,
   TokenRequest,
   TokenResponse,
   UserInfo,
@@ -174,8 +175,8 @@ export interface ApiClient {
   me(): Promise<UserInfo>;
   /** `GET /api/rooms` */
   rooms(): Promise<RoomId[]>;
-  /** `POST /api/token` */
-  token(room: RoomId): Promise<TokenResponse>;
+  /** `POST /api/token`; `purpose: 'popout'` asks for the hidden, subscribe-only identity. */
+  token(room: RoomId, purpose?: TokenPurpose): Promise<TokenResponse>;
 }
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
@@ -225,8 +226,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   return {
     me: () => request('/api/me', parseMe),
     rooms: () => request('/api/rooms', parseRooms),
-    token: (room) => {
-      const body: TokenRequest = { room };
+    token: (room, purpose) => {
+      // `purpose` is omitted from the JSON when undefined (`JSON.stringify` drops it).
+      const body: TokenRequest = { room, purpose };
       return request('/api/token', parseToken, body);
     },
   };

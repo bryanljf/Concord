@@ -10,7 +10,9 @@
     "preview": "electron-vite preview",
     "icons": "node scripts/gen-icons.mjs",
     "typecheck": "tsc -p tsconfig.node.json && tsc -p tsconfig.web.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "dist": "electron-vite build && electron-builder --win",
+    "dist:dir": "electron-vite build && electron-builder --win --dir"
   },
   "dependencies": {
     "@concord/process-audio": "workspace:*",

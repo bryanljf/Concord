@@ -1,25 +1,32 @@
 import { app, globalShortcut } from 'electron';
 import { EVENTS } from '../preload/channels';
 import { createApiClient } from './api-client';
+import { createProcessAudioEngine } from './audio';
 import { bindAutostart } from './autostart';
+import { createCaptureService } from './capture';
 import { parseCliArgs } from './cli';
 import { createDiscordWatcher } from './discord-watcher';
 import { registerIpc } from './ipc';
 import { log } from './log';
 import { createNotifier } from './notifications';
+import { createPopoutManager } from './popout';
 import { PresenceClient } from './presence-client';
 import { PresenceController } from './presence-controller';
+import { createProcessAudioBridge } from './process-audio';
 import { createSessionManager } from './session';
 import { createSettingsStore } from './settings';
 import { bindGlobalShortcut } from './shortcuts';
+import { createStreamingStore } from './streaming';
 import { createTray } from './tray';
+import { createUpdater } from './updater';
 import { createMainWindow } from './window';
+import { createWindowRegistry } from './windows';
 
 const logger = log('app');
 
 /**
- * Must match `appId` in electron-builder.yml (Phase 6) so Windows attributes notifications to
- * the installed app. In development the executable path is used, as Electron recommends.
+ * Must match `appId` in electron-builder.yml so Windows attributes notifications to the
+ * installed app. In development the executable path is used, as Electron recommends.
  */
 const APP_USER_MODEL_ID = 'com.concord.desktop';
 
@@ -75,11 +82,25 @@ function bootstrap(): void {
     notifier,
   });
 
+  const windows = createWindowRegistry();
   const window = createMainWindow({
     settings,
     notifier,
+    registry: windows,
     startHidden: cli.hidden,
     isQuitting: () => quitting,
+  });
+  const popout = createPopoutManager({ registry: windows });
+  const streaming = createStreamingStore();
+  const capture = createCaptureService({ windows });
+  const processAudio = createProcessAudioBridge(createProcessAudioEngine());
+  const updater = createUpdater({
+    isPackaged: app.isPackaged,
+    currentVersion: app.getVersion(),
+    // `quitAndInstall` closes every window first: without this, close-to-tray would cancel it.
+    onBeforeInstall: () => {
+      quitting = true;
+    },
   });
 
   function requestStreamToggle(): void {
@@ -104,11 +125,25 @@ function bootstrap(): void {
     onQuit: quit,
   });
 
-  registerIpc({ settings, session, api, presence, window });
+  registerIpc({
+    settings,
+    session,
+    api,
+    presence,
+    windows,
+    mainWindow: window,
+    capture,
+    streaming,
+    popout,
+    updater,
+    processAudio,
+  });
+  capture.install();
   bindAutostart(settings);
   bindGlobalShortcut(settings, requestStreamToggle);
 
-  controller.onTrayStatus((status) => tray.setStatus(status));
+  controller.onTrayStatus((status) => tray.setPresenceStatus(status));
+  streaming.onChange((state) => tray.setStreamingState(state));
   controller.onNavigate((target) => {
     window.show();
     window.send(EVENTS.NAVIGATE, target);
@@ -119,15 +154,19 @@ function bootstrap(): void {
     window.show();
   });
   app.on('will-quit', () => {
+    updater.stop();
     controller.stop();
     discord.stop();
     presence.disconnect('no_session');
+    void processAudio.stop();
+    popout.destroy();
     tray.destroy();
   });
 
   discord.start();
   controller.start();
   void session.restore();
+  updater.start();
 
   if (!app.isPackaged) applyDevFlags();
 

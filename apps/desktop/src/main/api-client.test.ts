@@ -85,6 +85,15 @@ describe('createApiClient', () => {
     expect(token).toEqual({ token: 'jwt', url: 'ws://127.0.0.1:7880', expiresAt: 123 });
   });
 
+  it('posts the token purpose when given', async () => {
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ room: 'jogos', purpose: 'popout' });
+      return jsonResponse(200, { token: 'jwt', url: 'ws://127.0.0.1:7880', expiresAt: 123 });
+    });
+    await client(fetchImpl as typeof fetch).token('jogos', 'popout');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('maps a network failure to a pt-BR message with the host', async () => {
     const fetchImpl = (async () => {
       throw new TypeError('fetch failed');

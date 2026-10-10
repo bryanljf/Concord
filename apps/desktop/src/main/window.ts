@@ -1,42 +1,38 @@
-import { app, BrowserWindow, shell, type WebContents } from 'electron';
-import { join } from 'node:path';
-import type { EventChannel } from '../preload/channels';
+import { BrowserWindow } from 'electron';
 import { log } from './log';
 import type { Notifier } from './notifications';
 import { resourcePath } from './resources';
 import type { SettingsStore } from './settings';
+import {
+  bindFullscreenEvents,
+  createQueuedSender,
+  hardenWebContents,
+  rendererEntry,
+  rendererWebPreferences,
+  type AppWindow,
+  type WindowRegistry,
+} from './windows';
+
+export { isHttpUrl } from './windows';
 
 const logger = log('window');
-
-/** Delay after `did-finish-load` before queued messages are flushed, so React has subscribed. */
-const RENDERER_SETTLE_MS = 500;
 
 export interface MainWindowDeps {
   settings: SettingsStore;
   notifier: Notifier;
+  registry: WindowRegistry;
   /** Do not show the window when it becomes ready (`--hidden`). */
   startHidden: boolean;
   /** True once "Sair" was chosen or the app is quitting, so `close` really closes. */
   isQuitting(): boolean;
 }
 
-export interface MainWindow {
+export interface MainWindow extends AppWindow {
+  readonly kind: 'main';
   show(): void;
   hide(): void;
   toggle(): void;
-  /** Sends to the renderer, queueing until it has loaded. */
-  send(channel: EventChannel, ...args: unknown[]): void;
-  isTrustedSender(sender: WebContents): boolean;
   destroy(): void;
-}
-
-export function isHttpUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
 }
 
 export function createMainWindow(deps: MainWindowDeps): MainWindow {
@@ -50,26 +46,10 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
     icon: resourcePath('icon.png'),
     show: false,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
+    webPreferences: rendererWebPreferences('main'),
   });
-
-  const devUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined;
-  const appOrigin = devUrl ? new URL(devUrl).origin : 'file://';
-
-  let loaded = false;
-  let queue: { channel: EventChannel; args: unknown[] }[] = [];
-
-  function flushQueue(): void {
-    if (!loaded || win.isDestroyed()) return;
-    const pending = queue;
-    queue = [];
-    for (const { channel, args } of pending) win.webContents.send(channel, ...args);
-  }
+  const entry = rendererEntry();
+  const send = createQueuedSender(win);
 
   win.once('ready-to-show', () => {
     if (deps.startHidden) {
@@ -79,25 +59,8 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
     }
   });
 
-  win.webContents.on('did-finish-load', () => {
-    loaded = true;
-    setTimeout(flushQueue, RENDERER_SETTLE_MS);
-  });
-  win.webContents.on('did-start-loading', () => {
-    loaded = false;
-  });
-
-  // Links never open new Electron windows: http(s) go to the system browser, the rest is dropped.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (isHttpUrl(url)) void shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  win.webContents.on('will-navigate', (event) => {
-    if (event.url.startsWith(appOrigin)) return;
-    event.preventDefault();
-    logger.warn(`blocked navigation to ${event.url}`);
-    if (isHttpUrl(event.url)) void shell.openExternal(event.url);
-  });
+  hardenWebContents(win, entry.appOrigin);
+  bindFullscreenEvents(win, send);
 
   // Closing hides to the tray; the first time, explain it.
   win.on('close', (event) => {
@@ -113,11 +76,7 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
     }
   });
 
-  if (devUrl) {
-    void win.loadURL(devUrl);
-  } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'));
-  }
+  void entry.load(win);
 
   function show(): void {
     if (win.isDestroyed()) return;
@@ -126,7 +85,10 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
     win.focus();
   }
 
-  return {
+  const window: MainWindow = {
+    kind: 'main',
+    browserWindow: win,
+    send,
     show,
     hide() {
       if (!win.isDestroyed()) win.hide();
@@ -136,17 +98,10 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
       if (win.isVisible() && !win.isMinimized()) win.hide();
       else show();
     },
-    send(channel, ...args) {
-      if (win.isDestroyed()) return;
-      if (loaded && queue.length === 0) {
-        win.webContents.send(channel, ...args);
-      } else {
-        queue.push({ channel, args });
-      }
-    },
-    isTrustedSender: (sender) => !win.isDestroyed() && sender === win.webContents,
     destroy() {
       if (!win.isDestroyed()) win.destroy();
     },
   };
+  deps.registry.add(window);
+  return window;
 }

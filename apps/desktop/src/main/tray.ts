@@ -5,10 +5,12 @@ import {
   type MenuItemConstructorOptions,
   type NativeImage,
 } from 'electron';
+import type { StreamingState } from '../preload/api';
 import { log } from './log';
 import type { TrayState, TrayStatus } from './presence-controller';
 import { resourcePath } from './resources';
 import type { SettingsStore } from './settings';
+import { INACTIVE_STREAMING_STATE, streamingTrayDetail } from './streaming';
 
 const logger = log('tray');
 
@@ -16,13 +18,17 @@ export interface TrayDeps {
   settings: SettingsStore;
   onOpen(): void;
   onToggle(): void;
+  /** "Transmitir…" and "Parar transmissão": the renderer owns the actual toggle. */
   onStreamToggle(): void;
   onOpenSettings(): void;
   onQuit(): void;
 }
 
 export interface TrayHandle {
-  setStatus(status: TrayStatus): void;
+  /** Presence-derived state (someone else live, connected, offline). */
+  setPresenceStatus(status: TrayStatus): void;
+  /** What this instance is publishing; wins over presence while active. */
+  setStreamingState(state: StreamingState): void;
   destroy(): void;
 }
 
@@ -35,6 +41,12 @@ export function trayTooltip(status: TrayStatus): string {
     case 'live':
       return `Concord — ${status.detail ?? 'alguém ao vivo'}`;
   }
+}
+
+/** Our own transmission shows as `live` regardless of the presence connection (pure). */
+export function resolveTrayStatus(presence: TrayStatus, streaming: StreamingState): TrayStatus {
+  if (!streaming.active) return presence;
+  return { state: 'live', detail: streamingTrayDetail(streaming) };
 }
 
 function loadIcon(state: TrayState): NativeImage {
@@ -51,16 +63,23 @@ export function createTray(deps: TrayDeps): TrayHandle {
     idle: loadIcon('idle'),
     live: loadIcon('live'),
   };
+  let presence: TrayStatus = { state: 'offline', detail: null };
+  let streaming: StreamingState = INACTIVE_STREAMING_STATE;
+
   const tray = new Tray(icons.offline);
-  tray.setToolTip(trayTooltip({ state: 'offline', detail: null }));
+  tray.setToolTip(trayTooltip(presence));
 
   function buildMenu(): Menu {
     const settings = deps.settings.get();
     const template: MenuItemConstructorOptions[] = [
       { label: 'Abrir Concord', click: () => deps.onOpen() },
-      { label: 'Transmitir…', click: () => deps.onStreamToggle() },
-      // Streaming arrives in Phase 3; the item exists so the layout is final.
-      { label: 'Parar transmissão', visible: false, enabled: false },
+      { label: 'Transmitir…', enabled: !streaming.active, click: () => deps.onStreamToggle() },
+      {
+        label: 'Parar transmissão',
+        visible: streaming.active,
+        enabled: streaming.active,
+        click: () => deps.onStreamToggle(),
+      },
       { type: 'separator' },
       {
         label: 'Iniciar com o Windows',
@@ -81,6 +100,12 @@ export function createTray(deps: TrayDeps): TrayHandle {
     return Menu.buildFromTemplate(template);
   }
 
+  function refresh(): void {
+    const status = resolveTrayStatus(presence, streaming);
+    tray.setImage(icons[status.state]);
+    tray.setToolTip(trayTooltip(status));
+  }
+
   tray.setContextMenu(buildMenu());
   const unsubscribe = deps.settings.onChange((next, previous) => {
     if (
@@ -96,9 +121,15 @@ export function createTray(deps: TrayDeps): TrayHandle {
   logger.info('tray created');
 
   return {
-    setStatus(status) {
-      tray.setImage(icons[status.state]);
-      tray.setToolTip(trayTooltip(status));
+    setPresenceStatus(status) {
+      presence = status;
+      refresh();
+    },
+    setStreamingState(state) {
+      const activeChanged = state.active !== streaming.active;
+      streaming = state;
+      refresh();
+      if (activeChanged) tray.setContextMenu(buildMenu());
     },
     destroy() {
       unsubscribe();

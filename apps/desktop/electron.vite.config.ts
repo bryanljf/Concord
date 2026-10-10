@@ -10,8 +10,13 @@ const define = {
 export default defineConfig({
   main: {
     define,
-    // @concord/shared ships TS source, so it must be bundled rather than required at runtime.
-    build: { externalizeDeps: { exclude: ['@concord/shared'] } },
+    build: {
+      // @concord/shared ships TS source, so it must be bundled rather than required at runtime.
+      externalizeDeps: { exclude: ['@concord/shared'] },
+      // CJS / native packages stay `require`d from node_modules (electron-builder packs them
+      // and asar-unpacks the native prebuilds); never inline them into out/main/index.js.
+      rollupOptions: { external: ['electron-updater', '@concord/process-audio'] },
+    },
   },
   preload: {
     define,

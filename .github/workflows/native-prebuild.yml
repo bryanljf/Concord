@@ -1,0 +1,52 @@
+# Verifies the prebuilt Windows binary used by @concord/process-audio (loopback-capture) on a
+# clean Windows runner: it must load under Node and under Electron's runtime. Nothing is
+# compiled here; the binary ships inside the npm package (see packages/process-audio/README.md).
+name: Native audio addon
+
+on:
+  push:
+    paths:
+      - 'packages/process-audio/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/native-prebuild.yml'
+  workflow_dispatch:
+
+jobs:
+  verify-prebuilt:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @concord/process-audio typecheck
+
+      - run: pnpm --filter @concord/process-audio test
+
+      - name: Load the addon with Node
+        run: node packages/process-audio/scripts/smoke.cjs
+
+      - name: Load the addon with Electron's runtime (ELECTRON_RUN_AS_NODE)
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: pnpm --filter @concord/desktop exec electron ../../packages/process-audio/scripts/smoke.cjs
+
+      - name: Record the binary that passed
+        shell: pwsh
+        run: |
+          $file = 'packages/process-audio/node_modules/loopback-capture/prebuilds/win32-x64/loopback_capture_addon.node'
+          Get-FileHash -Algorithm SHA256 $file | Format-List
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loopback-capture-win32-x64
+          path: packages/process-audio/node_modules/loopback-capture/prebuilds/win32-x64/loopback_capture_addon.node
+          if-no-files-found: error
