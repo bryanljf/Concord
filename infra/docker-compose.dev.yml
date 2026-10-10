@@ -1,0 +1,35 @@
+# LiveKit para DESENVOLVIMENTO com Docker Desktop (alternativa ao infra/local/start.ps1).
+#
+# Quando usar o quê:
+#   - infra/local/start.ps1 .......... hospedar de verdade no seu PC Windows (sem Docker) ou
+#                                      desenvolver sem Docker (-LiveKitOnly + `pnpm dev:api`).
+#   - este arquivo ................... você prefere Docker Desktop e roda o api por fora
+#                                      (`pnpm dev:api`). Só o LiveKit sobe no container.
+#   - infra/docker-compose.yml ....... produção na Oracle (Fase 5).
+#
+# Como subir (a partir da raiz do repositório):
+#   docker compose --env-file infra/.env -f infra/docker-compose.dev.yml up
+#
+# - LIVEKIT_API_KEY / LIVEKIT_API_SECRET vêm do infra/.env (interpolação do compose) e viram
+#   a variável LIVEKIT_KEYS="telao: <segredo>", que o livekit-server lê (não há `keys:` no yaml).
+# - Config montada: infra/local/livekit.docker.yaml (webhook -> host.docker.internal, onde o
+#   api roda; use_external_ip desligado).
+# - O container não conhece o IP da sua máquina: NODE_IP é o IP que o LiveKit anuncia aos
+#   clientes. 127.0.0.1 (padrão) serve para testar neste PC; para testar de outro PC na LAN,
+#   defina NODE_IP com o IP deste PC na LAN antes do `up` (PowerShell: $env:NODE_IP="192.168.1.10").
+# - Publicar 201 portas UDP deixa o `up` mais lento no Docker Desktop; é normal.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.9
+    command: ['--config', '/etc/livekit.yaml']
+    environment:
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY:-telao}: ${LIVEKIT_API_SECRET:?defina LIVEKIT_API_SECRET em infra/.env}'
+      NODE_IP: '${NODE_IP:-127.0.0.1}'
+    volumes:
+      - ./local/livekit.docker.yaml:/etc/livekit.yaml:ro
+    ports:
+      - '7880:7880'
+      - '7881:7881'
+      - '50000-50200:50000-50200/udp'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'

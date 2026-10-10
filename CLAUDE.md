@@ -9,6 +9,7 @@ Companion de compartilhamento de tela para um grupo fechado de amigos (o Discord
 pnpm install              # Node 22+ (.nvmrc = 22), pnpm 12
 pnpm dev                  # Electron (apps/desktop) via electron-vite
 pnpm dev:api              # Fastify em http://127.0.0.1:3000 (carrega infra/.env se existir)
+pnpm dev:livekit          # livekit-server local (binário oficial em infra/local/bin, baixado pelo start.ps1)
 pnpm lint                 # eslint + prettier --check
 pnpm format               # prettier --write
 pnpm typecheck            # tsc em todos os pacotes

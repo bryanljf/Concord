@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "id": "bryan",
+      "displayName": "Bryan",
+      "key": "troque-por-uma-chave-aleatoria-de-32-caracteres",
+      "admin": true
+    }
+  ]
+}

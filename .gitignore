@@ -11,3 +11,8 @@ coverage/
 .env.*
 !.env.example
 infra/users.json
+
+# infra/local (hospedagem local no Windows): binario baixado, PIDs e logs
+infra/local/bin/
+infra/local/.pids
+infra/local/*.log

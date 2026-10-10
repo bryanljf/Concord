@@ -1,0 +1,26 @@
+# Cópia de ../livekit.yaml para rodar o livekit-server dentro do Docker Desktop
+# (infra/docker-compose.dev.yml). Diferenças em relação ao original:
+#   - webhook.urls aponta para host.docker.internal: o api roda no host, fora do container,
+#     e 127.0.0.1 dentro do container seria o próprio container;
+#   - use_external_ip: false: o IP anunciado aos clientes vem da variável NODE_IP do compose
+#     (padrão 127.0.0.1 = testar com o app/navegador neste mesmo PC).
+# Mantenha o resto em sincronia com ../livekit.yaml.
+port: 7880
+
+rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+  tcp_port: 7881
+  use_external_ip: false
+
+room:
+  max_participants: 15
+  empty_timeout: 300
+
+webhook:
+  urls:
+    - http://host.docker.internal:3000/api/livekit/webhook
+  api_key: telao
+
+logging:
+  level: info

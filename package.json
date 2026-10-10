@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "pnpm --filter @telao/desktop dev",
     "dev:api": "pnpm --filter @telao/api dev",
+    "dev:livekit": "powershell -ExecutionPolicy Bypass -File infra/local/start.ps1 -LiveKitOnly",
     "build": "pnpm -r build",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",

@@ -152,7 +152,7 @@ telao/
 - `port: 7880` (sinalização, atrás do Caddy)
 - `rtc.tcp_port: 7881`
 - `rtc.port_range_start: 50000`, `rtc.port_range_end: 50200` (faixa pequena = menos regras de firewall)
-- `rtc.use_external_ip: true`
+- `rtc.use_external_ip: true`, mais `rtc.skip_external_ip_validation: true` e `rtc.advertise_internal_ip: true` (verificado com o binário: atrás de roteador doméstico o auto-teste do IP público falha e o LiveKit passaria a anunciar só o IP da LAN; inofensivo na Oracle)
 - `room.max_participants: 15`, `room.empty_timeout: 300`
 - `webhook.urls: [ "http://127.0.0.1:3000/api/livekit/webhook" ]`, `webhook.api_key` = a mesma API key
 - `keys:` vindas do `.env` (`LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`, gerar aleatórias)
@@ -280,7 +280,8 @@ Servidor/chave (trocar), iniciar com Windows, abrir com Discord, atalho global (
 - **Chave e preferências**: arquivo `settings.json` em `userData` escrito atomicamente (sem `electron-store`, que é ESM-only); a chave fica em `encryptedKey` via `safeStorage` (DPAPI).
 - **CSP**: `script-src 'self'` continua estrito, mas `connect-src` aceita `http: https: ws: wss:` porque a URL do servidor é configurável pelo usuário (hospedagem local em `http://`). Hosts específicos não podem ser fixados.
 - **Flags de linha de comando**: `--hidden`, `--user-data-dir=<pasta>` (duas instâncias para teste) e, só fora do pacote, `--server=<url> --key=<chave> --room=<sala>` para login/entrada automáticos em testes.
-- **Contrato main ↔ renderer**: `apps/desktop/src/preload/api.d.ts` (`window.telao`) é a única fronteira; mudanças passam por ali primeiro.
+- **Contrato main ↔ renderer**: `apps/desktop/src/preload/api.d.ts` (`window.telao`) é a única fronteira; mudanças passam por ali primeiro. Os handlers IPC devolvem um envelope `{ ok, value | message }` para que a mensagem pt-BR chegue limpa ao renderer.
+- **Notificações no Windows**: o `main` registra o AppUserModelId `com.telao.desktop`; o `appId` do electron-builder (Fase 6) **tem** de ser o mesmo.
 
 ---
 

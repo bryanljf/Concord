@@ -1,0 +1,62 @@
+# Configuração do livekit-server (SFU) do Telão — versão fixada: v1.13.9.
+# O mesmo arquivo serve para a hospedagem local (infra/local/start.ps1) e para a
+# Oracle (Fase 5, Docker). Referência completa das chaves:
+# https://github.com/livekit/livekit/blob/master/config-sample.yaml
+# O livekit-server rejeita chaves desconhecidas ("could not parse config"), então um
+# start limpo já valida este arquivo.
+
+# Porta TCP de sinalização (WebSocket) + API HTTP do LiveKit.
+# Local: exposta direto (ws://<ip>:7880). Oracle: atrás do Caddy (wss://<domínio>).
+port: 7880
+
+rtc:
+  # Portas UDP de mídia. Faixa pequena = poucas regras de firewall / port forwarding.
+  port_range_start: 50000
+  port_range_end: 50200
+  # ICE sobre TCP: usado quando o UDP está bloqueado na rede do espectador.
+  tcp_port: 7881
+  # Descobre o IP público via STUN e o anuncia aos clientes. Necessário atrás de NAT,
+  # tanto no PC de casa quanto na VM da Oracle (IP público mapeado 1:1 para o privado).
+  use_external_ip: true
+  # Atrás de um roteador doméstico o "auto-teste" do IP público costuma falhar (exige NAT
+  # loopback no roteador). Sem isto o LiveKit desistiria do IP público e anunciaria só o
+  # IP da LAN, e ninguém de fora conseguiria conectar. Inofensivo na Oracle.
+  skip_external_ip_validation: true
+  # Anuncia também o IP da LAN: o app de quem hospeda (e de amigos na mesma rede) conecta
+  # direto, sem depender de hairpin NAT no roteador. Na Oracle só gera um candidato a mais.
+  advertise_internal_ip: true
+
+room:
+  max_participants: 15
+  # Segundos que uma sala vazia fica aberta antes de ser fechada.
+  empty_timeout: 300
+
+webhook:
+  # O api recebe os eventos (participant_joined, track_published, ...) e alimenta a presença.
+  urls:
+    - http://127.0.0.1:3000/api/livekit/webhook
+  # Chave usada para assinar os webhooks. Precisa ser uma das chaves do servidor (ver abaixo).
+  api_key: telao
+
+logging:
+  level: info
+
+# Chaves de API: NÃO ficam neste arquivo (ele é versionado). O id da chave é fixo e
+# público ("telao"); só o segredo é sigiloso e vem do infra/.env (LIVEKIT_API_SECRET).
+# start.ps1 e o docker-compose injetam a variável de ambiente LIVEKIT_KEYS="telao: <segredo>",
+# que o livekit-server lê como se aqui existisse:
+# keys:
+#   telao: <segredo>
+
+# TURN embutido: DESLIGADO no MVP (todo mundo tem internet residencial normal).
+# Se alguém ficar numa rede que bloqueia UDP e o fallback TCP (7881) não bastar, habilite
+# TURN/TLS: exige um domínio e um certificado TLS válido para ele (cert_file/key_file ou as
+# variáveis LIVEKIT_TURN_CERT / LIVEKIT_TURN_KEY), e abrir a tls_port (443 recomendado) no
+# firewall/roteador. Sem certificado, prefira a opção Oracle (Caddy já cuida do TLS).
+# turn:
+#   enabled: true
+#   domain: telao.duckdns.org
+#   tls_port: 5349
+#   udp_port: 3478
+#   cert_file: /caminho/para/fullchain.pem
+#   key_file: /caminho/para/privkey.pem
