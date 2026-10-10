@@ -1,0 +1,191 @@
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const electronMock = vi.hoisted(() => ({
+  userDataDir: '',
+  encryptionAvailable: true,
+}));
+
+vi.mock('electron', () => ({
+  app: { getPath: () => electronMock.userDataDir },
+  safeStorage: {
+    isEncryptionAvailable: () => electronMock.encryptionAvailable,
+    encryptString: (text: string) => Buffer.from(`enc(${text})`, 'utf8'),
+    decryptString: (buffer: Buffer) => {
+      const text = buffer.toString('utf8');
+      if (!text.startsWith('enc(')) throw new Error('not encrypted by us');
+      return text.slice(4, -1);
+    },
+  },
+}));
+
+import {
+  createSettingsStore,
+  defaultSettings,
+  sanitizePatch,
+  sanitizeSettings,
+  SettingsValidationError,
+} from './settings';
+
+let dir: string;
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'telao-settings-'));
+  electronMock.userDataDir = dir;
+  electronMock.encryptionAvailable = true;
+});
+
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
+
+function readStored(): Record<string, unknown> {
+  return JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')) as Record<string, unknown>;
+}
+
+describe('sanitizeSettings', () => {
+  it('falls back to defaults per invalid or unknown field', () => {
+    const { settings, rejected } = sanitizeSettings({
+      serverUrl: 'ftp://nope',
+      launchAtLogin: false,
+      followDiscord: 'yes',
+      shortcut: 'Alt+L',
+      defaultQuality: 'ultra',
+      codec: 'vp9',
+      mutedRooms: ['jogos', 7, 'jogos'],
+      mutedUsers: 'ana',
+      audioOutputDeviceId: 'dev-1',
+      trayNoticeShown: true,
+      somethingElse: 1,
+    });
+    expect(settings).toEqual({
+      ...defaultSettings(),
+      launchAtLogin: false,
+      shortcut: 'Alt+L',
+      codec: 'vp9',
+      mutedRooms: ['jogos'],
+      audioOutputDeviceId: 'dev-1',
+      trayNoticeShown: true,
+    });
+    expect(rejected).toEqual(['serverUrl', 'followDiscord', 'defaultQuality', 'mutedUsers']);
+  });
+
+  it('returns defaults for non-objects', () => {
+    expect(sanitizeSettings(null).settings).toEqual(defaultSettings());
+    expect(sanitizeSettings([1]).settings).toEqual(defaultSettings());
+  });
+});
+
+describe('sanitizePatch', () => {
+  it('throws on unknown or invalid fields and keeps valid ones', () => {
+    expect(sanitizePatch({ followDiscord: false, mutedUsers: ['ana'] })).toEqual({
+      followDiscord: false,
+      mutedUsers: ['ana'],
+    });
+    expect(() => sanitizePatch({ nope: 1 })).toThrow(SettingsValidationError);
+    expect(() => sanitizePatch({ shortcut: 5 })).toThrow('Configuração inválida: shortcut.');
+    expect(() => sanitizePatch('x')).toThrow(SettingsValidationError);
+  });
+});
+
+describe('createSettingsStore', () => {
+  it('uses <userData>/settings.json and starts from defaults', () => {
+    const store = createSettingsStore();
+    expect(store.filePath).toBe(join(dir, 'settings.json'));
+    expect(store.get()).toEqual(defaultSettings());
+    expect(store.getKey()).toBeNull();
+    expect(store.getUser()).toBeNull();
+    expect(existsSync(store.filePath)).toBe(false);
+  });
+
+  it('persists updates atomically and notifies listeners', () => {
+    const store = createSettingsStore();
+    const calls: [string, string][] = [];
+    const unsubscribe = store.onChange((next, previous) => {
+      calls.push([previous.shortcut, next.shortcut]);
+    });
+    const next = store.update({ shortcut: 'Alt+T', mutedRooms: ['filme'] });
+    expect(next.shortcut).toBe('Alt+T');
+    expect(store.get()).toBe(next);
+    expect(calls).toEqual([['CommandOrControl+Shift+L', 'Alt+T']]);
+    expect(readStored()).toMatchObject({ shortcut: 'Alt+T', mutedRooms: ['filme'] });
+    expect(readdirSync(dir)).toEqual(['settings.json']);
+
+    unsubscribe();
+    store.update({ shortcut: 'Alt+U' });
+    expect(calls).toHaveLength(1);
+
+    const reloaded = createSettingsStore();
+    expect(reloaded.get()).toEqual({
+      ...defaultSettings(),
+      shortcut: 'Alt+U',
+      mutedRooms: ['filme'],
+    });
+  });
+
+  it('rejects invalid patches without touching the file', () => {
+    const store = createSettingsStore();
+    expect(() => store.update({ codec: 'h265' as 'h264' })).toThrow(SettingsValidationError);
+    expect(existsSync(store.filePath)).toBe(false);
+  });
+
+  it('repairs invalid fields and ignores unknown ones when loading', () => {
+    writeFileSync(
+      join(dir, 'settings.json'),
+      JSON.stringify({ serverUrl: 'https://telao.example', launchAtLogin: 'no', foo: 1 }),
+    );
+    const store = createSettingsStore();
+    expect(store.get()).toEqual({ ...defaultSettings(), serverUrl: 'https://telao.example' });
+  });
+
+  it('falls back to defaults when the file is not valid JSON', () => {
+    writeFileSync(join(dir, 'settings.json'), '{ not json');
+    expect(createSettingsStore().get()).toEqual(defaultSettings());
+  });
+
+  it('stores the key encrypted (never in plain text) and the user alongside', () => {
+    const store = createSettingsStore();
+    store.setKey('super-secret-key');
+    store.setUser({ id: 'bryan', displayName: 'Bryan', admin: false });
+    const stored = readStored();
+    expect(JSON.stringify(stored)).not.toContain('super-secret-key');
+    expect(Buffer.from(stored.encryptedKey as string, 'base64').toString('utf8')).toBe(
+      'enc(super-secret-key)',
+    );
+    expect(stored.user).toEqual({ id: 'bryan', displayName: 'Bryan', admin: false });
+
+    const reloaded = createSettingsStore();
+    expect(reloaded.getKey()).toBe('super-secret-key');
+    expect(reloaded.getUser()).toEqual({ id: 'bryan', displayName: 'Bryan', admin: false });
+
+    reloaded.clearKey();
+    reloaded.setUser(null);
+    expect(reloaded.getKey()).toBeNull();
+    expect(readStored()).not.toHaveProperty('encryptedKey');
+    expect(readStored()).not.toHaveProperty('user');
+  });
+
+  it('falls back to a plain: prefix when encryption is unavailable, and upgrades later', () => {
+    electronMock.encryptionAvailable = false;
+    const store = createSettingsStore();
+    store.setKey('k1');
+    expect(readStored().encryptedKey).toBe('plain:k1');
+    expect(createSettingsStore().getKey()).toBe('k1');
+
+    electronMock.encryptionAvailable = true;
+    const upgraded = createSettingsStore();
+    expect(upgraded.getKey()).toBe('k1');
+    expect(readStored().encryptedKey).not.toBe('plain:k1');
+    expect(createSettingsStore().getKey()).toBe('k1');
+  });
+
+  it('treats an undecryptable key as absent', () => {
+    writeFileSync(
+      join(dir, 'settings.json'),
+      JSON.stringify({ encryptedKey: Buffer.from('garbage').toString('base64') }),
+    );
+    expect(createSettingsStore().getKey()).toBeNull();
+  });
+});
