@@ -29,6 +29,14 @@ export function testConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     trustProxy: false,
     rooms: ['geral', 'jogos'],
     usersFile: 'unused/users.json',
+    auth: {
+      discordClientId: 'client-id',
+      discordClientSecret: 'client-secret',
+      discordRedirectUri: 'http://localhost/api/auth/discord/callback',
+      discordScopes: 'identify',
+      sessionSecret: 'session-secret-012345678901234567890123',
+      sessionTtlSeconds: 2592000,
+    },
     livekit: {
       url: 'wss://concord.example',
       localUrl: undefined,

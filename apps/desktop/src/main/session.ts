@@ -19,6 +19,7 @@ export interface SessionManager {
   isAuthenticated(): boolean;
   /** Validates the key against `GET /api/me`, then stores server URL, key and user. */
   login(serverUrl: string, key: string): Promise<UserInfo>;
+  loginWithDiscord(serverUrl: string): Promise<UserInfo>;
   logout(): Promise<void>;
   /** Revalidates a stored key in the background; keeps the session when the server is unreachable. */
   restore(): Promise<void>;
@@ -28,6 +29,7 @@ export interface SessionManager {
 export interface SessionManagerDeps {
   settings: SettingsStore;
   createClient(options: ApiClientOptions): ApiClient;
+  openDiscordLogin?(serverUrl: string): Promise<string>;
 }
 
 export function createSessionManager(deps: SessionManagerDeps): SessionManager {
@@ -57,6 +59,20 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
       settings.setUser(user);
       if (settings.get().serverUrl !== base) settings.update({ serverUrl: base });
       logger.info(`logged in as ${user.id} on ${base}`);
+      emit();
+      return user;
+    },
+    async loginWithDiscord(serverUrl) {
+      if (!deps.openDiscordLogin)
+        throw new ApiClientError('network', 'Login com Discord indisponível.');
+      const base = normalizeServerUrl(serverUrl);
+      const credential = await deps.openDiscordLogin(base);
+      const client = deps.createClient({ getServerUrl: () => base, getKey: () => credential });
+      const user = await client.me();
+      settings.setKey(credential);
+      settings.setUser(user);
+      if (settings.get().serverUrl !== base) settings.update({ serverUrl: base });
+      logger.info(`logged in with Discord as ${user.id} on ${base}`);
       emit();
       return user;
     },

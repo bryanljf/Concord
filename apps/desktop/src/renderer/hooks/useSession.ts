@@ -17,6 +17,7 @@ interface SessionState {
 export interface UseSession extends SessionState {
   /** Validates the key with the server and stores it; rejects with a pt-BR message. */
   login(serverUrl: string, key: string): Promise<UserInfo>;
+  loginWithDiscord(serverUrl: string): Promise<UserInfo>;
   /** Marks the onboarding flow as done so the main UI can show. */
   finishOnboarding(): void;
   /** Clears the stored key and restarts the full onboarding. */
@@ -98,6 +99,17 @@ export function useSession(): UseSession {
     }
   }, []);
 
+  const loginWithDiscord = useCallback(async (serverUrl: string) => {
+    localLogin.current = true;
+    try {
+      const user = await concord().loginWithDiscord(serverUrl);
+      setState((prev) => ({ ...prev, serverUrl, user, error: null }));
+      return user;
+    } finally {
+      localLogin.current = false;
+    }
+  }, []);
+
   const finishOnboarding = useCallback(() => {
     setState((prev) => ({ ...prev, onboarding: 'none' }));
   }, []);
@@ -112,5 +124,5 @@ export function useSession(): UseSession {
     setState((prev) => ({ ...prev, user: null, onboarding: 'rekey' }));
   }, []);
 
-  return { ...state, login, finishOnboarding, logout, startRekey };
+  return { ...state, login, loginWithDiscord, finishOnboarding, logout, startRekey };
 }

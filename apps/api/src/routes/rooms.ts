@@ -5,13 +5,18 @@ import { requireUser, type UserStore } from '../auth';
 export interface RoomsRoutesOptions {
   users: UserStore;
   rooms: readonly RoomId[];
+  sessionSecret: string;
 }
 
 export const roomsRoutes: FastifyPluginAsync<RoomsRoutesOptions> = async (
   app,
-  { users, rooms },
+  { users, rooms, sessionSecret },
 ) => {
-  app.get('/api/rooms', { preHandler: requireUser(users) }, async (): Promise<RoomsResponse> => ({
-    rooms: [...rooms],
-  }));
+  app.get(
+    '/api/rooms',
+    { preHandler: requireUser(users, sessionSecret) },
+    async (): Promise<RoomsResponse> => ({
+      rooms: [...rooms],
+    }),
+  );
 };

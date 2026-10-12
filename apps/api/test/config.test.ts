@@ -6,6 +6,12 @@ const base = {
   LIVEKIT_URL: 'wss://concord.example',
   LIVEKIT_API_KEY: 'key',
   LIVEKIT_API_SECRET: 'secret',
+  DISCORD_CLIENT_ID: 'client',
+  DISCORD_CLIENT_SECRET: 'secret',
+  DISCORD_REDIRECT_URI: 'https://example/callback',
+  DISCORD_OAUTH_SCOPES: 'identify',
+  AUTH_SESSION_SECRET: 'a'.repeat(32),
+  AUTH_SESSION_TTL: '30d',
 };
 
 describe('loadConfig', () => {
@@ -16,6 +22,14 @@ describe('loadConfig', () => {
       trustProxy: false,
       rooms: ['geral'],
       usersFile: resolve('/srv/concord/apps/api', '../../infra/users.json'),
+      auth: {
+        discordClientId: 'client',
+        discordClientSecret: 'secret',
+        discordRedirectUri: 'https://example/callback',
+        discordScopes: 'identify',
+        sessionSecret: 'a'.repeat(32),
+        sessionTtlSeconds: 2592000,
+      },
       livekit: {
         url: 'wss://concord.example',
         localUrl: undefined,
@@ -43,6 +57,14 @@ describe('loadConfig', () => {
       trustProxy: true,
       rooms: ['geral', 'jogos', 'filme'],
       usersFile: resolve('/srv', 'data/users.json'),
+      auth: {
+        discordClientId: 'client',
+        discordClientSecret: 'secret',
+        discordRedirectUri: 'https://example/callback',
+        discordScopes: 'identify',
+        sessionSecret: 'a'.repeat(32),
+        sessionTtlSeconds: 2592000,
+      },
       livekit: {
         url: 'wss://concord.example',
         localUrl: 'ws://127.0.0.1:7880',

@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ApiErrorResponse, UserInfo } from '@concord/shared';
@@ -9,6 +9,7 @@ export interface User {
   /** Secret access key (32+ chars, base64url). */
   key: string;
   admin?: boolean;
+  discordUserId?: string;
 }
 
 export interface UsersFile {
@@ -48,7 +49,7 @@ export function parseUsersFile(json: string): User[] {
   const seen = new Set<string>();
   data.users.forEach((entry: unknown, index: number) => {
     if (!isRecord(entry)) throw new UsersFileError(`users[${index}] must be an object`);
-    const { id, displayName, key, admin } = entry;
+    const { id, displayName, key, admin, discordUserId } = entry;
     if (typeof id !== 'string' || !USER_ID_PATTERN.test(id)) {
       throw new UsersFileError(`users[${index}].id must match ${USER_ID_PATTERN}`);
     }
@@ -62,8 +63,20 @@ export function parseUsersFile(json: string): User[] {
     if (admin !== undefined && typeof admin !== 'boolean') {
       throw new UsersFileError(`users[${index}].admin must be a boolean`);
     }
+    if (
+      discordUserId !== undefined &&
+      (typeof discordUserId !== 'string' || !/^\d{1,32}$/.test(discordUserId))
+    ) {
+      throw new UsersFileError(`users[${index}].discordUserId must be a Discord user id`);
+    }
     seen.add(id);
-    users.push({ id, displayName: displayName.trim(), key, admin: admin === true });
+    users.push({
+      id,
+      displayName: displayName.trim(),
+      key,
+      admin: admin === true,
+      ...(discordUserId === undefined ? {} : { discordUserId }),
+    });
   });
   return users;
 }
@@ -131,21 +144,69 @@ export class UserStore {
     }
     return found;
   }
+
+  findByDiscordUserId(id: string): User | undefined {
+    return this.users.find((user) => user.discordUserId === id);
+  }
+}
+
+function encode(value: object): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+export function issueSessionToken(
+  user: User,
+  secret: string,
+  ttlSeconds: number,
+  now = Date.now(),
+): string {
+  const payload = encode({ sub: user.id, exp: Math.floor(now / 1000) + ttlSeconds });
+  const signature = createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+export function userFromSessionToken(
+  token: string,
+  store: UserStore,
+  secret: string,
+  now = Date.now(),
+): User | undefined {
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return undefined;
+  const expected = createHmac('sha256', secret).update(payload).digest('base64url');
+  if (!safeEqual(signature, expected)) return undefined;
+  try {
+    const value = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+      sub?: unknown;
+      exp?: unknown;
+    };
+    if (
+      typeof value.sub !== 'string' ||
+      typeof value.exp !== 'number' ||
+      value.exp <= Math.floor(now / 1000)
+    )
+      return undefined;
+    return store.findById(value.sub);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Fastify preHandler: validates `Authorization: Bearer <key>` and sets `request.user`. */
-export function requireUser(store: UserStore) {
+export function requireUser(store: UserStore, sessionSecret?: string) {
   return async function authenticate(request: FastifyRequest, reply: FastifyReply) {
     const key = parseBearer(request.headers.authorization);
     const user = key ? store.findByKey(key) : undefined;
-    if (!user) {
+    const sessionUser =
+      !user && sessionSecret && key ? userFromSessionToken(key, store, sessionSecret) : undefined;
+    if (!user && !sessionUser) {
       const body: ApiErrorResponse = {
         error: 'unauthorized',
         message: 'Chave de acesso inválida ou ausente.',
       };
       return reply.code(401).header('www-authenticate', 'Bearer').send(body);
     }
-    request.user = user;
+    request.user = user ?? sessionUser;
   };
 }
 

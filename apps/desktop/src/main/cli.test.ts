@@ -31,4 +31,22 @@ describe('parseCliArgs', () => {
       hidden: true,
     });
   });
+
+  it('uses the environment directory when the dev runner consumes CLI flags', () => {
+    expect(parseCliArgs([], { CONCORD_USER_DATA_DIR: 'C:\\tmp\\concord-b' })).toEqual({
+      hidden: false,
+      userDataDir: 'C:\\tmp\\concord-b',
+    });
+  });
+
+  it('prefers an explicit CLI directory over the environment', () => {
+    expect(
+      parseCliArgs(['--user-data-dir=C:\\tmp\\explicit'], {
+        CONCORD_USER_DATA_DIR: 'C:\\tmp\\environment',
+      }),
+    ).toEqual({
+      hidden: false,
+      userDataDir: 'C:\\tmp\\explicit',
+    });
+  });
 });

@@ -8,6 +8,7 @@ export interface PresenceRoutesOptions {
   presence: PresenceStore;
   /** Heartbeat interval; defaults to SSE_HEARTBEAT_MS. */
   heartbeatMs?: number;
+  sessionSecret: string;
 }
 
 export const SSE_HEARTBEAT = ': ping\n\n';
@@ -22,9 +23,9 @@ export function formatSseEvent(event: PresenceEvent): string {
  */
 export const presenceRoutes: FastifyPluginAsync<PresenceRoutesOptions> = async (
   app,
-  { users, presence, heartbeatMs = SSE_HEARTBEAT_MS },
+  { users, presence, heartbeatMs = SSE_HEARTBEAT_MS, sessionSecret },
 ) => {
-  app.get('/api/presence', { preHandler: requireUser(users) }, (request, reply) => {
+  app.get('/api/presence', { preHandler: requireUser(users, sessionSecret) }, (request, reply) => {
     reply.hijack();
     const res = reply.raw;
     request.raw.socket?.setNoDelay(true);

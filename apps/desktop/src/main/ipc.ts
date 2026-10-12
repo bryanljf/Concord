@@ -100,6 +100,9 @@ export function registerIpc(deps: IpcDeps): () => void {
   handle(IPC.LOGIN, (_ctx, serverUrl, key) =>
     session.login(expectString(serverUrl, 'serverUrl'), expectString(key, 'key')),
   );
+  handle(IPC.LOGIN_DISCORD, (_ctx, serverUrl) =>
+    session.loginWithDiscord(expectString(serverUrl, 'serverUrl')),
+  );
   handle(IPC.LOGOUT, () => session.logout());
   handle(IPC.GET_SETTINGS, () => settings.get());
   // `settings.update` validates every field of the patch and throws on anything unexpected.

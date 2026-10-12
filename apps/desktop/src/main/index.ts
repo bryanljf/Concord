@@ -1,6 +1,7 @@
 import { app, globalShortcut } from 'electron';
 import { EVENTS } from '../preload/channels';
 import { createApiClient } from './api-client';
+import { openDiscordLogin } from './discord-auth';
 import { createProcessAudioEngine } from './audio';
 import { bindAutostart } from './autostart';
 import { createCaptureService } from './capture';
@@ -68,7 +69,11 @@ function bootstrap(): void {
     getServerUrl: () => settings.get().serverUrl,
     getKey: () => settings.getKey(),
   });
-  const session = createSessionManager({ settings, createClient: createApiClient });
+  const session = createSessionManager({
+    settings,
+    createClient: createApiClient,
+    openDiscordLogin,
+  });
   const discord = createDiscordWatcher();
   const presence = new PresenceClient({
     getServerUrl: () => settings.get().serverUrl,

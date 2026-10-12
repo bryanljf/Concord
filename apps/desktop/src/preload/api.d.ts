@@ -129,6 +129,8 @@ export interface ConcordApi {
    * safe to show in the UI.
    */
   login(serverUrl: string, key: string): Promise<UserInfo>;
+  /** Opens the official Discord OAuth2 login in a hardened Electron window. */
+  loginWithDiscord(serverUrl: string): Promise<UserInfo>;
   logout(): Promise<void>;
 
   // --- Settings ---------------------------------------------------------------

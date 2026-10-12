@@ -29,6 +29,7 @@ function Root() {
         flow={session.onboarding === 'rekey' ? 'rekey' : 'full'}
         initialServerUrl={session.serverUrl}
         onLogin={session.login}
+        onDiscordLogin={session.loginWithDiscord}
         onFinish={session.finishOnboarding}
       />
     );

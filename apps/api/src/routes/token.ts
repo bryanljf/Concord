@@ -7,6 +7,7 @@ import { createRoomToken } from '../livekit';
 export interface TokenRoutesOptions {
   config: Pick<ApiConfig, 'rooms' | 'livekit'>;
   users: UserStore;
+  sessionSecret: string;
 }
 
 const TOKEN_PURPOSES = ['main', 'popout'] as const satisfies readonly TokenPurpose[];
@@ -28,14 +29,14 @@ export function isLoopback(ip: string): boolean {
 
 export const tokenRoutes: FastifyPluginAsync<TokenRoutesOptions> = async (
   app,
-  { config, users },
+  { config, users, sessionSecret },
 ) => {
   app.post<{ Body: TokenRequest }>(
     '/api/token',
     {
       schema: { body: bodySchema },
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
-      preHandler: requireUser(users),
+      preHandler: requireUser(users, sessionSecret),
     },
     async (request, reply): Promise<TokenResponse | ApiErrorResponse> => {
       const { room, purpose = 'main' } = request.body;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UserInfo } from '@concord/shared';
 import {
   useBroadcast,
@@ -22,6 +22,7 @@ import { formatShortcut } from '../lib/format';
 import { knownParticipants } from '../lib/presence';
 import { pickFocused } from '../lib/subscriptions';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
+import { playTransmissionEnded, playTransmissionStarted } from '../lib/transmissionSounds';
 import { AppShell } from './AppShell';
 import { BottomBar } from './BottomBar';
 import { ConnectionBanner } from './ConnectionBanner';
@@ -96,6 +97,14 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
     onWarning: onBroadcastWarning,
   });
   const streaming = broadcast.state.status === 'live' || broadcast.state.status === 'starting';
+  const wasStreaming = useRef(false);
+  useEffect(() => {
+    const active = broadcast.state.status === 'live' || broadcast.state.status === 'starting';
+    if (wasStreaming.current && !active && broadcast.state.status === 'idle') {
+      playTransmissionEnded();
+    }
+    wasStreaming.current = active;
+  }, [broadcast.state.status]);
 
   // Tray / notification clicks: enter the room and focus the stream that triggered it.
   useEffect(() => {
@@ -144,6 +153,7 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
       broadcast.start(request).then(
         () => {
           setPickerOpen(false);
+          playTransmissionStarted();
           toast.show(`Você está ao vivo em #${request.room}.`, { tone: 'success' });
         },
         (err: unknown) => {

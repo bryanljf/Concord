@@ -8,6 +8,7 @@
 export const IPC = {
   GET_SESSION: 'session:get',
   LOGIN: 'session:login',
+  LOGIN_DISCORD: 'session:login-discord',
   LOGOUT: 'session:logout',
   GET_SETTINGS: 'settings:get',
   UPDATE_SETTINGS: 'settings:update',

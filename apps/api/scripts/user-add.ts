@@ -1,7 +1,7 @@
 /**
  * Adds a user to users.json and prints the generated access key.
  *
- *   pnpm --filter @concord/api user:add <id> <displayName> [--admin]
+ *   pnpm --filter @concord/api user:add <id> <displayName> [--admin] [--discord-id <id>]
  *
  * The file path comes from USERS_FILE (default: infra/users.json at the repo root).
  */
@@ -17,18 +17,28 @@ function fail(message: string): never {
 
 const args = process.argv.slice(2);
 const admin = args.includes('--admin');
-const positional = args.filter((arg) => !arg.startsWith('--'));
+const discordFlag = args.indexOf('--discord-id');
+const discordUserId =
+  discordFlag >= 0 && args[discordFlag + 1] !== undefined ? args[discordFlag + 1] : undefined;
+const positional = args.filter(
+  (arg, index) => !arg.startsWith('--') && index !== discordFlag + 1 && arg !== discordUserId,
+);
 const [id, ...nameParts] = positional;
 const displayName = nameParts.join(' ').trim();
 
 if (!id || !displayName) {
-  console.error('Uso: pnpm --filter @concord/api user:add <id> <nome de exibição> [--admin]');
+  console.error(
+    'Uso: pnpm --filter @concord/api user:add <id> <nome de exibição> [--admin] [--discord-id <id>]',
+  );
   process.exit(2);
 }
 if (!USER_ID_PATTERN.test(id)) {
   fail(
     `id "${id}" inválido: use 2 a 32 caracteres entre a-z, 0-9, "-" e "_", começando com letra ou número.`,
   );
+}
+if (discordFlag >= 0 && (!discordUserId || !/^\d+$/.test(discordUserId))) {
+  fail('discord-id deve ser o ID numérico da conta Discord.');
 }
 
 const usersFile = resolve(
@@ -47,7 +57,7 @@ if (users.some((user) => user.id === id))
   fail(`já existe um usuário com id "${id}" em ${usersFile}`);
 
 const key = randomBytes(24).toString('base64url');
-users.push({ id, displayName, key, admin });
+users.push({ id, displayName, key, admin, ...(discordUserId ? { discordUserId } : {}) });
 
 const file: UsersFile = { users };
 await mkdir(dirname(usersFile), { recursive: true });

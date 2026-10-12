@@ -168,6 +168,27 @@ ROOMS=geral
 Deixe o bloco A comentado. `HOST`, `PORT`, `TRUST_PROXY`, `USERS_FILE` e `LIVEKIT_API_URL` não
 entram aqui: o `docker-compose.yml` os fixa (eles dependem de como os containers são montados).
 
+### 5.3.1 OAuth2 oficial do Discord
+
+O login OAuth2 exige uma aplicação criada no
+[Discord Developer Portal](https://discord.com/developers/applications), com o redirect URI
+exatamente igual ao configurado no `.env`:
+
+```ini
+DISCORD_CLIENT_ID=<Client ID da aplicação>
+DISCORD_CLIENT_SECRET=<Client Secret; somente na VM>
+DISCORD_REDIRECT_URI=https://exemplo.duckdns.org/api/auth/discord/callback
+DISCORD_OAUTH_SCOPES=identify
+AUTH_SESSION_SECRET=<openssl rand -hex 32>
+AUTH_SESSION_TTL=30d
+```
+
+No Portal, registre o redirect URI acima e mantenha somente o escopo `identify`. O Client Secret
+não deve ser colocado no desktop, no repositório ou enviado pelo chat. O desktop abre a janela
+OAuth em modo sandbox, valida a resposta do callback e armazena somente o token de sessão
+assinado pelo Concord (com `safeStorage`). Para autorizar uma pessoa, inclua seu ID numérico
+em `discordUserId` no `users.json`; a chave legada continua disponível para compatibilidade.
+
 ### 5.4 `infra/users.json`
 
 Mesmo formato da hospedagem local. Duas opções:

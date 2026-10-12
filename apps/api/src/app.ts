@@ -17,6 +17,7 @@ import { meRoutes } from './routes/me';
 import { presenceRoutes } from './routes/presence';
 import { roomsRoutes } from './routes/rooms';
 import { tokenRoutes } from './routes/token';
+import { discordAuthRoutes } from './routes/discord-auth';
 
 export interface BuildAppOptions {
   config: ApiConfig;
@@ -84,10 +85,20 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   app.register(healthRoutes);
-  app.register(meRoutes, { users });
-  app.register(roomsRoutes, { users, rooms: config.rooms });
-  app.register(tokenRoutes, { config, users });
-  app.register(presenceRoutes, { users, presence, heartbeatMs: options.heartbeatMs });
+  discordAuthRoutes(app, { config, users });
+  app.register(meRoutes, { users, sessionSecret: config.auth.sessionSecret });
+  app.register(roomsRoutes, {
+    users,
+    rooms: config.rooms,
+    sessionSecret: config.auth.sessionSecret,
+  });
+  app.register(tokenRoutes, { config, users, sessionSecret: config.auth.sessionSecret });
+  app.register(presenceRoutes, {
+    users,
+    presence,
+    heartbeatMs: options.heartbeatMs,
+    sessionSecret: config.auth.sessionSecret,
+  });
   app.register(livekitWebhookRoutes, {
     presence,
     receiver: options.webhookReceiver ?? createWebhookReceiver(config.livekit),

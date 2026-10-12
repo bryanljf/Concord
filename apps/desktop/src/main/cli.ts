@@ -7,6 +7,7 @@
  *   --room=<id>               dev only: navigate to a room once the renderer loads
  *
  * Both `--flag=value` and `--flag value` forms are accepted.
+ * `CONCORD_USER_DATA_DIR` is an alternative for dev runners that consume unknown CLI flags.
  */
 export interface CliArgs {
   hidden: boolean;
@@ -29,7 +30,10 @@ function isValueFlag(name: string): name is ValueFlag {
   return Object.hasOwn(VALUE_FLAGS, name);
 }
 
-export function parseCliArgs(argv: readonly string[]): CliArgs {
+export function parseCliArgs(
+  argv: readonly string[],
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): CliArgs {
   const args: CliArgs = { hidden: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -52,6 +56,12 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
       }
     }
     if (value !== undefined && value !== '') args[VALUE_FLAGS[name]] = value;
+  }
+  if (args.userDataDir === undefined) {
+    const environmentDir = environment.CONCORD_USER_DATA_DIR?.trim();
+    if (environmentDir !== undefined && environmentDir !== '') {
+      args.userDataDir = environmentDir;
+    }
   }
   return args;
 }

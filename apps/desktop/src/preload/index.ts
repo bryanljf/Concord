@@ -61,6 +61,7 @@ const api: ConcordApi = {
   getSession: () => invoke<Session>(IPC.GET_SESSION),
   onSessionChanged: (listener) => subscribe<Session>(EVENTS.SESSION_CHANGED, listener),
   login: (serverUrl, key) => invoke<UserInfo>(IPC.LOGIN, serverUrl, key),
+  loginWithDiscord: (serverUrl) => invoke<UserInfo>(IPC.LOGIN_DISCORD, serverUrl),
   logout: () => invoke<void>(IPC.LOGOUT),
 
   getSettings: () => invoke<Settings>(IPC.GET_SETTINGS),
