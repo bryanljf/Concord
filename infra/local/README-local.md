@@ -112,20 +112,30 @@ direto, a URL deles quebra quando isso acontece. Solução grátis: um nome fixo
    **token** da sua conta.
 2. Use o nome no `infra/.env`: `LIVEKIT_URL=ws://concord.duckdns.org:7880`, e passe para os amigos
    `http://concord.duckdns.org:3000`.
-3. Mantenha o IP atualizado. A URL de atualização do DuckDNS é
-   `https://www.duckdns.org/update?domains=SEUNOME&token=SEUTOKEN&ip=` (com `ip=` vazio, ele
-   usa o IP de quem chamou). Crie uma tarefa agendada que chama essa URL a cada 5 minutos
-   (PowerShell normal, troque `SEUNOME` e `SEUTOKEN`):
+3. Abra `infra/.env` e adicione as duas variáveis abaixo (não versione esse arquivo):
 
-   ```powershell
-   $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -Command "Invoke-WebRequest -UseBasicParsing ''https://www.duckdns.org/update?domains=SEUNOME&token=SEUTOKEN&ip='' | Out-Null"'
-   $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)
-   Register-ScheduledTask -TaskName 'Concord DuckDNS' -Action $action -Trigger $trigger -Description 'Atualiza o IP publico no DuckDNS'
+   ```dotenv
+   DUCKDNS_DOMAIN=concord
+   DUCKDNS_TOKEN=cole-o-token-do-duckdns-aqui
    ```
 
-   Para conferir: `Start-ScheduledTask -TaskName 'Concord DuckDNS'` e depois `nslookup concord.duckdns.org`
-   deve mostrar o mesmo IP de <https://api.ipify.org>. O `start.ps1` também avisa se
-   `LIVEKIT_URL` não bate com o IP público do momento.
+4. Registre a atualização automática, em uma janela normal do PowerShell:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File infra\local\duckdns.ps1 -Install
+   ```
+
+   O comando atualiza o nome imediatamente e cria a tarefa `Concord DuckDNS`, que roda a cada
+   5 minutos e ao entrar no Windows. Para conferir ou remover a tarefa:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File infra\local\duckdns.ps1 -Status
+   powershell -ExecutionPolicy Bypass -File infra\local\duckdns.ps1 -Remove
+   ```
+
+   O script nunca exibe o token completo e grava apenas o resultado (sem segredo) em
+   `infra\local\duckdns.log`. O `start.ps1` também avisa se `LIVEKIT_URL` não bate com o IP
+   público do momento.
 
 ## CGNAT: quando o provedor não dá IP público
 
