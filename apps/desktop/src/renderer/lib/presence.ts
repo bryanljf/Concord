@@ -100,3 +100,50 @@ export function statusLabel(status: PresenceConnectionStatus): string {
         : 'Desconectado — faça login para conectar';
   }
 }
+
+/** What presence knows about a person: the resolved display name and the Discord avatar. */
+export interface PresenceProfile {
+  name: string;
+  avatarUrl: string | null;
+}
+
+/** Every participant in presence (any room) by id. */
+export function presenceProfiles(snapshot: PresenceSnapshot): Map<string, PresenceProfile> {
+  const profiles = new Map<string, PresenceProfile>();
+  for (const participants of Object.values(snapshot.rooms)) {
+    for (const participant of participants) {
+      if (profiles.has(participant.id)) continue;
+      profiles.set(participant.id, {
+        name: participant.name,
+        avatarUrl: participant.avatarUrl ?? null,
+      });
+    }
+  }
+  return profiles;
+}
+
+interface Profiled {
+  participantId: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+/**
+ * Overrides LiveKit's participant names (fixed when the token was issued) with the presence
+ * name and avatar for the same identity, which follow nickname changes. Returns `items` itself
+ * when nothing changes, so memoized consumers keep a stable reference.
+ */
+export function withPresenceProfiles<T extends Profiled>(
+  items: T[],
+  profiles: ReadonlyMap<string, PresenceProfile>,
+): T[] {
+  let changed = false;
+  const next = items.map((item) => {
+    const profile = profiles.get(item.participantId);
+    if (!profile) return item;
+    if (profile.name === item.name && profile.avatarUrl === item.avatarUrl) return item;
+    changed = true;
+    return { ...item, name: profile.name, avatarUrl: profile.avatarUrl };
+  });
+  return changed ? next : items;
+}

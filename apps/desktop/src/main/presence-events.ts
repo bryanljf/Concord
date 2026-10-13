@@ -1,4 +1,5 @@
 import type { PresenceEvent, PresenceParticipant, PresenceSnapshot } from '@concord/shared';
+import { parseAvatarUrl } from './profile';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -9,7 +10,8 @@ function parseParticipant(value: unknown): PresenceParticipant | null {
   const { id, name, streaming, joinedAt } = value;
   if (typeof id !== 'string' || typeof name !== 'string') return null;
   if (typeof streaming !== 'boolean' || typeof joinedAt !== 'number') return null;
-  return { id, name, streaming, joinedAt };
+  // Optional for older servers; anything but a cdn.discordapp.com URL becomes null.
+  return { id, name, streaming, joinedAt, avatarUrl: parseAvatarUrl(value.avatarUrl) };
 }
 
 function parseSnapshot(value: unknown): PresenceSnapshot | null {
@@ -37,7 +39,8 @@ export function parsePresenceEvent(value: unknown): PresenceEvent | null {
       return data ? { type: 'snapshot', data } : null;
     }
     case 'participant_joined':
-    case 'participant_left': {
+    case 'participant_left':
+    case 'participant_updated': {
       const participant = parseParticipant(value.participant);
       if (typeof value.room !== 'string' || !participant) return null;
       return { type: value.type, room: value.room, participant };

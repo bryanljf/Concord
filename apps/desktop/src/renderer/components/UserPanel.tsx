@@ -9,25 +9,35 @@ interface UserPanelProps {
   user: UserInfo;
   status: PresenceConnectionStatus;
   onOpenSettings(): void;
+  /** Avatar/name click: settings on Conta, ready to edit the display name. */
+  onOpenProfile(): void;
 }
 
-export function UserPanel({ user, status, onOpenSettings }: UserPanelProps) {
+export function UserPanel({ user, status, onOpenSettings, onOpenProfile }: UserPanelProps) {
   const tone = statusTone(status);
   const label = statusLabel(status);
   return (
     <div className="user-panel">
-      <div className="user-panel__avatar" title={label}>
-        <Avatar id={user.id} name={user.displayName} />
-        <span
-          className={`user-panel__dot user-panel__dot--${tone}`}
-          role="img"
-          aria-label={label}
-        />
-      </div>
-      <div className="user-panel__info" title={label}>
-        <span className="user-panel__name">{user.displayName}</span>
-        <span className="user-panel__status">{statusShortLabel(status)}</span>
-      </div>
+      <button
+        type="button"
+        className="user-panel__profile"
+        aria-label={`${user.displayName} — editar perfil`}
+        title={`Editar perfil · ${label}`}
+        onClick={onOpenProfile}
+      >
+        <span className="user-panel__avatar">
+          <Avatar id={user.id} name={user.displayName} src={user.avatarUrl} />
+          <span
+            className={`user-panel__dot user-panel__dot--${tone}`}
+            role="img"
+            aria-label={label}
+          />
+        </span>
+        <span className="user-panel__info">
+          <span className="user-panel__name">{user.displayName}</span>
+          <span className="user-panel__status">{statusShortLabel(status)}</span>
+        </span>
+      </button>
       <button
         type="button"
         className="icon-btn"

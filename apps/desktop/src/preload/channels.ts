@@ -10,6 +10,7 @@ export const IPC = {
   LOGIN: 'session:login',
   LOGIN_DISCORD: 'session:login-discord',
   LOGOUT: 'session:logout',
+  SET_NICKNAME: 'session:set-nickname',
   GET_SETTINGS: 'settings:get',
   UPDATE_SETTINGS: 'settings:update',
   GET_ROOMS: 'api:rooms',

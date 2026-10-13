@@ -49,7 +49,7 @@ export function KeyStep({
   if (user) {
     return (
       <div className="onboarding__form onboarding__form--center">
-        <Avatar id={user.id} name={user.displayName} size="lg" />
+        <Avatar id={user.id} name={user.displayName} src={user.avatarUrl} size="lg" />
         <h1 className="onboarding__title">Olá, {user.displayName}!</h1>
         <p className="onboarding__subtitle">
           Chave validada em <span className="selectable">{serverUrl}</span>.

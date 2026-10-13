@@ -2,6 +2,7 @@ import { useAutoHide } from '../hooks/useAutoHide';
 import type { RemoteStream } from '../hooks/useRemoteStreams';
 import { useStreamStats } from '../hooks/useStreamStats';
 import { formatStats } from '../lib/streamStats';
+import { Avatar } from './Avatar';
 import type { VolumeSetting } from '../lib/volume';
 import { ExitFullscreenIcon, FullscreenIcon, PopOutIcon } from './icons';
 import { QualityBars } from './stream/QualityBars';
@@ -51,6 +52,7 @@ export function FocusedStreamTile({
         onMouseLeave={() => controls.hold(false)}
       >
         <span className="tile__badge badge-live">AO VIVO</span>
+        <Avatar id={stream.participantId} name={stream.name} src={stream.avatarUrl} size="sm" />
         <span className="tile__name">{stream.name}</span>
         <QualityBars quality={stream.quality} />
         <span className="tile__stats" data-tooltip="Resolução · fps · bitrate recebidos">
@@ -112,6 +114,7 @@ export function MiniStreamTile({ stream, onSelect }: MiniTileProps) {
       <VideoSurface track={stream.videoTrack} className="tile__video" />
       <StreamStatus stream={stream} compact />
       <div className="tile__top tile__top--mini">
+        <Avatar id={stream.participantId} name={stream.name} src={stream.avatarUrl} size="xs" />
         <span className="tile__name">{stream.name}</span>
         <QualityBars quality={stream.quality} size={14} />
       </div>

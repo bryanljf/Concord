@@ -4,12 +4,14 @@ import {
   knownParticipants,
   mergeRoomIds,
   participantsOf,
+  presenceProfiles,
   resolveFocus,
   sortParticipants,
   statusLabel,
   statusShortLabel,
   statusTone,
   streamersOf,
+  withPresenceProfiles,
 } from './presence';
 
 const ana: PresenceParticipant = { id: 'ana', name: 'Ana', streaming: false, joinedAt: 1 };
@@ -92,5 +94,37 @@ describe('status helpers', () => {
       'Discord fechado — presença pausada',
     );
     expect(statusShortLabel({ state: 'idle', reason: 'no_session' })).toBe('Desconectado');
+  });
+});
+
+describe('presence profiles', () => {
+  const avatarUrl = 'https://cdn.discordapp.com/avatars/1/a.png';
+  const profiles = presenceProfiles({
+    rooms: {
+      geral: [{ ...ana, name: 'Aninha', avatarUrl }],
+      jogos: [beto],
+    },
+  });
+
+  it('indexes every participant by id (avatar null when unknown)', () => {
+    expect(profiles.get('ana')).toEqual({ name: 'Aninha', avatarUrl });
+    expect(profiles.get('beto')).toEqual({ name: 'Beto', avatarUrl: null });
+    expect(profiles.has('carla')).toBe(false);
+  });
+
+  it('prefers the presence name and avatar over the LiveKit name', () => {
+    const streams = [
+      { participantId: 'ana', name: 'Ana (token antigo)', avatarUrl: null },
+      { participantId: 'zed', name: 'Zed', avatarUrl: null },
+    ];
+    expect(withPresenceProfiles(streams, profiles)).toEqual([
+      { participantId: 'ana', name: 'Aninha', avatarUrl },
+      { participantId: 'zed', name: 'Zed', avatarUrl: null },
+    ]);
+  });
+
+  it('returns the same array when nothing changes', () => {
+    const streams = [{ participantId: 'beto', name: 'Beto', avatarUrl: null }];
+    expect(withPresenceProfiles(streams, profiles)).toBe(streams);
   });
 });

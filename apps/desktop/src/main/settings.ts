@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join } from 'node:path';
 import { QUALITY_PRESETS, type UserInfo } from '@concord/shared';
 import type { Settings } from '../preload/api';
+import { parseUserInfo } from './api-client';
 import { log } from './log';
 
 const logger = log('settings');
@@ -122,11 +123,12 @@ export function sanitizePatch(raw: unknown): Partial<Settings> {
   return patch as Partial<Settings>;
 }
 
-function sanitizeUser(raw: unknown): UserInfo | null {
-  if (!isRecord(raw)) return null;
-  const { id, displayName, admin } = raw;
-  if (typeof id !== 'string' || typeof displayName !== 'string') return null;
-  return { id, displayName, admin: admin === true };
+/**
+ * The user kept in `settings.json`, validated with the same rules as the server response:
+ * `avatarUrl` only from cdn.discordapp.com, `discordName`/`nickname` strings, missing → null.
+ */
+export function sanitizeUser(raw: unknown): UserInfo | null {
+  return parseUserInfo(raw);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import type { PresenceParticipant, RoomId } from '@concord/shared';
 import type { Settings } from '../../lib/concord';
+import { Avatar } from '../Avatar';
 import { SettingsSection } from './SettingsSection';
 
 interface NotificationsSectionProps {
@@ -21,7 +22,7 @@ export function NotificationsSection({
   onUpdate,
 }: NotificationsSectionProps) {
   // Muted people who are offline right now still need a chip so they can be unmuted.
-  const people = [
+  const people: { id: string; name: string; avatarUrl?: string | null }[] = [
     ...participants,
     ...settings.mutedUsers
       .filter((id) => !participants.some((participant) => participant.id === id))
@@ -69,6 +70,7 @@ export function NotificationsSection({
                   title={muted ? `Reativar avisos de ${person.name}` : `Silenciar ${person.name}`}
                   onClick={() => onUpdate({ mutedUsers: toggle(settings.mutedUsers, person.id) })}
                 >
+                  <Avatar id={person.id} name={person.name} src={person.avatarUrl} size="xs" />
                   {person.name}
                   {muted && <span aria-hidden="true">· silenciado</span>}
                 </button>

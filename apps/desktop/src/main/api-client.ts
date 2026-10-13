@@ -1,6 +1,7 @@
 import type {
   ApiErrorResponse,
   MeResponse,
+  NicknameRequest,
   RoomId,
   RoomsResponse,
   TokenPurpose,
@@ -8,6 +9,7 @@ import type {
   TokenResponse,
   UserInfo,
 } from '@concord/shared';
+import { parseAvatarUrl, parseProfileName } from './profile';
 
 export const API_TIMEOUT_MS = 10_000;
 
@@ -131,11 +133,22 @@ export async function errorFromResponse(res: Response): Promise<ApiClientError> 
 // Response parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Validates a `UserInfo` from the server (or `settings.json`). The profile fields are optional
+ * for older servers: missing or malformed values become null; unknown fields are dropped.
+ */
 export function parseUserInfo(value: unknown): UserInfo | null {
   if (!isRecord(value)) return null;
   const { id, displayName, admin } = value;
   if (typeof id !== 'string' || typeof displayName !== 'string') return null;
-  return { id, displayName, admin: admin === true };
+  return {
+    id,
+    displayName,
+    admin: admin === true,
+    avatarUrl: parseAvatarUrl(value.avatarUrl),
+    discordName: parseProfileName(value.discordName),
+    nickname: parseProfileName(value.nickname),
+  };
 }
 
 function parseMe(value: unknown): UserInfo | null {
@@ -177,7 +190,11 @@ export interface ApiClient {
   rooms(): Promise<RoomId[]>;
   /** `POST /api/token`; `purpose: 'popout'` asks for the hidden, subscribe-only identity. */
   token(room: RoomId, purpose?: TokenPurpose): Promise<TokenResponse>;
+  /** `PUT /api/me/nickname`; null clears the nickname (back to the Discord name). */
+  setNickname(nickname: string | null): Promise<UserInfo>;
 }
+
+type HttpMethod = 'GET' | 'POST' | 'PUT';
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
@@ -187,6 +204,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     path: string,
     parse: (json: unknown) => T | null,
     body?: unknown,
+    method: HttpMethod = body === undefined ? 'GET' : 'POST',
   ): Promise<T> {
     const base = normalizeServerUrl(options.getServerUrl());
     const key = options.getKey();
@@ -201,7 +219,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     let res: Response;
     try {
       res = await fetchImpl(`${base}${path}`, {
-        method: body === undefined ? 'GET' : 'POST',
+        method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
@@ -230,6 +248,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       // `purpose` is omitted from the JSON when undefined (`JSON.stringify` drops it).
       const body: TokenRequest = { room, purpose };
       return request('/api/token', parseToken, body);
+    },
+    setNickname: (nickname) => {
+      const body: NicknameRequest = { nickname };
+      return request('/api/me/nickname', parseMe, body, 'PUT');
     },
   };
 }

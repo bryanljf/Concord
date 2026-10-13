@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { PopoutTarget } from '../../../preload/api';
 import { useHotkeys } from '../../hooks/useHotkeys';
+import { usePresence } from '../../hooks/usePresence';
 import { useRemoteStreams } from '../../hooks/useRemoteStreams';
 import { useRoom } from '../../hooks/useRoom';
 import { useSettings } from '../../hooks/useSettings';
 import { useStreamAudio } from '../../hooks/useStreamAudio';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
 import { concord, toErrorMessage } from '../../lib/concord';
+import { presenceProfiles } from '../../lib/presence';
+import { Avatar } from '../Avatar';
 import { Spinner } from '../Spinner';
 import { CloseIcon, HeadphonesIcon, MonitorOffIcon, PinIcon, WarningIcon } from '../icons';
 import { QualityBars } from '../stream/QualityBars';
@@ -38,7 +41,17 @@ export function PopoutView() {
     streams,
     outputDeviceId: settings?.audioOutputDeviceId ?? null,
   });
-  const stream = streams.find((candidate) => candidate.participantId === focusedId) ?? null;
+  // Presence follows nickname/avatar changes; LiveKit's name is fixed when the token is issued.
+  const { snapshot } = usePresence();
+  const profile = useMemo(
+    () => (focusedId ? presenceProfiles(snapshot).get(focusedId) : undefined),
+    [snapshot, focusedId],
+  );
+  const liveStream = streams.find((candidate) => candidate.participantId === focusedId) ?? null;
+  const stream =
+    liveStream && profile
+      ? { ...liveStream, name: profile.name, avatarUrl: profile.avatarUrl }
+      : liveStream;
   // In the room but not publishing = they stopped; absent = not (yet) in the room.
   const participantPresent =
     focusedId !== null && room.getParticipantByIdentity(focusedId) !== undefined;
@@ -75,7 +88,7 @@ export function PopoutView() {
     if (targetRoom && targetParticipant) void join(targetRoom, targetParticipant);
   }, [targetRoom, targetParticipant, join]);
 
-  const name = stream?.name ?? targetParticipant ?? 'Concord';
+  const name = stream?.name ?? profile?.name ?? targetParticipant ?? 'Concord';
   useEffect(() => {
     document.title = targetRoom ? `${name} — #${targetRoom} — Concord` : 'Concord';
   }, [name, targetRoom]);
@@ -189,6 +202,9 @@ export function PopoutView() {
       <header className="popout__bar">
         <span className="popout__title">
           <span className="badge-live">AO VIVO</span>
+          {targetParticipant && (
+            <Avatar id={targetParticipant} name={name} src={profile?.avatarUrl} size="xs" />
+          )}
           <span className="popout__name">{name}</span>
           {targetRoom && <span className="popout__room">#{targetRoom}</span>}
           {stream && <QualityBars quality={stream.quality} size={14} />}

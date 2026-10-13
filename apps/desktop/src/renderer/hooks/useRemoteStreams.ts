@@ -15,7 +15,10 @@ import {
 export interface RemoteStream {
   /** Participant identity (= user id from concord-api). */
   participantId: string;
+  /** LiveKit name; Workspace/PopoutView replace it with the presence name when known. */
   name: string;
+  /** Discord avatar from presence (LiveKit does not carry it); null until merged. */
+  avatarUrl: string | null;
   participant: RemoteParticipant;
   video: RemoteTrackPublication | null;
   audio: RemoteTrackPublication | null;
@@ -62,6 +65,7 @@ export function collectRemoteStreams(room: Room): RemoteStream[] {
     streams.push({
       participantId: participant.identity,
       name: participant.name || participant.identity,
+      avatarUrl: null,
       participant,
       video,
       audio,

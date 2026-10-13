@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PresenceParticipant, RoomId, UserInfo } from '@concord/shared';
 import type { Settings } from '../../lib/concord';
 import { CloseIcon } from '../icons';
@@ -21,13 +21,17 @@ const SECTIONS = [
   { id: 'sobre', label: 'Sobre' },
 ] as const;
 
-type SectionId = (typeof SECTIONS)[number]['id'];
+export type SettingsSectionId = (typeof SECTIONS)[number]['id'];
 
 interface SettingsViewProps {
   settings: Settings;
   /** Last persistence error from `useSettings`, if any. */
   error: string | null;
   user: UserInfo;
+  /** Section shown when the view opens (default: Conta). */
+  initialSection?: SettingsSectionId;
+  /** Focus the display-name field on open (opened from the user panel). */
+  focusNickname?: boolean;
   rooms: RoomId[];
   participants: PresenceParticipant[];
   platform: string;
@@ -35,6 +39,7 @@ interface SettingsViewProps {
   onUpdate(patch: Partial<Settings>): void;
   onClose(): void;
   onRekey(): void;
+  onSetNickname(nickname: string | null): Promise<UserInfo>;
 }
 
 /** Full-page settings (Discord-like: section list on the left, ESC to close). */
@@ -42,6 +47,8 @@ export function SettingsView({
   settings,
   error,
   user,
+  initialSection = 'conta',
+  focusNickname = false,
   rooms,
   participants,
   platform,
@@ -49,8 +56,16 @@ export function SettingsView({
   onUpdate,
   onClose,
   onRekey,
+  onSetNickname,
 }: SettingsViewProps) {
-  const [active, setActive] = useState<SectionId>('conta');
+  const [active, setActive] = useState<SettingsSectionId>(initialSection);
+
+  // Opening straight on another section: scroll it into view once, on mount.
+  const initialRef = useRef(initialSection);
+  useEffect(() => {
+    if (initialRef.current === 'conta') return;
+    document.getElementById(`settings-${initialRef.current}`)?.scrollIntoView({ block: 'start' });
+  }, []);
 
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
@@ -60,7 +75,7 @@ export function SettingsView({
     return () => window.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  function jumpTo(id: SectionId) {
+  function jumpTo(id: SettingsSectionId) {
     setActive(id);
     document.getElementById(`settings-${id}`)?.scrollIntoView({ block: 'start' });
   }
@@ -88,7 +103,13 @@ export function SettingsView({
             {error}
           </p>
         )}
-        <AccountSection user={user} serverUrl={settings.serverUrl} onRekey={onRekey} />
+        <AccountSection
+          user={user}
+          serverUrl={settings.serverUrl}
+          focusNickname={focusNickname}
+          onRekey={onRekey}
+          onSetNickname={onSetNickname}
+        />
         <StartupSection settings={settings} onUpdate={onUpdate} />
         <ShortcutSection settings={settings} platform={platform} onUpdate={onUpdate} />
         <StreamingSection settings={settings} onUpdate={onUpdate} />
@@ -106,7 +127,7 @@ export function SettingsView({
           type="button"
           className="settings__close-btn"
           aria-label="Fechar configurações"
-          autoFocus
+          autoFocus={!focusNickname}
           onClick={onClose}
         >
           <CloseIcon size={18} />

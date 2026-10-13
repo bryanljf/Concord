@@ -34,5 +34,11 @@ function Root() {
       />
     );
   }
-  return <Workspace user={session.user} onRekey={() => void session.startRekey()} />;
+  return (
+    <Workspace
+      user={session.user}
+      onRekey={() => void session.startRekey()}
+      onSetNickname={session.setNickname}
+    />
+  );
 }

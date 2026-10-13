@@ -1,4 +1,5 @@
 import {
+  NICKNAME_MAX_LENGTH,
   QUALITY_PRESETS,
   ROOM_ID_PATTERN,
   type QualityPresetId,
@@ -65,4 +66,19 @@ export function expectOptionalTokenPurpose(value: unknown): TokenPurpose | undef
   if (value === undefined) return undefined;
   if (value === 'main' || value === 'popout') return value;
   throw new IpcValidationError('purpose');
+}
+
+/**
+ * `setNickname` input: null or a string. The string is trimmed; blank means "use the Discord
+ * name" (null); longer than `NICKNAME_MAX_LENGTH` is rejected with a pt-BR message.
+ */
+export function expectNickname(value: unknown): string | null {
+  if (value === null) return null;
+  const nickname = expectString(value, 'nickname').trim();
+  if (nickname === '') return null;
+  // Counted in code points, like the server (an emoji is one character).
+  if ([...nickname].length > NICKNAME_MAX_LENGTH) {
+    throw new UserFacingError(`O nome pode ter no máximo ${NICKNAME_MAX_LENGTH} caracteres.`);
+  }
+  return nickname;
 }

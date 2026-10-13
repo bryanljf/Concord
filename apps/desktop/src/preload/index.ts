@@ -63,6 +63,7 @@ const api: ConcordApi = {
   login: (serverUrl, key) => invoke<UserInfo>(IPC.LOGIN, serverUrl, key),
   loginWithDiscord: (serverUrl) => invoke<UserInfo>(IPC.LOGIN_DISCORD, serverUrl),
   logout: () => invoke<void>(IPC.LOGOUT),
+  setNickname: (nickname) => invoke<UserInfo>(IPC.SET_NICKNAME, nickname),
 
   getSettings: () => invoke<Settings>(IPC.GET_SETTINGS),
   updateSettings: (patch) => invoke<Settings>(IPC.UPDATE_SETTINGS, patch),

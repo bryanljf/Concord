@@ -8,8 +8,36 @@
   background: var(--bg-tertiary);
 }
 
+.user-panel__profile {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: -4px;
+  padding: 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition);
+}
+
+.user-panel__profile:hover {
+  background: var(--bg-hover);
+}
+
+.user-panel__profile:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .user-panel__avatar {
   position: relative;
+  display: flex;
   flex: none;
 }
 
@@ -58,4 +86,8 @@
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.user-panel__profile:hover .user-panel__dot {
+  border-color: var(--bg-hover);
 }

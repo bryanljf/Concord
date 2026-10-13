@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UserInfo } from '@concord/shared';
 import { concord, toErrorMessage } from '../lib/concord';
+import { sameUser } from '../lib/user';
 
 /** Which onboarding flow (if any) must be shown before the main UI. */
 export type OnboardingMode = 'none' | 'full' | 'rekey';
@@ -18,6 +19,8 @@ export interface UseSession extends SessionState {
   /** Validates the key with the server and stores it; rejects with a pt-BR message. */
   login(serverUrl: string, key: string): Promise<UserInfo>;
   loginWithDiscord(serverUrl: string): Promise<UserInfo>;
+  /** Changes the display name (null = Discord name); rejects with a pt-BR message. */
+  setNickname(nickname: string | null): Promise<UserInfo>;
   /** Marks the onboarding flow as done so the main UI can show. */
   finishOnboarding(): void;
   /** Clears the stored key and restarts the full onboarding. */
@@ -66,16 +69,20 @@ export function useSession(): UseSession {
   }, []);
 
   // Pushed by main after a login/logout it performed itself (dev flags, background
-  // revalidation that rejected the stored key). Our own login/logout calls are ignored here.
+  // revalidation that rejected the stored key, profile changes such as a new nickname). Our own
+  // login/logout calls are ignored here.
   useEffect(
     () =>
       concord().onSessionChanged((session) => {
         if (localLogin.current) return;
         setState((prev) => {
-          const sameUser =
-            prev.user?.id === session.user?.id &&
-            prev.user?.displayName === session.user?.displayName;
-          if (sameUser && prev.serverUrl === session.serverUrl) return prev;
+          if (sameUser(prev.user, session.user) && prev.serverUrl === session.serverUrl) {
+            return prev;
+          }
+          // Same person with a new name/avatar: refresh the profile, keep the onboarding state.
+          if (prev.user && session.user && prev.user.id === session.user.id) {
+            return { ...prev, serverUrl: session.serverUrl, user: session.user };
+          }
           return {
             ...prev,
             serverUrl: session.serverUrl,
@@ -110,6 +117,13 @@ export function useSession(): UseSession {
     }
   }, []);
 
+  const setNickname = useCallback(async (nickname: string | null) => {
+    const user = await concord().setNickname(nickname);
+    // Main also pushes the change; applying it here avoids waiting for the round trip.
+    setState((prev) => (prev.user && prev.user.id === user.id ? { ...prev, user } : prev));
+    return user;
+  }, []);
+
   const finishOnboarding = useCallback(() => {
     setState((prev) => ({ ...prev, onboarding: 'none' }));
   }, []);
@@ -124,5 +138,13 @@ export function useSession(): UseSession {
     setState((prev) => ({ ...prev, user: null, onboarding: 'rekey' }));
   }, []);
 
-  return { ...state, login, loginWithDiscord, finishOnboarding, logout, startRekey };
+  return {
+    ...state,
+    login,
+    loginWithDiscord,
+    setNickname,
+    finishOnboarding,
+    logout,
+    startRekey,
+  };
 }

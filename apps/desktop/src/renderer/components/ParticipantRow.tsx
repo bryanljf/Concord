@@ -16,7 +16,7 @@ export function ParticipantRow({ room, participant, now, onWatch }: ParticipantR
       className={className}
       title={`${participant.name} — ${formatJoinedAgo(participant.joinedAt, now)}`}
     >
-      <Avatar id={participant.id} name={participant.name} size="sm" />
+      <Avatar id={participant.id} name={participant.name} src={participant.avatarUrl} size="sm" />
       <span className="participant__name">{participant.name}</span>
       {participant.streaming && (
         <button

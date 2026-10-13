@@ -26,6 +26,7 @@ import {
   defaultSettings,
   sanitizePatch,
   sanitizeSettings,
+  sanitizeUser,
   SettingsValidationError,
 } from './settings';
 
@@ -158,7 +159,15 @@ describe('createSettingsStore', () => {
 
     const reloaded = createSettingsStore();
     expect(reloaded.getKey()).toBe('super-secret-key');
-    expect(reloaded.getUser()).toEqual({ id: 'bryan', displayName: 'Bryan', admin: false });
+    // Fields an older user record lacks come back as null after a reload.
+    expect(reloaded.getUser()).toEqual({
+      id: 'bryan',
+      displayName: 'Bryan',
+      admin: false,
+      avatarUrl: null,
+      discordName: null,
+      nickname: null,
+    });
 
     reloaded.clearKey();
     reloaded.setUser(null);
@@ -187,5 +196,63 @@ describe('createSettingsStore', () => {
       JSON.stringify({ encryptedKey: Buffer.from('garbage').toString('base64') }),
     );
     expect(createSettingsStore().getKey()).toBeNull();
+  });
+});
+
+describe('sanitizeUser', () => {
+  const avatarUrl = 'https://cdn.discordapp.com/avatars/123/abc.png';
+
+  it('keeps avatarUrl, discordName and nickname', () => {
+    const user = {
+      id: 'bryan',
+      displayName: 'Bryzinho',
+      admin: true,
+      avatarUrl,
+      discordName: 'Bryan',
+      nickname: 'Bryzinho',
+    };
+    expect(sanitizeUser({ ...user, secret: 'x' })).toEqual(user);
+  });
+
+  it('drops avatars outside cdn.discordapp.com and wrongly typed names', () => {
+    expect(
+      sanitizeUser({
+        id: 'bryan',
+        displayName: 'Bryan',
+        avatarUrl: 'file:///C:/evil.png',
+        discordName: ['Bryan'],
+        nickname: false,
+      }),
+    ).toEqual({
+      id: 'bryan',
+      displayName: 'Bryan',
+      admin: false,
+      avatarUrl: null,
+      discordName: null,
+      nickname: null,
+    });
+    expect(sanitizeUser({ id: 'bryan' })).toBeNull();
+    expect(sanitizeUser('bryan')).toBeNull();
+  });
+
+  it('round-trips the profile through settings.json', () => {
+    const store = createSettingsStore();
+    store.setKey('k');
+    store.setUser({
+      id: 'bryan',
+      displayName: 'Bryzinho',
+      admin: false,
+      avatarUrl,
+      discordName: 'Bryan',
+      nickname: 'Bryzinho',
+    });
+    expect(createSettingsStore().getUser()).toEqual({
+      id: 'bryan',
+      displayName: 'Bryzinho',
+      admin: false,
+      avatarUrl,
+      discordName: 'Bryan',
+      nickname: 'Bryzinho',
+    });
   });
 });

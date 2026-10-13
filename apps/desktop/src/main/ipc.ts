@@ -21,6 +21,7 @@ import { parseStreamingState, type StreamingStore } from './streaming';
 import type { Updater } from './updater';
 import {
   expectBoolean,
+  expectNickname,
   expectOptionalTokenPurpose,
   expectRoomId,
   expectString,
@@ -104,6 +105,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     session.loginWithDiscord(expectString(serverUrl, 'serverUrl')),
   );
   handle(IPC.LOGOUT, () => session.logout());
+  handle(IPC.SET_NICKNAME, (_ctx, nickname) => session.setNickname(expectNickname(nickname)));
   handle(IPC.GET_SETTINGS, () => settings.get());
   // `settings.update` validates every field of the patch and throws on anything unexpected.
   handle(IPC.UPDATE_SETTINGS, (_ctx, patch) => settings.update(patch as Partial<Settings>));

@@ -19,7 +19,7 @@ import { useSubscriptions } from '../hooks/useSubscriptions';
 import { useToast } from '../hooks/useToast';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { formatShortcut } from '../lib/format';
-import { knownParticipants } from '../lib/presence';
+import { knownParticipants, presenceProfiles, withPresenceProfiles } from '../lib/presence';
 import { pickFocused } from '../lib/subscriptions';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
 import { playTransmissionEnded, playTransmissionStarted } from '../lib/transmissionSounds';
@@ -37,6 +37,8 @@ import { SettingsView } from './settings/SettingsView';
 interface WorkspaceProps {
   user: UserInfo;
   onRekey(): void;
+  /** Changes the display name (null = Discord name); rejects with a pt-BR message. */
+  onSetNickname(nickname: string | null): Promise<UserInfo>;
 }
 
 const END_MESSAGES: Record<BroadcastEndReason, string | null> = {
@@ -46,7 +48,7 @@ const END_MESSAGES: Record<BroadcastEndReason, string | null> = {
 };
 
 /** The main UI once a session exists: wires presence, rooms, settings, media and main's requests. */
-export function Workspace({ user, onRekey }: WorkspaceProps) {
+export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const toast = useToast();
   const { settings, error: settingsError, update } = useSettings();
   const { snapshot, status } = usePresence();
@@ -76,6 +78,8 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
   const { fullscreen, setFullscreen } = useFullscreen();
   const { target, consume } = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Opened from the user panel: land on Conta with the display-name field focused. */
+  const [editProfile, setEditProfile] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const onBroadcastEnded = useCallback(
@@ -126,10 +130,20 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
   );
 
   const participants = useMemo(() => knownParticipants(snapshot), [snapshot]);
+  // LiveKit names are fixed when the token is issued; presence follows nickname/avatar changes.
+  const profiles = useMemo(() => presenceProfiles(snapshot), [snapshot]);
+  const stageStreams = useMemo(() => withPresenceProfiles(streams, profiles), [streams, profiles]);
   const platform = getPlatform();
   const shortcutLabel = formatShortcut(settings?.shortcut ?? DEFAULT_SHORTCUT, platform);
 
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const openSettings = useCallback(() => {
+    setEditProfile(false);
+    setSettingsOpen(true);
+  }, []);
+  const openProfile = useCallback(() => {
+    setEditProfile(true);
+    setSettingsOpen(true);
+  }, []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   useEffect(() => concord().onOpenSettings(openSettings), [openSettings]);
 
@@ -247,7 +261,14 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
             onWatch={(roomId, participantId) => void join(roomId, participantId)}
           />
         }
-        userPanel={<UserPanel user={user} status={status} onOpenSettings={openSettings} />}
+        userPanel={
+          <UserPanel
+            user={user}
+            status={status}
+            onOpenSettings={openSettings}
+            onOpenProfile={openProfile}
+          />
+        }
         header={
           <Header
             currentRoom={currentRoom}
@@ -272,7 +293,7 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
           currentRoom={currentRoom}
           connectionState={connectionState}
           error={error}
-          streams={streams}
+          streams={stageStreams}
           focusedId={focusedId}
           broadcast={broadcast.state}
           audio={audio}
@@ -304,6 +325,8 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
           settings={settings}
           error={settingsError}
           user={user}
+          initialSection="conta"
+          focusNickname={editProfile}
           rooms={rooms}
           participants={participants}
           platform={platform}
@@ -311,6 +334,7 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
           onUpdate={saveSettings}
           onClose={closeSettings}
           onRekey={onRekey}
+          onSetNickname={onSetNickname}
         />
       )}
     </>

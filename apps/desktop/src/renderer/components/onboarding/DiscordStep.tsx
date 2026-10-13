@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { UserInfo } from '@concord/shared';
 import { toErrorMessage } from '../../lib/concord';
+import { Avatar } from '../Avatar';
 import { Spinner } from '../Spinner';
 
 interface DiscordStepProps {
@@ -28,6 +29,7 @@ export function DiscordStep({ serverUrl, user, onBack, onLogin, onContinue }: Di
   if (user) {
     return (
       <div className="onboarding__form onboarding__form--center">
+        <Avatar id={user.id} name={user.displayName} src={user.avatarUrl} size="lg" />
         <h1 className="onboarding__title">Olá, {user.displayName}!</h1>
         <p className="onboarding__subtitle">Sua conta Discord foi autorizada pelo servidor.</p>
         <button type="button" className="btn btn--primary" autoFocus onClick={onContinue}>

@@ -227,3 +227,8 @@
 .settings__about dd {
   color: var(--text-strong);
 }
+
+.settings__nickname {
+  max-width: 480px;
+  margin-top: 4px;
+}

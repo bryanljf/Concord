@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiClientError, createApiClient, normalizeServerUrl } from './api-client';
+import { ApiClientError, createApiClient, normalizeServerUrl, parseUserInfo } from './api-client';
 
 describe('normalizeServerUrl', () => {
   it('keeps scheme, host and port only', () => {
@@ -64,7 +64,15 @@ describe('createApiClient', () => {
       return jsonResponse(200, { user: { id: 'bryan', displayName: 'Bryan', admin: true } });
     });
     const user = await client(fetchImpl as typeof fetch).me();
-    expect(user).toEqual({ id: 'bryan', displayName: 'Bryan', admin: true });
+    // An older server without profile fields: they come back as null.
+    expect(user).toEqual({
+      id: 'bryan',
+      displayName: 'Bryan',
+      admin: true,
+      avatarUrl: null,
+      discordName: null,
+      nickname: null,
+    });
   });
 
   it('parses /api/rooms', async () => {
@@ -168,5 +176,115 @@ describe('createApiClient', () => {
     });
     expect((await failure(badUrl.me())).kind).toBe('invalid_url');
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('parseUserInfo', () => {
+  const avatarUrl = 'https://cdn.discordapp.com/avatars/123/abc.png';
+
+  it('keeps the Discord profile fields', () => {
+    expect(
+      parseUserInfo({
+        id: 'bryan',
+        displayName: 'Bryzinho',
+        admin: false,
+        avatarUrl,
+        discordName: 'Bryan',
+        nickname: 'Bryzinho',
+        extra: 'dropped',
+      }),
+    ).toEqual({
+      id: 'bryan',
+      displayName: 'Bryzinho',
+      admin: false,
+      avatarUrl,
+      discordName: 'Bryan',
+      nickname: 'Bryzinho',
+    });
+  });
+
+  it('turns missing or malformed profile fields into null', () => {
+    expect(
+      parseUserInfo({
+        id: 'bryan',
+        displayName: 'Bryan',
+        admin: 'yes',
+        avatarUrl: 'https://evil.example/a.png',
+        discordName: 7,
+        nickname: '   ',
+      }),
+    ).toEqual({
+      id: 'bryan',
+      displayName: 'Bryan',
+      admin: false,
+      avatarUrl: null,
+      discordName: null,
+      nickname: null,
+    });
+  });
+
+  it('rejects users without id or displayName', () => {
+    expect(parseUserInfo(null)).toBeNull();
+    expect(parseUserInfo({ id: 'bryan' })).toBeNull();
+    expect(parseUserInfo({ displayName: 'Bryan' })).toBeNull();
+    expect(parseUserInfo([])).toBeNull();
+  });
+});
+
+describe('setNickname', () => {
+  const updated = {
+    id: 'bryan',
+    displayName: 'Bryzinho',
+    admin: false,
+    avatarUrl: null,
+    discordName: 'Bryan',
+    nickname: 'Bryzinho',
+  };
+
+  it('PUTs the nickname as JSON and parses the returned user', async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('http://127.0.0.1:3000/api/me/nickname');
+      expect(init?.method).toBe('PUT');
+      const headers = init?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer secret');
+      expect(headers['Content-Type']).toBe('application/json');
+      expect(JSON.parse(String(init?.body))).toEqual({ nickname: 'Bryzinho' });
+      return jsonResponse(200, { user: updated });
+    });
+    expect(await client(fetchImpl as typeof fetch).setNickname('Bryzinho')).toEqual(updated);
+  });
+
+  it('sends null to go back to the Discord name', async () => {
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.method).toBe('PUT');
+      expect(JSON.parse(String(init?.body))).toEqual({ nickname: null });
+      return jsonResponse(200, { user: { ...updated, displayName: 'Bryan', nickname: null } });
+    });
+    const user = await client(fetchImpl as typeof fetch).setNickname(null);
+    expect(user.nickname).toBeNull();
+    expect(user.displayName).toBe('Bryan');
+  });
+
+  it('maps errors like every other call', async () => {
+    const invalid = await failure(
+      client((async () =>
+        jsonResponse(400, {
+          error: 'invalid_nickname',
+          message: 'O nome deve ter de 1 a 32 caracteres.',
+        })) as typeof fetch).setNickname('x'),
+    );
+    expect(invalid.kind).toBe('http');
+    expect(invalid.code).toBe('invalid_nickname');
+    expect(invalid.message).toBe('O nome deve ter de 1 a 32 caracteres.');
+
+    const unauthorized = await failure(
+      client((async () => new Response('', { status: 401 })) as typeof fetch).setNickname('x'),
+    );
+    expect(unauthorized.kind).toBe('unauthorized');
+
+    const malformed = await failure(
+      client((async () => jsonResponse(200, { ok: true })) as typeof fetch).setNickname('x'),
+    );
+    expect(malformed.kind).toBe('bad_response');
   });
 });
