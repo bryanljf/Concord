@@ -6,10 +6,13 @@ export type RoomId = string;
 
 export interface PresenceParticipant {
   id: string;
+  /** Display name: the user's nickname, else their Discord name, else the users.json name. */
   name: string;
   streaming: boolean;
   /** Unix epoch in milliseconds. */
   joinedAt: number;
+  /** Discord avatar (cdn.discordapp.com), or null when unknown. Optional for older servers. */
+  avatarUrl?: string | null;
 }
 
 export interface PresenceSnapshot {
@@ -19,7 +22,8 @@ export interface PresenceSnapshot {
 export type PresenceEvent =
   | { type: 'snapshot'; data: PresenceSnapshot }
   | {
-      type: 'participant_joined' | 'participant_left';
+      /** `participant_updated`: same person, new name and/or avatar (replaced in place). */
+      type: 'participant_joined' | 'participant_left' | 'participant_updated';
       room: RoomId;
       participant: PresenceParticipant;
     }
@@ -45,6 +49,9 @@ export function applyPresenceEvent(
     case 'participant_left':
       next = current.filter((p) => p.id !== event.participant.id);
       break;
+    case 'participant_updated':
+      next = current.map((p) => (p.id === event.participant.id ? event.participant : p));
+      break;
     case 'stream_started':
     case 'stream_stopped': {
       const streaming = event.type === 'stream_started';
@@ -65,9 +72,24 @@ export interface HealthResponse {
 
 export interface UserInfo {
   id: string;
+  /** Resolved name shown everywhere: nickname ?? discordName ?? users.json displayName. */
   displayName: string;
   admin: boolean;
+  /** Discord avatar URL, or null when unknown. Optional for older servers. */
+  avatarUrl?: string | null;
+  /** Name as shown on Discord (global_name, else username), or null when never imported. */
+  discordName?: string | null;
+  /** Custom name chosen in the app, or null to use the Discord name. */
+  nickname?: string | null;
 }
+
+/** `PUT /api/me/nickname`: null or an empty string clears the nickname. Responds with MeResponse. */
+export interface NicknameRequest {
+  nickname: string | null;
+}
+
+/** Nicknames are trimmed and must have 1 to 32 characters. */
+export const NICKNAME_MAX_LENGTH = 32;
 
 export interface MeResponse {
   user: UserInfo;

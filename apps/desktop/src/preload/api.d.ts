@@ -132,6 +132,11 @@ export interface ConcordApi {
   /** Opens the official Discord OAuth2 login in a hardened Electron window. */
   loginWithDiscord(serverUrl: string): Promise<UserInfo>;
   logout(): Promise<void>;
+  /**
+   * Sets the display name shown to everyone (`PUT /api/me/nickname`); null or '' goes back to
+   * the Discord name. Resolves with the updated user and also fires `onSessionChanged`.
+   */
+  setNickname(nickname: string | null): Promise<UserInfo>;
 
   // --- Settings ---------------------------------------------------------------
   getSettings(): Promise<Settings>;
