@@ -2,11 +2,11 @@
 
 > ## Status: em produção desde 2026-10-13
 >
-> - VM (1 OCPU, 6 GB, Always Free) em , criada pelo
->   Terraform em [](terraform), IP .
-> - Domínio (certificado Let's Encrypt via Caddy).
-> - Deploy automático: cada push em com CI verde roda o workflow , que
->   entra na VM com uma chave SSH só de deploy (secret do environment ).
+> - VM `VM.Standard.A1.Flex` (1 OCPU, 6 GB, Always Free) em `sa-saopaulo-1`, criada pelo
+>   Terraform em [`infra/terraform`](terraform), IP `203.0.113.10`.
+> - Domínio `https://exemplo.duckdns.org` (certificado Let's Encrypt via Caddy).
+> - Deploy automático: cada push em `main` com CI verde roda o workflow `Deploy Oracle`, que
+>   entra na VM com uma chave SSH só de deploy (secret do environment `production`).
 > - O Minecraft não roda nesta conta: as ressalvas sobre ele abaixo valem só para uma VM
 >   compartilhada.
 
