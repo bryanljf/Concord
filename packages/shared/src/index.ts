@@ -185,3 +185,12 @@ export const QUALITY_PRESETS = {
 } as const satisfies Record<string, QualityPreset>;
 
 export type QualityPresetId = keyof typeof QUALITY_PRESETS;
+
+/**
+ * Human label for a room id, shown instead of the raw id: "sala-1" → "Sala 1",
+ * "jogos_fds" → "Jogos fds". Ids are restricted to ROOM_ID_PATTERN, so labels are derived.
+ */
+export function roomLabel(room: RoomId): string {
+  const words = room.replace(/[-_]+/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

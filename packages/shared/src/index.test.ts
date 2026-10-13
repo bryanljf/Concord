@@ -6,6 +6,7 @@ import {
   isAuxiliaryIdentity,
   QUALITY_PRESETS,
   ROOM_ID_PATTERN,
+  roomLabel,
   type PresenceParticipant,
   type PresenceSnapshot,
 } from './index';
@@ -113,5 +114,13 @@ describe('applyPresenceEvent', () => {
       participantId: 'ghost',
     });
     expect(next.rooms.geral).toEqual([ana]);
+  });
+});
+
+describe('roomLabel', () => {
+  it('turns room ids into readable labels', () => {
+    expect(roomLabel('sala-1')).toBe('Sala 1');
+    expect(roomLabel('jogos_fds')).toBe('Jogos fds');
+    expect(roomLabel('geral')).toBe('Geral');
   });
 });
