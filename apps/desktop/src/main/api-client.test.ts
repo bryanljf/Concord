@@ -8,7 +8,7 @@ describe('normalizeServerUrl', () => {
     );
     expect(normalizeServerUrl('http://192.168.0.10:3000/api/')).toBe('http://192.168.0.10:3000');
     expect(normalizeServerUrl('https://user:pw@host.example/x?y=1#z')).toBe('https://host.example');
-    expect(normalizeServerUrl('HTTP://Example.COM:80')).toBe('http://example.com');
+    expect(normalizeServerUrl('HTTP://Example.COM:80')).toBe('https://example.com');
   });
 
   it('rejects empty input, missing or unsupported schemes and garbage', () => {
@@ -286,5 +286,18 @@ describe('setNickname', () => {
       client((async () => jsonResponse(200, { ok: true })) as typeof fetch).setNickname('x'),
     );
     expect(malformed.kind).toBe('bad_response');
+  });
+});
+
+describe('normalizeServerUrl https upgrade (main)', () => {
+  it('upgrades a stored http public domain and keeps local addresses', () => {
+    expect(normalizeServerUrl('http://exemplo.duckdns.org/')).toBe(
+      'https://exemplo.duckdns.org',
+    );
+    expect(normalizeServerUrl('http://127.0.0.1:3000')).toBe('http://127.0.0.1:3000');
+    expect(normalizeServerUrl('http://localhost')).toBe('http://localhost');
+    expect(normalizeServerUrl('http://friend.duckdns.org:3000')).toBe(
+      'http://friend.duckdns.org:3000',
+    );
   });
 });

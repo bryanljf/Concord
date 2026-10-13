@@ -7,7 +7,7 @@ import { PreferencesStep } from './PreferencesStep';
 import { ServerStep } from './ServerStep';
 import '../../styles/onboarding.css';
 
-/** `full` = first run (3 steps); `rekey` = only swap the access key. */
+/** `full` = first run (3 steps); `rekey` = sign in again (Discord, or an access key). */
 export type OnboardingFlow = 'full' | 'rekey';
 
 type Step = 'server' | 'discord' | 'key' | 'prefs';
@@ -29,7 +29,7 @@ export function Onboarding({
   onDiscordLogin,
   onFinish,
 }: OnboardingProps) {
-  const [step, setStep] = useState<Step>(flow === 'rekey' ? 'key' : 'server');
+  const [step, setStep] = useState<Step>(flow === 'rekey' ? 'discord' : 'server');
   const [serverUrl, setServerUrl] = useState(initialServerUrl || DEFAULT_SERVER_URL);
   const [user, setUser] = useState<UserInfo | null>(null);
 
@@ -62,7 +62,7 @@ export function Onboarding({
             value={serverUrl}
             onSubmit={(url) => {
               setServerUrl(url);
-              setStep(flow === 'rekey' ? 'key' : 'discord');
+              setStep('discord');
             }}
           />
         )}
@@ -72,7 +72,8 @@ export function Onboarding({
             user={user}
             onBack={() => setStep('server')}
             onLogin={async () => setUser(await onDiscordLogin(serverUrl))}
-            onContinue={() => setStep('prefs')}
+            onUseKey={() => setStep('key')}
+            onContinue={() => (flow === 'rekey' ? onFinish() : setStep('prefs'))}
           />
         )}
         {step === 'key' && (
@@ -80,7 +81,7 @@ export function Onboarding({
             serverUrl={serverUrl}
             user={user}
             continueLabel={flow === 'rekey' ? 'Concluir' : 'Continuar'}
-            onBack={() => setStep('server')}
+            onBack={() => setStep('discord')}
             onLogin={async (key) => setUser(await onLogin(serverUrl, key))}
             onContinue={() => (flow === 'rekey' ? onFinish() : setStep('prefs'))}
           />

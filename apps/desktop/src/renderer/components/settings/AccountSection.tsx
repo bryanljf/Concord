@@ -146,7 +146,7 @@ export function AccountSection({
 
       {confirming ? (
         <div className="settings__confirm" role="alert">
-          <p>Isso desconecta a conta atual. Você vai precisar colar uma nova chave de acesso.</p>
+          <p>Isso desconecta a conta atual. Depois é só entrar de novo com o Discord.</p>
           <div className="settings__confirm-actions">
             <button
               type="button"
@@ -156,14 +156,14 @@ export function AccountSection({
               Cancelar
             </button>
             <button type="button" className="btn btn--danger btn--sm" onClick={onRekey}>
-              Trocar chave
+              Sair e entrar de novo
             </button>
           </div>
         </div>
       ) : (
         <div>
           <button type="button" className="btn btn--sm" onClick={() => setConfirming(true)}>
-            Trocar chave…
+            Entrar com outra conta…
           </button>
         </div>
       )}

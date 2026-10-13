@@ -39,3 +39,28 @@ describe('normalizeServerUrl', () => {
     expect(normalizeServerUrl('http://user:pw@x.org').ok).toBe(false);
   });
 });
+
+describe('normalizeServerUrl https upgrade', () => {
+  it('upgrades http for public domains without a port', () => {
+    expect(normalizeServerUrl('http://exemplo.duckdns.org')).toEqual({
+      ok: true,
+      url: 'https://exemplo.duckdns.org',
+    });
+    expect(normalizeServerUrl('exemplo.duckdns.org')).toEqual({
+      ok: true,
+      url: 'https://exemplo.duckdns.org',
+    });
+  });
+
+  it('keeps http for IPs, localhost and explicit ports', () => {
+    expect(normalizeServerUrl('http://192.168.0.10:3000')).toEqual({
+      ok: true,
+      url: 'http://192.168.0.10:3000',
+    });
+    expect(normalizeServerUrl('http://127.0.0.1')).toEqual({ ok: true, url: 'http://127.0.0.1' });
+    expect(normalizeServerUrl('http://concord.duckdns.org:3000')).toEqual({
+      ok: true,
+      url: 'http://concord.duckdns.org:3000',
+    });
+  });
+});

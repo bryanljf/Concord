@@ -70,7 +70,24 @@ export function normalizeServerUrl(input: string): string {
       'A URL do servidor deve começar com http:// ou https://.',
     );
   }
+  preferHttps(url);
   return `${url.protocol}//${url.host}`;
+}
+
+/**
+ * Public domains are served over HTTPS (Caddy redirects plain HTTP), so a stored or typed
+ * `http://domain` without an explicit port is upgraded. IPs, localhost, *.local and explicit
+ * ports (self-hosting on a PC, e.g. http://1.2.3.4:3000) keep plain HTTP.
+ */
+export function preferHttps(url: URL): void {
+  if (url.protocol !== 'http:' || url.port !== '') return;
+  const host = url.hostname;
+  const local =
+    host === 'localhost' ||
+    host.endsWith('.local') ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ||
+    host.startsWith('[');
+  if (!local) url.protocol = 'https:';
 }
 
 export function serverHost(serverUrl: string): string {

@@ -9,10 +9,19 @@ interface DiscordStepProps {
   user: UserInfo | null;
   onBack(): void;
   onLogin(): Promise<void>;
+  /** Fallback for accounts without Discord: sign in with an access key instead. */
+  onUseKey(): void;
   onContinue(): void;
 }
 
-export function DiscordStep({ serverUrl, user, onBack, onLogin, onContinue }: DiscordStepProps) {
+export function DiscordStep({
+  serverUrl,
+  user,
+  onBack,
+  onLogin,
+  onUseKey,
+  onContinue,
+}: DiscordStepProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function start(): Promise<void> {
@@ -69,6 +78,9 @@ export function DiscordStep({ serverUrl, user, onBack, onLogin, onContinue }: Di
           )}
         </button>
       </div>
+      <button type="button" className="btn btn--link" disabled={busy} onClick={onUseKey}>
+        Usar uma chave de acesso
+      </button>
     </div>
   );
 }
