@@ -32,7 +32,8 @@ para o seu usuário (em `%LOCALAPPDATA%\Programs\Concord`). No fim o Concord abr
 
 ## 4. Primeira vez: entrar com o Discord
 
-1. **Servidor**: já vem preenchido com o endereço do nosso servidor. É só continuar.
+1. **Servidor**: cole o endereço que o administrador te passou em particular (ele não vem
+   preenchido e não fica publicado em lugar nenhum).
 2. **Continuar com Discord**: abre a página oficial do Discord. Com o app do Discord aberto, ele
    pede a confirmação lá mesmo; senão, entre com e-mail e senha ou pelo QR code. Só contas
    liberadas entram; as outras veem "Esta conta não está autorizada".

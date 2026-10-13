@@ -39,7 +39,7 @@ export function ServerStep({ value, onSubmit }: ServerStepProps) {
           autoFocus
           autoComplete="off"
           spellCheck={false}
-          placeholder="http://IP-DO-AMIGO:3000"
+          placeholder="https://endereco-do-servidor"
           value={input}
           aria-describedby="server-url-hint"
           aria-invalid={error ? true : undefined}
@@ -49,8 +49,8 @@ export function ServerStep({ value, onSubmit }: ServerStepProps) {
           }}
         />
         <p className="field__hint" id="server-url-hint">
-          Se o servidor roda no PC de um amigo, use o IP dele — ex.: http://IP-DO-AMIGO:3000. Se
-          roda na nuvem, use o domínio — ex.: https://concord.exemplo.org.
+          Cole o endereço que o administrador do grupo te passou. Se o servidor roda no PC de um
+          amigo, ele costuma ser o IP com a porta, como http://203.0.113.10:3000.
         </p>
         {error && (
           <p className="field__error" role="alert">

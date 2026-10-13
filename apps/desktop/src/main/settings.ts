@@ -8,7 +8,8 @@ import { log } from './log';
 
 const logger = log('settings');
 
-export const DEFAULT_SERVER_URL = import.meta.env.VITE_DEFAULT_SERVER ?? 'http://127.0.0.1:3000';
+/** Empty unless a build sets VITE_DEFAULT_SERVER: the server address is shared privately. */
+export const DEFAULT_SERVER_URL = import.meta.env.VITE_DEFAULT_SERVER ?? '';
 
 /** Prefix used when `safeStorage` cannot encrypt (e.g. Linux without a keyring). */
 const PLAIN_PREFIX = 'plain:';

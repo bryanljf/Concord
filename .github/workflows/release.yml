@@ -17,10 +17,6 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    env:
-      # Pre-fills the server URL in the onboarding of released builds. Kept in a secret (masked
-      # in the public Actions logs) instead of the repository; empty means no pre-filled URL.
-      VITE_DEFAULT_SERVER: ${{ secrets.CONCORD_DEFAULT_SERVER }}
     steps:
       - uses: actions/checkout@v4
 
