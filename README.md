@@ -11,10 +11,10 @@ servidor [LiveKit](https://livekit.io) próprio, sem passar por VPN.
 
 ## Hospedar
 
-| Onde                  | Guia                                                         |
-| --------------------- | ------------------------------------------------------------ |
-| No seu PC (Windows)   | [infra/local/README-local.md](infra/local/README-local.md)   |
-| Oracle Cloud (Fase 5) | [infra/README-deploy.md](infra/README-deploy.md) (preparado) |
+| Onde                  | Guia                                                           |
+| --------------------- | -------------------------------------------------------------- |
+| No seu PC (Windows)   | [infra/local/README-local.md](infra/local/README-local.md)     |
+| Oracle Cloud (Fase 5) | [infra/README-deploy.md](infra/README-deploy.md) (em produção) |
 
 Em resumo, no PC: `pnpm install`, `pnpm --filter @concord/api user:add <id> <nome>` para cada
 amigo (o comando imprime a chave de acesso), e `powershell -ExecutionPolicy Bypass -File
@@ -50,5 +50,5 @@ as convenções do código em [CLAUDE.md](CLAUDE.md).
 | 3a — Transmitir e assistir              | concluída                       |
 | 3b — Áudio por processo                 | concluída                       |
 | 4 — Polimento da UI                     | concluída                       |
-| 5 — Deploy na Oracle (opcional)         | preparada, não executada        |
+| 5 — Deploy na Oracle                    | concluída                       |
 | 6 — Instalador e atualização automática | concluída (publicação pendente) |

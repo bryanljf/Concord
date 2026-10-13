@@ -1,18 +1,14 @@
 # Deploy na Oracle Cloud (Fase 5) — Docker + Caddy
 
-> ## Status: preparado, ainda não executado
+> ## Status: em produção desde 2026-10-13
 >
-> Os arquivos desta fase — `apps/api/Dockerfile`, `.dockerignore`, `infra/docker-compose.yml`,
-> `infra/Caddyfile` e este guia — foram escritos **sem acesso a uma VM e sem Docker instalado**:
-> nenhum comando abaixo foi executado ainda. Por enquanto o grupo hospeda no PC
-> ([infra/local/README-local.md](local/README-local.md)); este guia fica pronto para quando (e
-> se) a Oracle entrar.
->
-> **Toda ação na VM exige a confirmação do usuário antes**: mostrar o comando e o que ele faz,
-> esperar o "sim", executar, mostrar o resultado. Vale para cada passo, inclusive os só de
-> leitura (`free -h`, `docker ps`). A VM também roda um **servidor de Minecraft (porta 25565)**:
-> nada aqui pode pará-lo, reiniciá-lo, mexer no container/serviço dele ou na porta dele. Se
-> algum passo exigir isso, parar e discutir.
+> - VM (1 OCPU, 6 GB, Always Free) em , criada pelo
+>   Terraform em [](terraform), IP .
+> - Domínio (certificado Let's Encrypt via Caddy).
+> - Deploy automático: cada push em com CI verde roda o workflow , que
+>   entra na VM com uma chave SSH só de deploy (secret do environment ).
+> - O Minecraft não roda nesta conta: as ressalvas sobre ele abaixo valem só para uma VM
+>   compartilhada.
 
 ## 0. Provisionamento e CI/CD (conta Oracle nova)
 
