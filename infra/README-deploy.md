@@ -14,6 +14,55 @@
 > nada aqui pode pará-lo, reiniciá-lo, mexer no container/serviço dele ou na porta dele. Se
 > algum passo exigir isso, parar e discutir.
 
+## 0. Provisionamento e CI/CD (conta Oracle nova)
+
+O repositório inclui IaC em [`infra/terraform`](terraform) e o workflow
+[`deploy-oracle.yml`](../.github/workflows/deploy-oracle.yml). O Terraform cria apenas os recursos
+do Concord — VCN, subnet pública, regras de rede e uma VM Ubuntu ARM64 — e não depende de uma VM
+pré-existente. O cloud-init instala Docker, Git e Compose, adiciona `ubuntu` ao grupo `docker` e
+clona o repositório. Ele não cria nem imprime `.env` ou `users.json`.
+
+Fluxo recomendado:
+
+1. Criar no OCI um usuário/API key com permissões para o compartment escolhido.
+2. Copiar [`terraform.tfvars.example`](terraform/terraform.tfvars.example) para
+   `terraform.tfvars`, preencher os OCIDs, região, chave SSH pública e `private_key_path`, e
+   executar `terraform init`, `terraform validate`, `terraform plan` e `terraform apply` em
+   `infra/terraform`.
+3. Anotar o `public_ip` do output e apontar o registro A do DuckDNS para ele. Para produção,
+   reserve um public IP no OCI ou atualize o DNS sempre que a VM for recriada.
+4. Conectar por SSH, configurar `infra/.env` com o bloco Oracle e copiar o `infra/users.json`
+   existente. Use permissões `600` nos dois arquivos.
+5. No GitHub, criar um environment chamado `production` e cadastrar
+   `ORACLE_HOST`, `ORACLE_USER` (normalmente `ubuntu`), `ORACLE_SSH_PORT` (opcional),
+   `ORACLE_SSH_PRIVATE_KEY` e `ORACLE_KNOWN_HOSTS`. O último deve conter a linha obtida de
+   `ssh-keyscan -H <IP_DA_VM>` após conferir a fingerprint no console OCI. A chave privada deve
+   corresponder à chave pública usada no Terraform e nunca deve ser commitada.
+6. Para aprovação manual, configure um required reviewer no environment `production`. Pushes em
+   `main` e `workflow_dispatch` executam o deploy **somente depois** que a variável de
+   repositório `ORACLE_DEPLOY_ENABLED` for `true` (Settings → Secrets and variables → Actions →
+   Variables). Até lá o workflow é pulado, sem falhar.
+7. **SSH e IP residencial dinâmico**: o deploy entra na VM a partir dos runners do GitHub, cujos
+   IPs mudam a cada execução, e o seu IP de casa também muda. Restringir `allowed_ssh_cidrs` a um
+   `/32` bloqueia os dois. Use `allowed_ssh_cidrs = ["0.0.0.0/0"]`: a imagem Ubuntu da Oracle só
+   aceita login por chave (sem senha), então a porta aberta não expõe nada sem a chave privada.
+   A mudança só altera a security list (`terraform plan` mostra `1 to change, 0 to destroy`).
+
+> O `main.tf` ignora mudanças de imagem e de `cloud-init` na VM: sem isso, a cada nova imagem
+> Ubuntu publicada o `terraform apply` destruiria e recriaria o servidor (disco e IP novos).
+> Para recriar de propósito: `terraform apply -replace=oci_core_instance.concord`.
+
+Depois que o workflow `CI` termina com sucesso para `main` (ou por disparo manual), o workflow
+chama [`deploy-oracle.sh`](scripts/deploy-oracle.sh), que faz fetch do branch, valida o Compose,
+executa somente `docker compose -f infra/docker-compose.yml up -d --build` e verifica os
+healthchecks. Ele não usa `docker compose down`, `docker system prune`, `docker stop` global ou
+qualquer comando que possa afetar outro projeto. `.env`, `users.json`, volumes do Caddy e estado
+do Terraform permanecem fora do Git.
+
+O primeiro deploy é manual depois de preparar `.env`, `users.json`, DNS, callback OAuth do Discord
+e firewall. A CI existente deve ser exigida como check obrigatório antes de permitir merge em
+`main`.
+
 ## O que sobe
 
 | Serviço   | Imagem                           | Rede                        | Limites           | Função                                                                       |

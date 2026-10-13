@@ -1,0 +1,11 @@
+tenancy_ocid     = "ocid1.tenancy.oc1..replace-me"
+user_ocid        = "ocid1.user.oc1..replace-me"
+fingerprint      = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+private_key_path = "C:/Users/SEU_USUARIO/.oci/oci_api_key.pem"
+region           = "sa-saopaulo-1"
+compartment_ocid = "ocid1.compartment.oc1..replace-me"
+
+ssh_public_key = "ssh-ed25519 AAAA... seu-comentario"
+
+# Restrinja para seu IP público antes do apply, se possível.
+allowed_ssh_cidrs = ["0.0.0.0/0"]

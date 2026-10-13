@@ -9,6 +9,13 @@ const IDENTIFY = 'https://discord.com/api/users/@me';
 const COOKIE = 'concord_oauth_state';
 const states = new Map<string, number>();
 
+/** Drops expired OAuth states so abandoned logins do not accumulate in memory. */
+function purgeExpiredStates(now: number): void {
+  for (const [state, expires] of states) {
+    if (expires < now) states.delete(state);
+  }
+}
+
 export function discordAuthRoutes(
   app: FastifyInstance,
   options: { config: ApiConfig; users: UserStore },
@@ -19,6 +26,7 @@ export function discordAuthRoutes(
     { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
     async (_request, reply) => {
       const state = randomBytes(32).toString('base64url');
+      purgeExpiredStates(Date.now());
       states.set(state, Date.now() + 10 * 60_000);
       const url = new URL(AUTHORIZE);
       url.searchParams.set('client_id', config.auth.discordClientId);

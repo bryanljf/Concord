@@ -1,0 +1,27 @@
+#cloud-config
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - jq
+  - docker.io
+  - docker-compose-v2
+  # BuildKit front-end: apps/api/Dockerfile uses RUN --mount=type=cache.
+  - docker-buildx
+
+users:
+  - default
+
+runcmd:
+  - [ bash, -lc, "iptables -I INPUT 1 -p tcp -m multiport --dports 80,443,7881 -j ACCEPT && iptables -I INPUT 1 -p udp --dport 50000:50200 -j ACCEPT" ]
+  - [ bash, -lc, "sed -i '/-A INPUT -j REJECT/i -A INPUT -p tcp -m multiport --dports 80,443,7881 -j ACCEPT' /etc/iptables/rules.v4" ]
+  - [ bash, -lc, "sed -i '/-A INPUT -j REJECT/i -A INPUT -p udp -m udp --dport 50000:50200 -j ACCEPT' /etc/iptables/rules.v4" ]
+  - systemctl enable --now docker
+  - usermod -aG docker ubuntu
+  - mkdir -p /home/ubuntu
+  - chown ubuntu:ubuntu /home/ubuntu
+  - [ bash, -lc, "if [ ! -d /home/ubuntu/concord/.git ]; then git clone --branch '${repo_branch}' '${repo_url}' /home/ubuntu/concord; fi" ]
+  - [ bash, -lc, "chown -R ubuntu:ubuntu /home/ubuntu/concord" ]
+  - [ bash, -lc, "install -d -m 700 /home/ubuntu/concord/infra" ]
+  - [ bash, -lc, "echo 'Concord bootstrap complete. Configure infra/.env and infra/users.json before starting Compose.' > /home/ubuntu/concord/BOOTSTRAP-NEXT-STEPS.txt" ]

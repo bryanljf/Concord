@@ -1,0 +1,63 @@
+name: Deploy Oracle
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: concord-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Stays off until the repository variable ORACLE_DEPLOY_ENABLED is "true" (set it after the
+    # production environment secrets exist), so pushes do not fail before the VM is ready.
+    if: >-
+      vars.ORACLE_DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'))
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://exemplo.duckdns.org
+    steps:
+      - name: Install SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_KNOWN_HOSTS: ${{ secrets.ORACLE_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$ORACLE_HOST"
+          test -n "$ORACLE_KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/concord_oracle
+          chmod 600 ~/.ssh/concord_oracle
+          printf '%s\n' "$ORACLE_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Deploy Concord
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USER: ${{ secrets.ORACLE_USER }}
+          ORACLE_SSH_PORT: ${{ secrets.ORACLE_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          port="${ORACLE_SSH_PORT:-22}"
+          user="${ORACLE_USER:-ubuntu}"
+          ssh -i ~/.ssh/concord_oracle -p "$port" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$user@$ORACLE_HOST" \
+            'bash ~/concord/infra/scripts/deploy-oracle.sh'
+
+      - name: Verify public health endpoint
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 10 --retry-delay 5 \
+            "${CONCORD_PUBLIC_URL:-https://exemplo.duckdns.org}/api/health"

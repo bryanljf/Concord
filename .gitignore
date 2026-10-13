@@ -12,6 +12,14 @@ coverage/
 !.env.example
 infra/users.json
 
+# Terraform state and local variables can contain infrastructure identifiers or credentials.
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+infra/terraform/*.tfvars.json
+infra/terraform/crash.log
+
 # infra/local (hospedagem local no Windows): binario baixado, PIDs e logs
 infra/local/bin/
 infra/local/.pids

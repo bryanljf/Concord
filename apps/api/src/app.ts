@@ -85,7 +85,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   app.register(healthRoutes);
-  discordAuthRoutes(app, { config, users });
+  // Registered as a plugin so @fastify/rate-limit (loaded above) sees these routes.
+  app.register(async (instance) => discordAuthRoutes(instance, { config, users }));
   app.register(meRoutes, { users, sessionSecret: config.auth.sessionSecret });
   app.register(roomsRoutes, {
     users,

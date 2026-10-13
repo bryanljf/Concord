@@ -14,7 +14,9 @@ export function openDiscordLogin(serverUrl: string): Promise<string> {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
-      partition: `persist:concord-oauth-${Date.now()}`,
+      // No "persist:" prefix: an in-memory session, so every login starts clean and nothing
+      // (Discord cookies included) is left on disk.
+      partition: `concord-oauth-${Date.now()}`,
     },
   });
   auth.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

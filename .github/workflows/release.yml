@@ -17,6 +17,10 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      # Pre-fills the server URL in the onboarding of released builds. Override with the
+      # repository variable CONCORD_DEFAULT_SERVER if the domain changes.
+      VITE_DEFAULT_SERVER: ${{ vars.CONCORD_DEFAULT_SERVER || 'https://exemplo.duckdns.org' }}
     steps:
       - uses: actions/checkout@v4
 
