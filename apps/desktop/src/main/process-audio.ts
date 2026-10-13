@@ -9,7 +9,7 @@ import { UserFacingError } from './validation';
 const logger = log('process-audio');
 
 /**
- * IPC-facing side of per-process audio capture (SPEC 5.7): one capture at a time, owned by the
+ * IPC-facing side of per-process audio capture: one capture at a time, owned by the
  * renderer that started it. PCM chunks are pushed to that renderer as `PROCESS_AUDIO_DATA`.
  */
 export interface ProcessAudioBridge {

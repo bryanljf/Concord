@@ -16,7 +16,7 @@ import { concord, errorCode, toErrorMessage, type Settings } from '../lib/concor
 import { displayMediaConstraints, encodingParams, presetOf } from '../lib/encoding';
 import { audioSwitchAction, planSourceSwitch } from '../lib/sourceSwitch';
 
-/** How the broadcast carries audio (SPEC 5.7). */
+/** How the broadcast carries audio. */
 export type BroadcastAudioMode = 'none' | 'system' | 'process';
 
 export interface BroadcastRequest {
@@ -146,7 +146,7 @@ function reportStreamingState(state: StreamingState): void {
 }
 
 /**
- * Publishes a window/screen capture (SPEC 5.6): the main process answers `getDisplayMedia`
+ * Publishes a window/screen capture: the main process answers `getDisplayMedia`
  * with the source chosen in the picker, the video goes out as `Track.Source.ScreenShare` with
  * simulcast and the preset's encoding, and the audio (system loopback or per-process capture)
  * as `Track.Source.ScreenShareAudio` at 128 kbps without DTX/RED.
@@ -275,7 +275,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         }
 
         // Per-process audio is started first: whether it works decides if the display-media
-        // request must carry Electron's loopback audio instead (SPEC 5.7).
+        // request must carry Electron's loopback audio instead.
         const acquired = await acquireProcessAudio(request.audio, request.sourceId);
         const audioMode = acquired.mode;
         processAudio = acquired.processAudio;

@@ -30,7 +30,7 @@ interface UseStreamAudioOptions {
 }
 
 /**
- * Playback side of SPEC 5.5/5.7: every subscribed screen-share audio track is attached (the
+ * Playback side: every subscribed screen-share audio track is attached (the
  * room's Web Audio mix routes it through a GainNode), per-participant volume/mute is remembered
  * for the session and re-applied on every (re)subscription, and the output device follows the
  * settings via `Room.switchActiveDevice('audiooutput')` (AudioContext.setSinkId + <audio>.setSinkId).

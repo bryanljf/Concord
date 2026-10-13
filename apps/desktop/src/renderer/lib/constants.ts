@@ -5,5 +5,5 @@ export const DEFAULT_SERVER_URL: string =
 /** Electron accelerator that starts/stops streaming (mirrors the main-process default). */
 export const DEFAULT_SHORTCUT = 'CommandOrControl+Shift+L';
 
-// TODO: replace with the real repository URL once it exists (SPEC §13, question 4).
-export const PROJECT_URL = 'https://github.com/';
+/** Public repository (Settings → Sobre → "Projeto no GitHub"). */
+export const PROJECT_URL = 'https://github.com/bryanljf/Concord';

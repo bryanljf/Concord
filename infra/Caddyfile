@@ -1,4 +1,4 @@
-# Caddy na VM Oracle (Fase 5, SPEC 4.5) — PREPARADO, AINDA NÃO EXECUTADO.
+# Caddy na VM Oracle: HTTPS automático (Let's Encrypt) na frente do api e do LiveKit.
 # Roda com network_mode: host (infra/docker-compose.yml), por isso os upstreams são portas do
 # host: 3000 = api (publicada só em 127.0.0.1) e 7880 = livekit-server (sinalização WebSocket).
 # HTTPS automático via Let's Encrypt para {$DOMAIN} (variável DOMAIN do infra/.env). Exige que

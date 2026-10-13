@@ -1,6 +1,6 @@
 /**
  * Turns the PCM pushed by main (`window.concord.onProcessAudioData`) into a MediaStreamTrack
- * that livekit-client can publish as `Track.Source.ScreenShareAudio` (SPEC 5.7, Phase 3b).
+ * that livekit-client can publish as `Track.Source.ScreenShareAudio` (Phase 3b).
  *
  * Graph: main (Process Loopback, float32 interleaved) → IPC → AudioWorkletNode (jitter buffer,
  * `pcm-worklet.ts`) → MediaStreamAudioDestinationNode → `track`. Callers must check

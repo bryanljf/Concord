@@ -12,7 +12,7 @@ export interface UseCaptureSources {
   refresh(): void;
 }
 
-/** Window/screen thumbnails from main, refreshed every 2 s while `active` (SPEC 5.6). */
+/** Window/screen thumbnails from main, refreshed every 2 s while `active`. */
 export function useCaptureSources(active: boolean): UseCaptureSources {
   const [sources, setSources] = useState<CaptureSource[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,6 +1,6 @@
 # @concord/process-audio
 
-Captura de áudio **por processo** no Windows (SPEC 5.7, Fase 3b): ao transmitir uma janela, só o
+Captura de áudio **por processo** no Windows (Fase 3b): ao transmitir uma janela, só o
 som daquele programa vai junto; ao transmitir a tela inteira, vai tudo **menos** a chamada do
 Discord. Por baixo é a API _Process Loopback_ do Windows 10 2004+ (`ActivateAudioInterfaceAsync`
 com `AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK`).

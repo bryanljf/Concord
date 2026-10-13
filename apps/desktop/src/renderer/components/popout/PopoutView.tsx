@@ -20,7 +20,7 @@ import { VolumeControl } from '../stream/VolumeControl';
 import '../../styles/popout.css';
 
 /**
- * The frameless pop-out window (SPEC 5.5): its own subscribe-only livekit connection
+ * The frameless pop-out window: its own subscribe-only livekit connection
  * (`requestToken(room, 'popout')`), one participant's screen share, draggable title bar,
  * "sempre no topo", volume/mute. Main re-targets it through `onNavigate`.
  */

@@ -1,4 +1,4 @@
-# electron-builder configuration (SPEC 5.9, Phase 6).
+# electron-builder configuration (Phase 6).
 # Reference: https://www.electron.build/configuration
 
 # Must equal APP_USER_MODEL_ID in src/main/index.ts, or Windows will not attribute

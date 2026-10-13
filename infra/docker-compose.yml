@@ -11,7 +11,7 @@
 # (o compose lê infra/.env sozinho: é o .env da pasta deste arquivo; nele deve estar ativo o
 # bloco B do infra/.env.example.)
 #
-# Serviços e limites (SPEC 4.4 / 7): no total ≤ 1,5 CPU e ≤ 1,4 GB, ao lado do Minecraft.
+# Serviços e limites: no total ≤ 1,5 CPU e ≤ 1,4 GB, ao lado do Minecraft.
 #   livekit  SFU WebRTC             rede do host   1,0 CPU / 1 GB
 #   api      concord-api            rede do host   0,25 CPU / 256 MB   só 127.0.0.1:3000
 #   caddy    HTTPS (Let's Encrypt)  rede do host   0,25 CPU / 128 MB   portas 80 e 443 do host
@@ -25,7 +25,7 @@
 #     (LIVEKIT_API_URL=http://127.0.0.1:7880) ficam no loopback. Numa rede bridge o api teria de
 #     falar com o host via host.docker.internal, e o firewall da imagem Oracle (REJECT no fim do
 #     INPUT) recusa esse tráfego (EHOSTUNREACH 172.17.0.1:7880).
-#   - caddy também usa network_mode: host: assim o Caddyfile da SPEC (4.5) funciona como está
+#   - caddy também usa network_mode: host: assim o Caddyfile funciona como está
 #     (reverse_proxy para 127.0.0.1:3000 e 127.0.0.1:7880 do host) e ele escuta direto nas
 #     portas 80/443 (TCP e, para HTTP/3, UDP 443) do host; por isso não há `ports:` nele.
 #   - O servidor de Minecraft (porta 25565) NÃO é tocado: nenhum serviço aqui usa essa porta e

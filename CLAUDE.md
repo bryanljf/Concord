@@ -1,7 +1,9 @@
 # Concord — guia rápido para o Claude Code
 
 Companion de compartilhamento de tela para um grupo fechado de amigos (o Discord continua para voz/chat).
-**Leia `SPEC.md` antes de qualquer fase.** Execute uma fase por vez e pare no fim de cada uma.
+O `README.md` descreve o estado atual (funcionalidades, produção, operação, releases). Em produção
+desde 2026-10-13 numa VM Oracle; qualquer push em `main` com CI verde faz deploy automático, e
+uma tag `vX.Y.Z` publica um release que todos os apps instalados baixam sozinhos.
 
 ## Comandos
 

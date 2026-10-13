@@ -67,7 +67,7 @@ e firewall. A CI existente deve ser exigida como check obrigatório antes de per
 | `api`     | build de `apps/api/Dockerfile`   | host, só `127.0.0.1:3000` | 0,25 CPU / 256 MB | chaves de acesso, tokens, presença (SSE), webhook do LiveKit                 |
 | `caddy`   | `caddy:2`                        | host                      | 0,25 CPU / 128 MB | HTTPS automático (Let's Encrypt) nas portas 80/443, proxy para api e LiveKit |
 
-Total: **≤ 1,5 CPU e ≤ 1,4 GB de RAM** (SPEC 7), ao lado do Minecraft.
+Total: **≤ 1,5 CPU e ≤ 1,4 GB de RAM**, ao lado do Minecraft.
 
 Fluxo: no app, os amigos usam `https://<domínio>` como "URL do servidor". O Caddy manda
 `/api/*` para o api e todo o resto (`wss://<domínio>`) para o LiveKit; a mídia WebRTC vai

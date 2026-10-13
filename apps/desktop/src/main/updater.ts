@@ -5,7 +5,7 @@ import { UserFacingError } from './validation';
 
 const logger = log('updater');
 
-/** First check shortly after start-up, then periodically (SPEC 5.9). */
+/** First check shortly after start-up, then periodically. */
 export const UPDATE_INITIAL_DELAY_MS = 10_000;
 export const UPDATE_INTERVAL_MS = 60 * 60 * 1000;
 

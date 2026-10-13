@@ -87,7 +87,7 @@ export function disconnectMessage(reason: DisconnectReason | undefined): string 
 }
 
 /**
- * Room options (SPEC 5.6): adaptive stream picks the simulcast layer from the size of the
+ * Room options: adaptive stream picks the simulcast layer from the size of the
  * attached <video>, dynacast lets the publisher pause layers nobody watches, and the Web Audio
  * mix routes every remote audio track through an AudioContext + GainNode for per-stream volume
  * (0–100 %, 50 % by default) and lets the output device be switched with

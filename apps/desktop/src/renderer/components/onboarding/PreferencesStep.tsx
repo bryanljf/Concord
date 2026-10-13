@@ -23,7 +23,7 @@ export function PreferencesStep({ onFinish }: PreferencesStepProps) {
     );
   }
 
-  // SPEC 5.3: both toggles default to "on"; the shortcut keeps whatever main already has.
+  // Both toggles default to "on"; the shortcut keeps whatever main already has.
   const initial: Preferences = {
     launchAtLogin: true,
     followDiscord: true,

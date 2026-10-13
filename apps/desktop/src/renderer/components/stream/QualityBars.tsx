@@ -8,7 +8,7 @@ interface QualityBarsProps {
 
 const HEIGHTS = [5, 9, 13];
 
-/** Three signal bars for a participant's `ConnectionQuality` (SPEC Fase 4). */
+/** Three signal bars for a participant's `ConnectionQuality`. */
 export function QualityBars({ quality, size = 16 }: QualityBarsProps) {
   const lit = qualityBars(quality);
   const label = qualityLabel(quality);

@@ -31,7 +31,7 @@ function iconFor(setting: VolumeSetting): ReactNode {
   }
 }
 
-/** Per-stream volume (0–100 %, 50 % by default) and mute (SPEC 5.5). */
+/** Per-stream volume (0–100 %, 50 % by default) and mute. */
 export function VolumeControl({
   setting,
   name,

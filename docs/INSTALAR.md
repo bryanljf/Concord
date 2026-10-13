@@ -1,94 +1,87 @@
 # Instalar o Concord
 
 O Concord é o nosso app de compartilhamento de tela: o Discord continua para a voz e o chat; o
-Concord só transmite a tela (com o som do jogo). Ele fica na bandeja do Windows, avisa quando
-alguém entra ao vivo e abre uma janela para assistir ou transmitir.
+Concord só transmite a tela, com o som do jogo. Ele fica na bandeja do Windows e abre uma janela
+com visual parecido com o do Discord para assistir ou transmitir.
 
-Você vai precisar de duas coisas que **quem hospeda o servidor** te envia:
-
-- a **URL do servidor** (algo como `http://meu-ip:3000` ou `https://concord.exemplo.com`);
-- a sua **chave de acesso** (uma sequência longa de letras e números, só sua).
-
-Requisitos: Windows 10 ou 11 de 64 bits. Não precisa de conta de administrador.
+Requisitos: Windows 10 ou 11 de 64 bits e uma conta Discord **liberada pelo administrador** do
+grupo. Não precisa de conta de administrador do Windows.
 
 ## 1. Baixar o instalador
 
-1. Abra a página de versões do projeto: `https://github.com/bryanljf/Concord/releases/latest`
-   (quem hospeda te passa o link certo).
-2. Em **Assets**, baixe o arquivo **`Concord-Setup-<versão>.exe`** (por exemplo
-   `Concord-Setup-0.1.0.exe`). Ignore os outros arquivos (`latest.yml`, `.blockmap`): eles
-   servem para a atualização automática.
-3. Se o navegador perguntar se quer manter o arquivo (Edge/Chrome às vezes avisam que "não é
-   baixado com frequência"), escolha **Manter** / **Manter mesmo assim**.
+1. Abra https://github.com/bryanljf/Concord/releases/latest
+2. Em **Assets**, baixe **`Concord-Setup-<versão>.exe`**. Ignore os outros arquivos
+   (`latest.yml`, `.blockmap`): eles servem para a atualização automática.
+3. Se o navegador avisar que o arquivo "não é baixado com frequência", escolha **Manter** /
+   **Manter mesmo assim**.
 
 ## 2. O aviso do SmartScreen
 
-Ao abrir o instalador, o Windows mostra uma tela azul **"O Windows protegeu o computador"**.
-Isso é esperado. Para continuar:
+Ao abrir o instalador, o Windows mostra **"O Windows protegeu o computador"**. É esperado:
 
-1. Clique em **Mais informações** (o link pequeno abaixo do texto).
-2. Clique no botão **Executar assim mesmo** que aparece.
+1. Clique em **Mais informações**.
+2. Clique em **Executar assim mesmo**.
 
-**Por que aparece?** O Windows mostra esse aviso para qualquer programa que não tenha um
-certificado de assinatura de código, que é pago e não faz sentido para um app usado por meia
-dúzia de amigos. O instalador vem direto do nosso GitHub; baixe sempre de lá, nunca de outro
-lugar.
+O aviso aparece para qualquer programa sem certificado de assinatura de código, que é pago e não
+compensa para um app de um grupo de amigos. Baixe sempre do link acima, nunca de outro lugar.
 
 ## 3. Instalar
 
 A instalação é de um clique: não pergunta nada, não pede senha de administrador e instala só
-para o seu usuário (em `%LOCALAPPDATA%\Programs\Concord`). No fim, o Concord abre sozinho e
-cria um atalho no menu Iniciar e na área de trabalho.
+para o seu usuário (em `%LOCALAPPDATA%\Programs\Concord`). No fim o Concord abre sozinho.
 
-## 4. Primeira vez: conectar ao servidor
+## 4. Primeira vez: entrar com o Discord
 
-Na primeira abertura o app pede:
+1. **Servidor**: já vem preenchido com `https://exemplo.duckdns.org`. É só continuar.
+2. **Continuar com Discord**: abre a página oficial do Discord. Com o app do Discord aberto, ele
+   pede a confirmação lá mesmo; senão, entre com e-mail e senha ou pelo QR code. Só contas
+   liberadas entram; as outras veem "Esta conta não está autorizada".
+3. **Preferências**: iniciar com o Windows, abrir junto com o Discord e o atalho para transmitir
+   (padrão `Ctrl+Shift+L`). Tudo pode ser mudado depois em **Configurações**.
 
-1. **URL do servidor** — cole exatamente o que quem hospeda te mandou.
-2. **Chave de acesso** — cole a sua chave. Se estiver certa, aparece "Olá, _seu nome_!".
-3. **Preferências** — iniciar com o Windows (recomendado), abrir junto com o Discord
-   (recomendado) e o atalho para transmitir (padrão `Ctrl+Shift+L`). Tudo isso pode ser
-   mudado depois em **Configurações**.
+Seu nome e sua foto vêm do Discord. Para usar outro nome no Concord, clique no seu nome no canto
+inferior esquerdo e altere o **Nome de exibição** (o botão **Usar nome do Discord** volta ao
+original).
 
-Pronto. A partir daí não precisa digitar mais nada: a chave fica guardada de forma
-criptografada no seu usuário do Windows.
+## 5. No dia a dia
 
-## 5. Como ele funciona no dia a dia
-
-- **Bandeja**: o ícone perto do relógio mostra o estado — azul (conectado), vermelho (alguém
-  ao vivo) ou cinza (desconectado). Clique nele para abrir ou esconder a janela; clique com o
-  botão direito para o menu (**Abrir Concord**, **Transmitir…**, **Parar transmissão**,
-  **Configurações**, **Sair**).
-- **Fechar a janela (X) não fecha o app**: ele continua na bandeja, consumindo quase nada,
-  para avisar quando alguém começar a transmitir. Para sair de verdade, use **Sair** no menu da
-  bandeja.
-- **Iniciar com o Windows**: o app abre escondido na bandeja. Com **Abrir junto com o
-  Discord** ligado, ele só se conecta ao servidor enquanto o Discord estiver aberto.
-- **Avisos**: quando um amigo entra ao vivo, aparece uma notificação do Windows; clicar nela
-  abre a janela já na transmissão.
-- **Transmitir**: botão **Transmitir** na janela, item **Transmitir…** da bandeja ou o atalho.
-  Escolha uma janela (só o jogo) ou uma tela inteira, a qualidade, e pronto. A opção
-  "Incluir áudio do sistema" vem desligada: ligada, ela captura **tudo** que toca no PC,
-  inclusive a call do Discord, então use fone de ouvido se ligar.
+- **Salas**: a barra lateral mostra Sala 1, Sala 2 e Sala 3, quem está em cada uma e o selo
+  **AO VIVO** de quem está transmitindo. Clique numa sala para entrar; o painel acima do seu
+  nome mostra a sala atual e tem o botão de **sair da sala**.
+- **Assistir**: ao entrar numa sala você não recebe vídeo de ninguém até escolher. Cada live
+  aparece como um cartão com **Assistir** (também dá para clicar no selo AO VIVO na barra
+  lateral). A live em destaque vem em qualidade cheia e com som; as outras que você estiver
+  assistindo ficam em miniatura, sem som. Clique numa miniatura para destacá-la.
+- **Clique com o botão direito** numa live para **Parar de assistir**, **Colocar em destaque**,
+  **Abrir em pop-out** (janela separada que pode ficar sempre no topo) ou **Silenciar**.
+- **Volume**: cada live começa em 50%; o controle vai de 0 a 100%. `M` silencia a live em
+  destaque, `F11` ou duplo clique abre a tela cheia e `Esc` sai dela.
+- **Transmitir**: botão **Transmitir**, item **Transmitir…** da bandeja ou o atalho. Escolha uma
+  janela (só aquele programa) ou uma tela inteira e a qualidade (Leve 720p30, Padrão 1080p30 ou
+  Jogo 1080p60). O **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o
+  mesmo botão vira **Trocar fonte**: troca a janela ou a tela sem derrubar quem está assistindo.
+- **Som de aviso**: quando alguém entra ao vivo **na sala em que você está**, toca um som curto.
+  Em **Configurações → Sons** dá para silenciar salas ou pessoas.
+- **Fechar a janela (X) não fecha o app**: ele continua na bandeja, gastando quase nada. Para
+  sair de verdade, use **Sair** no menu da bandeja (botão direito no ícone perto do relógio).
 
 ## 6. Atualizações automáticas
 
-Não precisa baixar versões novas na mão. O Concord verifica se há atualização ao abrir e a
-cada 6 horas, baixa em segundo plano e instala sozinho na próxima vez que você sair do app.
-Em **Configurações → Verificar atualizações** dá para conferir na hora e usar **Reiniciar para
-atualizar** quando uma versão já estiver baixada.
+O Concord verifica atualizações ao abrir e de hora em hora e baixa em segundo plano. Quando uma
+versão nova estiver pronta, aparece um aviso do Windows, um item **Reiniciar para atualizar** na
+bandeja e uma faixa no topo com **Reiniciar agora**. Se preferir, ela é instalada sozinha na
+próxima vez que você sair do app. Não precisa desinstalar nada para atualizar.
 
 ## 7. Desinstalar
 
-**Configurações do Windows → Aplicativos → Aplicativos instalados → Concord → Desinstalar**
-(ou pelo "Adicionar ou remover programas"). Para apagar também a configuração e a chave, exclua
-a pasta `%APPDATA%\Concord` depois de desinstalar.
+**Configurações do Windows → Aplicativos → Aplicativos instalados → Concord → Desinstalar**.
+Para apagar também suas preferências e o login, exclua a pasta `%APPDATA%\Concord` depois.
 
 ## Problemas comuns
 
-| O que aparece                             | O que fazer                                                                                           |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| "Não foi possível conectar ao servidor …" | Confira a URL (com `http://` ou `https://` e a porta) e pergunte se o servidor está no ar.            |
-| "Chave de acesso inválida"                | A chave foi digitada errada ou trocada: peça uma nova para quem hospeda.                              |
-| Não recebo avisos de transmissão          | O app precisa estar aberto (na bandeja basta) e as notificações do Windows habilitadas para ele.      |
-| A atualização não acontece                | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima. |
+| O que aparece                             | O que fazer                                                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| "Esta conta não está autorizada"          | Sua conta Discord ainda não foi liberada: mande o seu ID do Discord para o administrador.                   |
+| "Não foi possível conectar ao servidor …" | Confira se o servidor é `https://exemplo.duckdns.org` e avise o administrador se continuar.             |
+| Não ouço uma live                         | Só a live em destaque tem som: clique na miniatura dela. Confira também o volume e se ela não está no mudo. |
+| A atualização não chega                   | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima.       |

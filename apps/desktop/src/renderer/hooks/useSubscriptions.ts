@@ -20,7 +20,7 @@ function applyAudio(publication: RemoteTrackPublication, plan: SubscriptionPlan)
 }
 
 /**
- * Keeps livekit subscriptions in sync with what the user chose to watch (SPEC 5.5): the focused
+ * Keeps livekit subscriptions in sync with what the user chose to watch: the focused
  * live at full quality with audio, the other watched lives (mini tiles) at the lowest simulcast
  * layer without audio, nothing else. `watchedIds` defaults to none, so a caller that only knows
  * one target (the pop-out window) subscribes to just that one.

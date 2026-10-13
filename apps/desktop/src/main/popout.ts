@@ -49,7 +49,7 @@ export interface PopoutManager {
 }
 
 /**
- * One frameless window that shows a single participant's stream (SPEC 5.5). It loads the same
+ * One frameless window that shows a single participant's stream. It loads the same
  * renderer as the main window; the preload tells it `windowKind === 'popout'` and it asks for
  * its target with `getPopoutTarget()`, then follows `NAVIGATE` pushes for re-targeting.
  */

@@ -1,5 +1,5 @@
 /**
- * Per-process audio capture (SPEC 5.7, Phase 3b). The native side lives in
+ * Per-process audio capture (Phase 3b). The native side lives in
  * `@concord/process-audio` (WASAPI Process Loopback through the `loopback-capture` addon); this
  * module is the only thing the rest of the main process talks to, so it can degrade gracefully
  * (`support()` explains why in pt-BR) when the native module is absent or Windows is too old.

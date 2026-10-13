@@ -103,7 +103,7 @@ export function rendererEntry(): RendererEntry {
   };
 }
 
-/** SPEC 5.1: isolated, sandboxed renderer; the preload learns its window kind from argv. */
+/** Isolated, sandboxed renderer; the preload learns its window kind from argv. */
 export function rendererWebPreferences(kind: WindowKind): Electron.WebPreferences {
   return {
     preload: join(__dirname, '../preload/index.js'),

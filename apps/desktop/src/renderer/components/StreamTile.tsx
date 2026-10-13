@@ -27,7 +27,7 @@ interface FocusedTileProps {
 
 /**
  * The watched live on the stage: video at full quality with audio, auto-hiding controls, stats on
- * hover (SPEC 5.5). Focusable so its context menu also opens from the keyboard.
+ * hover. Focusable so its context menu also opens from the keyboard.
  */
 export function FocusedStreamTile({
   stream,

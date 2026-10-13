@@ -46,7 +46,7 @@ interface SourcePickerProps {
 
 type Tab = CaptureSource['kind'];
 
-/** Discord-like modal to choose a window/screen, the quality and the audio (SPEC 5.6/5.7). */
+/** Discord-like modal to choose a window/screen, the quality and the audio. */
 export function SourcePicker({
   rooms,
   currentRoom,

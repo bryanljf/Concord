@@ -1,5 +1,5 @@
 /**
- * Decides which remote publications to subscribe to (SPEC 5.5: `autoSubscribe: false`, manual
+ * Decides which remote publications to subscribe to (`autoSubscribe: false`, manual
  * subscription). Pure so it can be unit-tested; `hooks/useSubscriptions.ts` applies the plan.
  *
  * Only what the user chose to watch is subscribed: the focused live at full quality with its

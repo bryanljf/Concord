@@ -1,4 +1,4 @@
-/* Frameless pop-out window: the title bar is the drag region (SPEC 5.5). */
+/* Frameless pop-out window: the title bar is the drag region */
 .popout {
   display: flex;
   flex-direction: column;

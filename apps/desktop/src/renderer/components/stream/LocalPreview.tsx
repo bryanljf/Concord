@@ -7,7 +7,7 @@ interface LocalPreviewProps {
   onDoubleClick?(): void;
 }
 
-/** Muted preview of what this instance is broadcasting (SPEC 5.6 "você está ao vivo"). */
+/** Muted preview of what this instance is broadcasting. */
 export function LocalPreview({ track, className, onDoubleClick }: LocalPreviewProps) {
   const ref = useRef<HTMLVideoElement>(null);
 

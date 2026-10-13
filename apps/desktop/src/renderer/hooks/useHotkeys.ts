@@ -17,7 +17,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return EDITABLE.has(target.tagName) || target.isContentEditable;
 }
 
-/** Window-level shortcuts for the stage (SPEC 5.5: F11 fullscreen, Esc leaves it, M mutes). */
+/** Window-level shortcuts for the stage (F11 fullscreen, Esc leaves it, M mutes). */
 export function useHotkeys(hotkeys: Hotkeys, enabled = true): void {
   const latest = useRef(hotkeys);
   useEffect(() => {
