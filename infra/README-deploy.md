@@ -3,8 +3,8 @@
 > ## Status: em produção desde 2026-10-13
 >
 > - VM `VM.Standard.A1.Flex` (1 OCPU, 6 GB, Always Free) em `sa-saopaulo-1`, criada pelo
->   Terraform em [`infra/terraform`](terraform), IP `203.0.113.10`.
-> - Domínio `https://exemplo.duckdns.org` (certificado Let's Encrypt via Caddy).
+>   Terraform em [`infra/terraform`](terraform), IP no `terraform output`.
+> - Domínio `https://<seu-dominio>.duckdns.org` (certificado Let's Encrypt via Caddy).
 > - Deploy automático: cada push em `main` com CI verde roda o workflow `Deploy Oracle`, que
 >   entra na VM com uma chave SSH só de deploy (secret do environment `production`).
 > - O Minecraft não roda nesta conta: as ressalvas sobre ele abaixo valem só para uma VM
@@ -222,7 +222,7 @@ exatamente igual ao configurado no `.env`:
 ```ini
 DISCORD_CLIENT_ID=<Client ID da aplicação>
 DISCORD_CLIENT_SECRET=<Client Secret; somente na VM>
-DISCORD_REDIRECT_URI=https://exemplo.duckdns.org/api/auth/discord/callback
+DISCORD_REDIRECT_URI=https://<seu-dominio>.duckdns.org/api/auth/discord/callback
 DISCORD_OAUTH_SCOPES=identify
 AUTH_SESSION_SECRET=<openssl rand -hex 32>
 AUTH_SESSION_TTL=30d

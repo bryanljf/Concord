@@ -291,9 +291,7 @@ describe('setNickname', () => {
 
 describe('normalizeServerUrl https upgrade (main)', () => {
   it('upgrades a stored http public domain and keeps local addresses', () => {
-    expect(normalizeServerUrl('http://exemplo.duckdns.org/')).toBe(
-      'https://exemplo.duckdns.org',
-    );
+    expect(normalizeServerUrl('http://exemplo.duckdns.org/')).toBe('https://exemplo.duckdns.org');
     expect(normalizeServerUrl('http://127.0.0.1:3000')).toBe('http://127.0.0.1:3000');
     expect(normalizeServerUrl('http://localhost')).toBe('http://localhost');
     expect(normalizeServerUrl('http://friend.duckdns.org:3000')).toBe(

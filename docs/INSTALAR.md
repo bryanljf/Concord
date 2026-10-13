@@ -32,7 +32,7 @@ para o seu usuário (em `%LOCALAPPDATA%\Programs\Concord`). No fim o Concord abr
 
 ## 4. Primeira vez: entrar com o Discord
 
-1. **Servidor**: já vem preenchido com `https://exemplo.duckdns.org`. É só continuar.
+1. **Servidor**: já vem preenchido com o endereço do nosso servidor. É só continuar.
 2. **Continuar com Discord**: abre a página oficial do Discord. Com o app do Discord aberto, ele
    pede a confirmação lá mesmo; senão, entre com e-mail e senha ou pelo QR code. Só contas
    liberadas entram; as outras veem "Esta conta não está autorizada".
@@ -82,6 +82,6 @@ Para apagar também suas preferências e o login, exclua a pasta `%APPDATA%\Conc
 | O que aparece                             | O que fazer                                                                                                 |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | "Esta conta não está autorizada"          | Sua conta Discord ainda não foi liberada: mande o seu ID do Discord para o administrador.                   |
-| "Não foi possível conectar ao servidor …" | Confira se o servidor é `https://exemplo.duckdns.org` e avise o administrador se continuar.             |
+| "Não foi possível conectar ao servidor …" | Confira se o endereço do servidor é o que o administrador passou e avise-o se continuar.                    |
 | Não ouço uma live                         | Só a live em destaque tem som: clique na miniatura dela. Confira também o volume e se ela não está no mudo. |
 | A atualização não chega                   | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima.       |

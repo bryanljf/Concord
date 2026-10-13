@@ -15,17 +15,20 @@ permissions:
 
 jobs:
   deploy:
-    # Stays off until the repository variable ORACLE_DEPLOY_ENABLED is "true" (set it after the
-    # production environment secrets exist), so pushes do not fail before the VM is ready.
+    # Stays off until the repository variable ORACLE_DEPLOY_ENABLED is "true".
+    # Automatic deploys only follow a successful CI run of a PUSH to main of THIS repository:
+    # CI also runs for pull requests, and a fork's PR from a branch named "main" would otherwise
+    # satisfy head_branch == 'main' and trigger a deploy with the production secrets.
     if: >-
       vars.ORACLE_DEPLOY_ENABLED == 'true' &&
       (github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'))
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: https://exemplo.duckdns.org
+    # The public URL is deliberately not written here (public repo): it comes from a secret.
+    environment: production
     steps:
       - name: Install SSH key
         env:
@@ -57,7 +60,11 @@ jobs:
             'bash ~/concord/infra/scripts/deploy-oracle.sh'
 
       - name: Verify public health endpoint
+        env:
+          # Secret, so it is masked in the (public) Actions logs.
+          CONCORD_PUBLIC_URL: ${{ secrets.CONCORD_PUBLIC_URL }}
         run: |
           set -euo pipefail
+          test -n "$CONCORD_PUBLIC_URL"
           curl --fail --silent --show-error --retry 10 --retry-delay 5 \
-            "${CONCORD_PUBLIC_URL:-https://exemplo.duckdns.org}/api/health"
+            "$CONCORD_PUBLIC_URL/api/health" > /dev/null
