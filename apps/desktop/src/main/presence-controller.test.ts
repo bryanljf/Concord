@@ -31,7 +31,7 @@ describe('computeTrayStatus', () => {
     });
     expect(computeTrayStatus(connected, { rooms: { geral: [ana], jogos: [beto] } })).toEqual({
       state: 'live',
-      detail: 'Beto ao vivo em #jogos',
+      detail: 'Beto ao vivo em Jogos',
     });
     expect(
       computeTrayStatus(connected, { rooms: { jogos: [beto, { ...ana, streaming: true }] } }),
@@ -186,7 +186,7 @@ describe('PresenceController', () => {
     expect(mocks.connect).toHaveBeenCalledTimes(3);
   });
 
-  it('tracks the tray state and notifies about other people going live', () => {
+  it('tracks the tray state and never shows Windows notifications for new lives', () => {
     const settings = makeSettings({
       followDiscord: false,
       mutedRooms: ['filme'],
@@ -217,16 +217,11 @@ describe('PresenceController', () => {
       { rooms: { jogos: [liveAna] } },
     );
     expect(trayStates).toEqual(['idle', 'live']);
-    expect(controller.getTrayStatus()).toEqual({ state: 'live', detail: 'Ana ao vivo em #jogos' });
-    expect(shown).toHaveLength(1);
-    expect(shown[0]).toMatchObject({
-      title: '🔴 Ana está ao vivo em #jogos',
-      body: 'Clique para assistir',
-    });
-    shown[0]?.onClick?.();
-    expect(targets).toEqual([{ room: 'jogos', participantId: 'ana' }]);
+    expect(controller.getTrayStatus()).toEqual({ state: 'live', detail: 'Ana ao vivo em Jogos' });
+    // New lives are announced by a sound in the renderer, not by Windows notifications.
+    expect(shown).toHaveLength(0);
+    expect(targets).toEqual([]);
 
-    // Own streams, muted rooms and muted users stay silent.
     emit(
       { type: 'stream_started', room: 'jogos', participantId: 'bryan' },
       { rooms: { jogos: [liveAna] } },
@@ -239,7 +234,7 @@ describe('PresenceController', () => {
       { type: 'stream_started', room: 'jogos', participantId: 'carl' },
       { rooms: { jogos: [liveAna] } },
     );
-    expect(shown).toHaveLength(1);
+    expect(shown).toHaveLength(0);
 
     emit(
       { type: 'stream_stopped', room: 'jogos', participantId: 'ana' },

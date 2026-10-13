@@ -44,8 +44,8 @@ describe('parseStreamingState', () => {
 
 describe('streamingTrayDetail', () => {
   it('describes the transmission in pt-BR', () => {
-    expect(streamingTrayDetail(live)).toBe('você está ao vivo em #jogos (Elden Ring)');
-    expect(streamingTrayDetail({ ...live, sourceName: null })).toBe('você está ao vivo em #jogos');
+    expect(streamingTrayDetail(live)).toBe('você está ao vivo em Jogos (Elden Ring)');
+    expect(streamingTrayDetail({ ...live, sourceName: null })).toBe('você está ao vivo em Jogos');
     expect(streamingTrayDetail({ ...live, room: null, sourceName: null })).toBe(
       'você está ao vivo',
     );

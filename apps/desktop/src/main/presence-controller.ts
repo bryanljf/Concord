@@ -1,4 +1,4 @@
-import type { PresenceEvent, PresenceSnapshot } from '@concord/shared';
+import { roomLabel, type PresenceSnapshot } from '@concord/shared';
 import type { NavigateTarget, PresenceConnectionStatus } from '../preload/api';
 import type { ProcessWatcher } from './discord-watcher';
 import { log } from './log';
@@ -32,7 +32,7 @@ export function computeTrayStatus(
   const first = live[0];
   if (!first) return { state: 'idle', detail: null };
   if (live.length === 1)
-    return { state: 'live', detail: `${first.name} ao vivo em #${first.room}` };
+    return { state: 'live', detail: `${first.name} ao vivo em ${roomLabel(first.room)}` };
   return { state: 'live', detail: `${live.length} transmissões ao vivo` };
 }
 
@@ -69,7 +69,7 @@ export class PresenceController {
       session.onChange(() => this.evaluate(true)),
       discord.onChange(() => this.evaluate()),
       client.onStatus(() => this.refreshTray()),
-      client.onEvent((event) => this.handleEvent(event)),
+      client.onEvent(() => this.handleEvent()),
     ];
     this.evaluate();
   }
@@ -127,28 +127,9 @@ export class PresenceController {
     for (const listener of this.trayListeners) listener(next);
   }
 
-  private handleEvent(event: PresenceEvent): void {
+  private handleEvent(): void {
+    // New lives no longer raise Windows notifications: the renderer plays a sound when someone
+    // starts streaming in the room you are in (user decision, 2026-10-13).
     this.refreshTray();
-    if (event.type !== 'stream_started') return;
-    const { session, settings, client, notifier } = this.deps;
-    const user = session.get().user;
-    if (user && event.participantId === user.id) return;
-    const { mutedRooms, mutedUsers } = settings.get();
-    if (mutedRooms.includes(event.room) || mutedUsers.includes(event.participantId)) {
-      logger.info(`notification muted for ${event.participantId} in #${event.room}`);
-      return;
-    }
-    const participant = client
-      .getSnapshot()
-      .rooms[event.room]?.find((candidate) => candidate.id === event.participantId);
-    const name = participant?.name ?? event.participantId;
-    const target: NavigateTarget = { room: event.room, participantId: event.participantId };
-    notifier.show({
-      title: `🔴 ${name} está ao vivo em #${event.room}`,
-      body: 'Clique para assistir',
-      onClick: () => {
-        for (const listener of this.navigateListeners) listener(target);
-      },
-    });
   }
 }

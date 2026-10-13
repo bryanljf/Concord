@@ -1,3 +1,4 @@
+import { roomLabel } from '@concord/shared';
 import type { StreamingState } from '../preload/api';
 import { log } from './log';
 import {
@@ -47,7 +48,7 @@ export function isSameStreamingState(a: StreamingState, b: StreamingState): bool
 export function streamingTrayDetail(state: StreamingState): string | null {
   if (!state.active) return null;
   let detail = 'você está ao vivo';
-  if (state.room) detail += ` em #${state.room}`;
+  if (state.room) detail += ` em ${roomLabel(state.room)}`;
   if (state.sourceName) detail += ` (${state.sourceName})`;
   return detail;
 }
