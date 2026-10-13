@@ -21,6 +21,8 @@ export interface TrayDeps {
   /** "Transmitir…" and "Parar transmissão": the renderer owns the actual toggle. */
   onStreamToggle(): void;
   onOpenSettings(): void;
+  /** "Reiniciar para atualizar": quits and installs the downloaded update. */
+  onInstallUpdate(): void;
   onQuit(): void;
 }
 
@@ -29,6 +31,8 @@ export interface TrayHandle {
   setPresenceStatus(status: TrayStatus): void;
   /** What this instance is publishing; wins over presence while active. */
   setStreamingState(state: StreamingState): void;
+  /** Version downloaded and ready to install, or null. */
+  setUpdateReady(version: string | null): void;
   destroy(): void;
 }
 
@@ -65,6 +69,7 @@ export function createTray(deps: TrayDeps): TrayHandle {
   };
   let presence: TrayStatus = { state: 'offline', detail: null };
   let streaming: StreamingState = INACTIVE_STREAMING_STATE;
+  let updateVersion: string | null = null;
 
   const tray = new Tray(icons.offline);
   tray.setToolTip(trayTooltip(presence));
@@ -72,6 +77,12 @@ export function createTray(deps: TrayDeps): TrayHandle {
   function buildMenu(): Menu {
     const settings = deps.settings.get();
     const template: MenuItemConstructorOptions[] = [
+      {
+        label: `Reiniciar para atualizar (v${updateVersion ?? ''})`,
+        visible: updateVersion !== null,
+        click: () => deps.onInstallUpdate(),
+      },
+      { type: 'separator', visible: updateVersion !== null },
       { label: 'Abrir Concord', click: () => deps.onOpen() },
       { label: 'Transmitir…', enabled: !streaming.active, click: () => deps.onStreamToggle() },
       {
@@ -130,6 +141,11 @@ export function createTray(deps: TrayDeps): TrayHandle {
       streaming = state;
       refresh();
       if (activeChanged) tray.setContextMenu(buildMenu());
+    },
+    setUpdateReady(version) {
+      if (version === updateVersion) return;
+      updateVersion = version;
+      tray.setContextMenu(buildMenu());
     },
     destroy() {
       unsubscribe();

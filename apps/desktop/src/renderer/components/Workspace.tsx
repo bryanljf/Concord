@@ -26,6 +26,7 @@ import { playTransmissionEnded, playTransmissionStarted } from '../lib/transmiss
 import { AppShell } from './AppShell';
 import { BottomBar } from './BottomBar';
 import { ConnectionBanner } from './ConnectionBanner';
+import { UpdateBanner } from './UpdateBanner';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { Stage } from './Stage';
@@ -229,10 +230,13 @@ export function Workspace({ user, onRekey }: WorkspaceProps) {
       <AppShell
         immersive={fullscreen}
         banner={
-          <ConnectionBanner
-            status={status}
-            onConnectAnyway={() => saveSettings({ followDiscord: false })}
-          />
+          <>
+            <UpdateBanner />
+            <ConnectionBanner
+              status={status}
+              onConnectAnyway={() => saveSettings({ followDiscord: false })}
+            />
+          </>
         }
         sidebar={
           <Sidebar

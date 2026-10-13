@@ -7,7 +7,7 @@ const logger = log('updater');
 
 /** First check shortly after start-up, then periodically (SPEC 5.9). */
 export const UPDATE_INITIAL_DELAY_MS = 10_000;
-export const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+export const UPDATE_INTERVAL_MS = 60 * 60 * 1000;
 
 export const DEV_UNSUPPORTED_REASON =
   'Atualizações automáticas só funcionam na versão instalada do Concord.';

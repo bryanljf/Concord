@@ -113,6 +113,14 @@ function bootstrap(): void {
     window.send(EVENTS.STREAM_TOGGLE);
   }
 
+  function installUpdate(): void {
+    try {
+      updater.install();
+    } catch (err) {
+      logger.warn('could not install the update', err);
+    }
+  }
+
   function quit(): void {
     quitting = true;
     app.quit();
@@ -127,6 +135,7 @@ function bootstrap(): void {
       window.show();
       window.send(EVENTS.OPEN_SETTINGS);
     },
+    onInstallUpdate: () => installUpdate(),
     onQuit: quit,
   });
 
@@ -146,6 +155,19 @@ function bootstrap(): void {
   capture.install();
   bindAutostart(settings);
   bindGlobalShortcut(settings, requestStreamToggle);
+
+  // Downloaded update: tray item plus one Windows notification per version.
+  let notifiedVersion: string | null = null;
+  updater.onStatus((status) => {
+    tray.setUpdateReady(status.state === 'ready' ? status.version : null);
+    if (status.state !== 'ready' || status.version === notifiedVersion) return;
+    notifiedVersion = status.version;
+    notifier.show({
+      title: `Concord ${status.version} está pronto`,
+      body: 'Clique para reiniciar e atualizar agora. Se preferir, ele instala quando você sair.',
+      onClick: () => installUpdate(),
+    });
+  });
 
   controller.onTrayStatus((status) => tray.setPresenceStatus(status));
   streaming.onChange((state) => tray.setStreamingState(state));
