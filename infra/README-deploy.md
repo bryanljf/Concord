@@ -65,11 +65,11 @@ e firewall. A CI existente deve ser exigida como check obrigatório antes de per
 
 ## O que sobe
 
-| Serviço   | Imagem                           | Rede                        | Limites           | Função                                                                       |
-| --------- | -------------------------------- | --------------------------- | ----------------- | ---------------------------------------------------------------------------- |
-| `livekit` | `livekit/livekit-server:v1.13.9` | host                        | 1,0 CPU / 1 GB    | SFU WebRTC: sinalização 7880 (só loopback), mídia UDP 50000–50200, TCP 7881  |
-| `api`     | build de `apps/api/Dockerfile`   | bridge, só `127.0.0.1:3000` | 0,25 CPU / 256 MB | chaves de acesso, tokens, presença (SSE), webhook do LiveKit                 |
-| `caddy`   | `caddy:2`                        | host                        | 0,25 CPU / 128 MB | HTTPS automático (Let's Encrypt) nas portas 80/443, proxy para api e LiveKit |
+| Serviço   | Imagem                           | Rede                      | Limites           | Função                                                                       |
+| --------- | -------------------------------- | ------------------------- | ----------------- | ---------------------------------------------------------------------------- |
+| `livekit` | `livekit/livekit-server:v1.13.9` | host                      | 1,0 CPU / 1 GB    | SFU WebRTC: sinalização 7880 (só loopback), mídia UDP 50000–50200, TCP 7881  |
+| `api`     | build de `apps/api/Dockerfile`   | host, só `127.0.0.1:3000` | 0,25 CPU / 256 MB | chaves de acesso, tokens, presença (SSE), webhook do LiveKit                 |
+| `caddy`   | `caddy:2`                        | host                      | 0,25 CPU / 128 MB | HTTPS automático (Let's Encrypt) nas portas 80/443, proxy para api e LiveKit |
 
 Total: **≤ 1,5 CPU e ≤ 1,4 GB de RAM** (SPEC 7), ao lado do Minecraft.
 

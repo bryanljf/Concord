@@ -13,19 +13,18 @@
 #
 # Serviços e limites (SPEC 4.4 / 7): no total ≤ 1,5 CPU e ≤ 1,4 GB, ao lado do Minecraft.
 #   livekit  SFU WebRTC             rede do host   1,0 CPU / 1 GB
-#   api      concord-api            bridge         0,25 CPU / 256 MB   só 127.0.0.1:3000 no host
+#   api      concord-api            rede do host   0,25 CPU / 256 MB   só 127.0.0.1:3000
 #   caddy    HTTPS (Let's Encrypt)  rede do host   0,25 CPU / 128 MB   portas 80 e 443 do host
 #
 # Rede — quem fala com quem:
 #   - livekit usa network_mode: host: o WebRTC precisa das portas UDP 50000-50200 e TCP 7881
 #     direto no host (publicar 201 portas por bridge é lento e frágil). A sinalização fica em
 #     127.0.0.1:7880 e não é exposta: só o Caddy chega nela.
-#   - api fica numa rede bridge com a porta 3000 publicada SÓ no loopback do host
-#     (127.0.0.1:3000). Como o LiveKit está na rede do host, o webhook configurado em
-#     infra/livekit.yaml (http://127.0.0.1:3000/api/livekit/webhook) chega ao api por essa
-#     porta publicada. No sentido inverso, dentro do container 127.0.0.1 é o próprio container,
-#     então o api usa LIVEKIT_API_URL=http://host.docker.internal:7880 para falar com o LiveKit
-#     (resync da presença); extra_hosts com host-gateway cria esse nome apontando para o host.
+#   - api também usa network_mode: host e escuta SÓ em 127.0.0.1:3000 (HOST abaixo). O webhook
+#     do LiveKit (http://127.0.0.1:3000/api/livekit/webhook) e o resync da presença
+#     (LIVEKIT_API_URL=http://127.0.0.1:7880) ficam no loopback. Numa rede bridge o api teria de
+#     falar com o host via host.docker.internal, e o firewall da imagem Oracle (REJECT no fim do
+#     INPUT) recusa esse tráfego (EHOSTUNREACH 172.17.0.1:7880).
 #   - caddy também usa network_mode: host: assim o Caddyfile da SPEC (4.5) funciona como está
 #     (reverse_proxy para 127.0.0.1:3000 e 127.0.0.1:7880 do host) e ele escuta direto nas
 #     portas 80/443 (TCP e, para HTTP/3, UDP 443) do host; por isso não há `ports:` nele.
@@ -56,21 +55,18 @@ services:
     restart: unless-stopped
     cpus: '0.25'
     mem_limit: 256m
-    ports:
-      - '127.0.0.1:3000:3000'
+    network_mode: host
     # Bloco B do infra/.env: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, ROOMS, DOMAIN.
     env_file: .env
     # Fixadas aqui porque dependem de como o container é montado (vencem o env_file):
     environment:
-      HOST: 0.0.0.0 # todas as interfaces DO CONTAINER; no host só 127.0.0.1:3000 (ports acima)
+      HOST: 127.0.0.1 # só loopback: o Caddy (rede do host) é a única porta de entrada
       PORT: '3000'
       TRUST_PROXY: '1' # o IP real do cliente vem no X-Forwarded-For do Caddy (rate limit)
       USERS_FILE: /data/users.json
-      LIVEKIT_API_URL: http://host.docker.internal:7880
+      LIVEKIT_API_URL: http://127.0.0.1:7880
     volumes:
       - ./users.json:/data/users.json:ro
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
     depends_on:
       - livekit
 
