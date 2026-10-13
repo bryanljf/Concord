@@ -31,7 +31,7 @@ describe('startResync', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(roomService.listRooms).toHaveBeenCalledTimes(1);
     expect(presence.snapshot().rooms.geral).toEqual([
-      { id: 'alice', name: 'Alice', streaming: false, joinedAt: 10_000 },
+      { id: 'alice', name: 'Alice', streaming: false, joinedAt: 10_000, avatarUrl: null },
     ]);
 
     await vi.advanceTimersByTimeAsync(1000);
@@ -56,7 +56,7 @@ describe('startResync', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(presence.snapshot().rooms.geral).toEqual([
-      { id: 'alice', name: 'Alice', streaming: false, joinedAt: 10_000 },
+      { id: 'alice', name: 'Alice', streaming: false, joinedAt: 10_000, avatarUrl: null },
     ]);
     resync.stop();
   });

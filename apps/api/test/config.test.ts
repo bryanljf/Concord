@@ -22,6 +22,8 @@ describe('loadConfig', () => {
       trustProxy: false,
       rooms: ['geral'],
       usersFile: resolve('/srv/concord/apps/api', '../../infra/users.json'),
+      profilesFile: resolve('/srv/concord/apps/api', '../../infra/profiles.json'),
+      discordBotToken: undefined,
       auth: {
         discordClientId: 'client',
         discordClientSecret: 'secret',
@@ -48,6 +50,8 @@ describe('loadConfig', () => {
       TRUST_PROXY: 'true',
       ROOMS: 'geral, jogos ,filme,geral',
       USERS_FILE: 'data/users.json',
+      PROFILES_FILE: '/var/lib/concord/profiles.json',
+      DISCORD_BOT_TOKEN: ' bot-token ',
       LIVEKIT_LOCAL_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_URL: 'http://127.0.0.1:7880',
     };
@@ -57,6 +61,8 @@ describe('loadConfig', () => {
       trustProxy: true,
       rooms: ['geral', 'jogos', 'filme'],
       usersFile: resolve('/srv', 'data/users.json'),
+      profilesFile: resolve('/srv', '/var/lib/concord/profiles.json'),
+      discordBotToken: 'bot-token',
       auth: {
         discordClientId: 'client',
         discordClientSecret: 'secret',

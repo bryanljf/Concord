@@ -75,7 +75,7 @@ describe('app', () => {
     });
     expect(res.statusCode).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBe('*');
-    expect(res.headers['access-control-allow-methods']).toBe('GET, POST');
+    expect(res.headers['access-control-allow-methods']).toBe('GET, POST, PUT');
     expect(res.headers['access-control-allow-headers']).toBe('Authorization, Content-Type');
     await app.close();
   });

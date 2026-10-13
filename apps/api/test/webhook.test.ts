@@ -12,8 +12,21 @@ const bob = { sid: 'PA_2', identity: 'bob', name: '', joinedAt: '1700000010' };
 const screenTrack = { sid: 'TR_1', type: 'VIDEO', source: 'SCREEN_SHARE' };
 const cameraTrack = { sid: 'TR_2', type: 'VIDEO', source: 'CAMERA' };
 
-const alicePresence = { id: 'alice', name: 'Alice', streaming: false, joinedAt: 1_700_000_000_000 };
-const bobPresence = { id: 'bob', name: 'bob', streaming: false, joinedAt: 1_700_000_010_000 };
+const alicePresence = {
+  id: 'alice',
+  name: 'Alice',
+  streaming: false,
+  joinedAt: 1_700_000_000_000,
+  avatarUrl: null,
+};
+// LiveKit sent no name for bob: presence resolves it from users.json ("Bob").
+const bobPresence = {
+  id: 'bob',
+  name: 'Bob',
+  streaming: false,
+  joinedAt: 1_700_000_010_000,
+  avatarUrl: null,
+};
 
 interface PostOptions {
   secret?: string;

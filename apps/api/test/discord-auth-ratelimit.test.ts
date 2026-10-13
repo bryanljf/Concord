@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { UserStore } from '../src/auth';
 import { PresenceStore } from '../src/presence-store';
+import { ProfileStore } from '../src/profiles';
 import { testConfig } from './helpers';
 
 describe('Discord OAuth rate limit', () => {
@@ -11,6 +12,7 @@ describe('Discord OAuth rate limit', () => {
       config,
       users: new UserStore([]),
       presence: new PresenceStore(config.rooms),
+      profiles: new ProfileStore(),
       webhookReceiver: {
         receive: async () => {
           throw new Error('unused');

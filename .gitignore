@@ -11,6 +11,9 @@ coverage/
 .env.*
 !.env.example
 infra/users.json
+# written by the api (Discord names, avatars, nicknames)
+infra/profiles.json
+infra/profiles.json.*
 
 # Terraform state and local variables can contain infrastructure identifiers or credentials.
 infra/terraform/.terraform/

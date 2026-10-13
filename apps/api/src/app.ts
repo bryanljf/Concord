@@ -11,6 +11,7 @@ import type { UserStore } from './auth';
 import type { ApiConfig } from './config';
 import { createWebhookReceiver } from './livekit';
 import type { PresenceStore } from './presence-store';
+import type { ProfileStore } from './profiles';
 import { healthRoutes } from './routes/health';
 import { livekitWebhookRoutes } from './routes/livekit-webhook';
 import { meRoutes } from './routes/me';
@@ -23,6 +24,11 @@ export interface BuildAppOptions {
   config: ApiConfig;
   users: UserStore;
   presence: PresenceStore;
+  /**
+   * Discord names, avatars and nicknames. Its changes are forwarded to `presence.refreshUser`;
+   * `presence` should be built with a resolver over the same store (createProfileResolver).
+   */
+  profiles: ProfileStore;
   logger?: FastifyServerOptions['logger'];
   /** SSE heartbeat interval (defaults to SSE_HEARTBEAT_MS); overridable for tests. */
   heartbeatMs?: number;
@@ -55,7 +61,7 @@ function toClientError(error: FastifyError, statusCode: number): ApiErrorRespons
 
 /** Builds the HTTP app without listening; fully exercisable through `app.inject()`. */
 export function buildApp(options: BuildAppOptions): FastifyInstance {
-  const { config, users, presence } = options;
+  const { config, users, presence, profiles } = options;
   // One hop (Caddy): the client IP is the last X-Forwarded-For entry; a spoofed header is ignored.
   const trustProxy: FastifyServerOptions['trustProxy'] = config.trustProxy
     ? (_address: string, hop: number) => hop === 0
@@ -69,7 +75,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
   app.register(cors, {
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT'],
     allowedHeaders: ['Authorization', 'Content-Type'],
   });
   app.register(rateLimit, { global: false });
@@ -84,16 +90,25 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     return reply.code(statusCode).send(toClientError(error, statusCode));
   });
 
+  // Name/avatar changes reach everyone watching presence (participant_updated).
+  const stopProfileForwarding = profiles.onChange((userId) => presence.refreshUser(userId));
+  app.addHook('onClose', async () => stopProfileForwarding());
+
   app.register(healthRoutes);
   // Registered as a plugin so @fastify/rate-limit (loaded above) sees these routes.
-  app.register(async (instance) => discordAuthRoutes(instance, { config, users }));
-  app.register(meRoutes, { users, sessionSecret: config.auth.sessionSecret });
+  app.register(async (instance) => discordAuthRoutes(instance, { config, users, profiles }));
+  app.register(meRoutes, { users, profiles, sessionSecret: config.auth.sessionSecret });
   app.register(roomsRoutes, {
     users,
     rooms: config.rooms,
     sessionSecret: config.auth.sessionSecret,
   });
-  app.register(tokenRoutes, { config, users, sessionSecret: config.auth.sessionSecret });
+  app.register(tokenRoutes, {
+    config,
+    users,
+    profiles,
+    sessionSecret: config.auth.sessionSecret,
+  });
   app.register(presenceRoutes, {
     users,
     presence,

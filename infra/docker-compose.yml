@@ -64,9 +64,13 @@ services:
       PORT: '3000'
       TRUST_PROXY: '1' # o IP real do cliente vem no X-Forwarded-For do Caddy (rate limit)
       USERS_FILE: /data/users.json
+      PROFILES_FILE: /var/lib/concord/profiles.json # gravado pelo api (volume abaixo)
       LIVEKIT_API_URL: http://127.0.0.1:7880
     volumes:
       - ./users.json:/data/users.json:ro
+      # Nomes/avatares do Discord e apelidos. Volume nomeado: sobrevive a rebuilds e o dono (node)
+      # vem da pasta criada no Dockerfile. Não apagar à toa (os apelidos se perdem).
+      - api-data:/var/lib/concord
     depends_on:
       - livekit
 
@@ -86,5 +90,6 @@ services:
       - api
 
 volumes:
+  api-data:
   caddy_data:
   caddy_config:

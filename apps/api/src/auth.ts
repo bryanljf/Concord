@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ApiErrorResponse, UserInfo } from '@concord/shared';
+import { resolveDisplayName, type Profile } from './profiles';
 
 export interface User {
   id: string;
@@ -97,8 +98,16 @@ export function parseBearer(header: string | undefined): string | undefined {
   return value;
 }
 
-export function toUserInfo(user: User): UserInfo {
-  return { id: user.id, displayName: user.displayName, admin: user.admin === true };
+/** Public view of a user, with the name resolved from the profile (nickname, Discord, users.json). */
+export function toUserInfo(user: User, profile: Profile | undefined): UserInfo {
+  return {
+    id: user.id,
+    displayName: resolveDisplayName(user, profile),
+    admin: user.admin === true,
+    avatarUrl: profile?.avatarUrl ?? null,
+    discordName: profile?.discordName ?? null,
+    nickname: profile?.nickname ?? null,
+  };
 }
 
 export class UserStore {
@@ -130,6 +139,10 @@ export class UserStore {
   async reloadFromFile(path: string): Promise<void> {
     const json = await readFile(path, 'utf8');
     this.replace(parseUsersFile(json));
+  }
+
+  all(): readonly User[] {
+    return this.users;
   }
 
   findById(id: string): User | undefined {

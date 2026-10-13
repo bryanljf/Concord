@@ -5,6 +5,7 @@ import { buildApp, type BuildAppOptions } from '../src/app';
 import { UserStore, type User } from '../src/auth';
 import type { ApiConfig } from '../src/config';
 import { PresenceStore } from '../src/presence-store';
+import { createProfileResolver, ProfileStore } from '../src/profiles';
 
 export const API_KEY = 'devkey';
 export const API_SECRET = '0123456789abcdef0123456789abcdef';
@@ -29,6 +30,8 @@ export function testConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     trustProxy: false,
     rooms: ['geral', 'jogos'],
     usersFile: 'unused/users.json',
+    profilesFile: 'unused/profiles.json',
+    discordBotToken: undefined,
     auth: {
       discordClientId: 'client-id',
       discordClientSecret: 'client-secret',
@@ -48,13 +51,15 @@ export function testConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
   };
 }
 
-/** Builds an app with in-memory users and presence (no network, no file I/O). */
+/** Builds an app with in-memory users, profiles and presence (no network, no file I/O). */
 export function testApp(overrides: Partial<BuildAppOptions> = {}) {
   const config = overrides.config ?? testConfig();
   const users = overrides.users ?? new UserStore([ALICE, BOB]);
-  const presence = overrides.presence ?? new PresenceStore(config.rooms);
-  const app = buildApp({ ...overrides, config, users, presence });
-  return { app, config, users, presence };
+  const profiles = overrides.profiles ?? new ProfileStore();
+  const presence =
+    overrides.presence ?? new PresenceStore(config.rooms, createProfileResolver(users, profiles));
+  const app = buildApp({ ...overrides, config, users, presence, profiles });
+  return { app, config, users, presence, profiles };
 }
 
 export function bearer(user: User): { authorization: string } {

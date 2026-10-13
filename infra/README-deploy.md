@@ -234,6 +234,28 @@ OAuth em modo sandbox, valida a resposta do callback e armazena somente o token 
 assinado pelo Concord (com `safeStorage`). Para autorizar uma pessoa, inclua seu ID numérico
 em `discordUserId` no `users.json`; a chave legada continua disponível para compatibilidade.
 
+### 5.3.2 Nomes, avatares e apelidos (opcional: `DISCORD_BOT_TOKEN`)
+
+O app mostra cada pessoa com o nome e o avatar exatamente como estão no Discord (o nome de
+exibição, ou o nome de usuário quando não há um), ou com o apelido que ela escolheu no app. O api
+guarda isso em `/var/lib/concord/profiles.json`, no volume `concord_api-data` (o compose fixa
+`PROFILES_FILE`); o `users.json` continua só para leitura.
+
+Sem configuração extra, nome e avatar são atualizados a cada login pelo Discord. Para que mudanças
+feitas no Discord apareçam sem novo login, crie um token de bot (opcional):
+
+1. No [Discord Developer Portal](https://discord.com/developers/applications), abra a **mesma
+   aplicação** do OAuth2 → **Bot** → **Reset Token** e copie o token (ele só aparece uma vez).
+2. Não convide o bot para nenhum servidor e não ative nenhuma _Privileged Gateway Intent_: o api
+   só chama `GET /users/{id}` da API REST, que não exige nada disso.
+3. No `infra/.env` da VM: `DISCORD_BOT_TOKEN=<token>` e
+   `docker compose -f infra/docker-compose.yml up -d`.
+
+Com o token, o api consulta cada pessoa que tem `discordUserId` 5 s depois de subir, a cada 6 h e
+sempre que o `users.json` é recarregado, uma por vez e respeitando o limite de requisições do
+Discord. Um token inválido só gera um erro no log (`logs api`); o resto continua funcionando. O
+token é segredo como o Client Secret: somente na VM, nunca no desktop, no Git ou no chat.
+
 ### 5.4 `infra/users.json`
 
 Mesmo formato da hospedagem local. Duas opções:
@@ -323,7 +345,9 @@ compose não encontra o projeto e nada acontece — ou, pior, acerta outro proje
   trocam o inode e o container continua vendo o antigo — o `restart` resolve sempre.
 - **Mudar o `.env`** (salas, segredo, domínio): `docker compose -f infra/docker-compose.yml up -d`
   recria só os containers afetados.
-- **Backup**: `infra/.env` e `infra/users.json` (fora do git). Os certificados ficam no volume
+- **Backup**: `infra/.env` e `infra/users.json` (fora do git). Os apelidos e os nomes/avatares
+  importados do Discord ficam no volume `concord_api-data` (`profiles.json`); se ele se perder,
+  nomes e avatares voltam no próximo login ou sincronização, mas os apelidos não. Os certificados ficam no volume
   `concord_caddy_data`; não precisa de backup (o Caddy re-emite), mas não apague o volume à toa:
   o Let's Encrypt limita a 5 certificados iguais por semana.
 - **Parar o Concord**: `docker compose -f infra/docker-compose.yml down` (mantém os volumes);

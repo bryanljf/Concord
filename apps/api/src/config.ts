@@ -23,6 +23,10 @@ export interface ApiConfig {
   rooms: RoomId[];
   /** Absolute path to `users.json`. */
   usersFile: string;
+  /** Absolute path to the profiles file (Discord names, avatars, nicknames); written by the api. */
+  profilesFile: string;
+  /** Optional Discord bot token used to refresh names/avatars periodically. */
+  discordBotToken: string | undefined;
   auth: {
     discordClientId: string;
     discordClientSecret: string;
@@ -140,6 +144,8 @@ export function loadConfig(env: Env = process.env, cwd: string = process.cwd()):
     trustProxy: parseBoolean(env.TRUST_PROXY),
     rooms: parseRooms(env.ROOMS ?? 'geral'),
     usersFile: resolve(cwd, env.USERS_FILE?.trim() || '../../infra/users.json'),
+    profilesFile: resolve(cwd, env.PROFILES_FILE?.trim() || '../../infra/profiles.json'),
+    discordBotToken: env.DISCORD_BOT_TOKEN?.trim() || undefined,
     auth: {
       discordClientId: required(env, 'DISCORD_CLIENT_ID'),
       discordClientSecret: required(env, 'DISCORD_CLIENT_SECRET'),

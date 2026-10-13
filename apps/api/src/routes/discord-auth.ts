@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ApiConfig } from '../config';
-import { issueSessionToken, type UserStore } from '../auth';
+import { issueSessionToken, toUserInfo, type UserStore } from '../auth';
+import { discordProfileData, parseDiscordUser, type ProfileStore } from '../profiles';
 
 const AUTHORIZE = 'https://discord.com/oauth2/authorize';
 const TOKEN = 'https://discord.com/api/oauth2/token';
@@ -18,9 +19,9 @@ function purgeExpiredStates(now: number): void {
 
 export function discordAuthRoutes(
   app: FastifyInstance,
-  options: { config: ApiConfig; users: UserStore },
+  options: { config: ApiConfig; users: UserStore; profiles: ProfileStore },
 ): void {
-  const { config, users } = options;
+  const { config, users, profiles } = options;
   app.get(
     '/api/auth/discord/login',
     { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
@@ -98,8 +99,8 @@ export function discordAuthRoutes(
           error: 'oauth_identify_failed',
           message: 'Não foi possível identificar a conta Discord.',
         });
-      const discordUser = (await identifyResponse.json()) as { id?: unknown };
-      if (typeof discordUser.id !== 'string')
+      const discordUser = parseDiscordUser(await identifyResponse.json());
+      if (!discordUser)
         return reply
           .code(502)
           .send({ error: 'oauth_identify_failed', message: 'Resposta inválida do Discord.' });
@@ -108,9 +109,15 @@ export function discordAuthRoutes(
         return reply
           .code(403)
           .send({ error: 'not_allowlisted', message: 'Esta conta não está autorizada.' });
+      // Name and avatar exactly as on Discord; a failed write must not block the login.
+      try {
+        await profiles.setDiscord(user.id, discordProfileData(discordUser));
+      } catch (err) {
+        request.log.error({ err, userId: user.id }, 'could not persist the Discord profile');
+      }
       return reply.send({
         token: issueSessionToken(user, config.auth.sessionSecret, config.auth.sessionTtlSeconds),
-        user: { id: user.id, displayName: user.displayName, admin: user.admin === true },
+        user: toUserInfo(user, profiles.get(user.id)),
       });
     },
   );

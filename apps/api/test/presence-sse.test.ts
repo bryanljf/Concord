@@ -74,7 +74,7 @@ describe('GET /api/presence (SSE)', () => {
       expect(parseEvent(await readUntil(frames, isEvent))).toEqual({
         type: 'participant_joined',
         room: 'jogos',
-        participant: { id: 'bob', name: 'Bob', streaming: false, joinedAt: 2_000 },
+        participant: { id: 'bob', name: 'Bob', streaming: false, joinedAt: 2_000, avatarUrl: null },
       });
 
       expect(await readUntil(frames, isHeartbeat)).toBe(': ping');

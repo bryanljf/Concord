@@ -9,6 +9,8 @@ export interface UsersWatchOptions {
   store: UserStore;
   log: Logger;
   debounceMs?: number;
+  /** Called after every successful reload (refresh presence names, re-run the Discord sync). */
+  onReload?: () => void;
 }
 
 export interface UsersWatcher {
@@ -21,7 +23,7 @@ export interface UsersWatcher {
  * A file that fails to parse is logged and the previous users are kept.
  */
 export function watchUsersFile(options: UsersWatchOptions): UsersWatcher {
-  const { path, store, log, debounceMs = 500 } = options;
+  const { path, store, log, debounceMs = 500, onReload } = options;
   const fileName = basename(path).toLowerCase();
   let timer: NodeJS.Timeout | undefined;
 
@@ -32,6 +34,12 @@ export function watchUsersFile(options: UsersWatchOptions): UsersWatcher {
       log.info({ path, users: store.size }, 'users file reloaded');
     } catch (err) {
       log.error({ err, path }, 'users file reload failed, keeping previous users');
+      return;
+    }
+    try {
+      onReload?.();
+    } catch (err) {
+      log.error({ err, path }, 'users file reload hook failed');
     }
   }
 

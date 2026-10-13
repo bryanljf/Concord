@@ -3,10 +3,12 @@ import type { ApiErrorResponse, TokenPurpose, TokenRequest, TokenResponse } from
 import { getUser, requireUser, type UserStore } from '../auth';
 import type { ApiConfig } from '../config';
 import { createRoomToken } from '../livekit';
+import { resolveDisplayName, type ProfileStore } from '../profiles';
 
 export interface TokenRoutesOptions {
   config: Pick<ApiConfig, 'rooms' | 'livekit'>;
   users: UserStore;
+  profiles: ProfileStore;
   sessionSecret: string;
 }
 
@@ -29,7 +31,7 @@ export function isLoopback(ip: string): boolean {
 
 export const tokenRoutes: FastifyPluginAsync<TokenRoutesOptions> = async (
   app,
-  { config, users, sessionSecret },
+  { config, users, profiles, sessionSecret },
 ) => {
   app.post<{ Body: TokenRequest }>(
     '/api/token',
@@ -44,11 +46,13 @@ export const tokenRoutes: FastifyPluginAsync<TokenRoutesOptions> = async (
         reply.code(400);
         return { error: 'unknown_room', message: `A sala "${room}" não existe.` };
       }
+      const user = getUser(request);
       const { token, expiresAt } = await createRoomToken(
         config.livekit,
-        getUser(request),
+        user,
         room,
         purpose,
+        resolveDisplayName(user, profiles.get(user.id)),
       );
       const { url, localUrl } = config.livekit;
       return { token, url: localUrl && isLoopback(request.ip) ? localUrl : url, expiresAt };

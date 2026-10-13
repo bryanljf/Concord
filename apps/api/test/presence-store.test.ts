@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PresenceEvent } from '@concord/shared';
 import { PresenceStore } from '../src/presence-store';
+import type { ResolvedProfile } from '../src/profiles';
 
-const alice = { id: 'alice', name: 'Alice', joinedAt: 1_000 };
-const bob = { id: 'bob', name: 'Bob', joinedAt: 2_000 };
-const carol = { id: 'carol', name: 'Carol', joinedAt: 3_000 };
+// avatarUrl: null is what presence reports when no profile is known.
+const alice = { id: 'alice', name: 'Alice', joinedAt: 1_000, avatarUrl: null };
+const bob = { id: 'bob', name: 'Bob', joinedAt: 2_000, avatarUrl: null };
+const carol = { id: 'carol', name: 'Carol', joinedAt: 3_000, avatarUrl: null };
 
 describe('PresenceStore', () => {
   let store: PresenceStore;
@@ -104,6 +106,68 @@ describe('PresenceStore', () => {
     expect(store.snapshot()).toEqual({ rooms: { geral: [], jogos: [] } });
   });
 
+  describe('with a profile resolver', () => {
+    let profiles: Map<string, ResolvedProfile>;
+    let resolved: PresenceStore;
+
+    beforeEach(() => {
+      profiles = new Map([['alice', { name: 'Alice D.', avatarUrl: 'https://a/1.png' }]]);
+      resolved = new PresenceStore(['geral', 'jogos'], (id) => profiles.get(id));
+      events = [];
+      resolved.subscribe((event) => events.push(event));
+    });
+
+    it('shows the resolved name and avatar, falling back to the LiveKit name', () => {
+      resolved.join('geral', alice);
+      resolved.join('geral', bob);
+      expect(resolved.snapshot().rooms.geral).toEqual([
+        { ...alice, name: 'Alice D.', avatarUrl: 'https://a/1.png', streaming: false },
+        { ...bob, streaming: false },
+      ]);
+    });
+
+    it('refreshUser emits participant_updated in every room where the user is present', () => {
+      resolved.join('geral', alice);
+      resolved.screenTrackPublished('jogos', alice, 'TR_1');
+      resolved.join('geral', bob);
+      events.length = 0;
+
+      profiles.set('alice', { name: 'Lice', avatarUrl: 'https://a/2.png' });
+      resolved.refreshUser('alice');
+      expect(events).toEqual([
+        {
+          type: 'participant_updated',
+          room: 'geral',
+          participant: { ...alice, name: 'Lice', avatarUrl: 'https://a/2.png', streaming: false },
+        },
+        {
+          type: 'participant_updated',
+          room: 'jogos',
+          participant: { ...alice, name: 'Lice', avatarUrl: 'https://a/2.png', streaming: true },
+        },
+      ]);
+      expect(resolved.participant('jogos', 'alice')?.name).toBe('Lice');
+    });
+
+    it('refreshUser is silent when nothing visible changed or the user is absent', () => {
+      resolved.join('geral', alice);
+      events.length = 0;
+      resolved.refreshUser('alice');
+      resolved.refreshUser('ghost');
+      expect(events).toEqual([]);
+    });
+
+    it('falls back to the LiveKit name when the profile disappears', () => {
+      resolved.join('geral', alice);
+      events.length = 0;
+      profiles.delete('alice');
+      resolved.refreshAll();
+      expect(events).toEqual([
+        { type: 'participant_updated', room: 'geral', participant: { ...alice, streaming: false } },
+      ]);
+    });
+  });
+
   describe('replaceAll', () => {
     it('emits only the differences from the current state', () => {
       store.join('geral', alice);
@@ -112,7 +176,7 @@ describe('PresenceStore', () => {
       store.join('jogos', carol);
       events.length = 0;
 
-      const dave = { id: 'dave', name: 'Dave', joinedAt: 4_000 };
+      const dave = { id: 'dave', name: 'Dave', joinedAt: 4_000, avatarUrl: null };
       store.replaceAll({
         geral: [
           { ...alice, screenTracks: ['TR_1'] },

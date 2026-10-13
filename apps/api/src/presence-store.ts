@@ -1,4 +1,5 @@
 import type { PresenceEvent, PresenceParticipant, PresenceSnapshot, RoomId } from '@concord/shared';
+import type { ProfileResolver } from './profiles';
 
 export interface ParticipantIdentity {
   id: string;
@@ -17,8 +18,15 @@ export type RoomState = Record<RoomId, ParticipantState[]>;
 
 export type PresenceListener = (event: PresenceEvent) => void;
 
-interface Entry extends ParticipantIdentity {
+interface Entry {
+  id: string;
+  /** Name LiveKit reported (from the join token); the fallback when the profile is unknown. */
+  livekitName: string;
+  joinedAt: number;
   screenTracks: Set<string>;
+  /** Resolved name and avatar, as last emitted to listeners. */
+  name: string;
+  avatarUrl: string | null;
 }
 
 function toParticipant(entry: Entry): PresenceParticipant {
@@ -27,6 +35,7 @@ function toParticipant(entry: Entry): PresenceParticipant {
     name: entry.name,
     streaming: entry.screenTracks.size > 0,
     joinedAt: entry.joinedAt,
+    avatarUrl: entry.avatarUrl,
   };
 }
 
@@ -38,7 +47,14 @@ export class PresenceStore {
   private readonly rooms = new Map<RoomId, Map<string, Entry>>();
   private readonly listeners = new Set<PresenceListener>();
 
-  constructor(private readonly knownRooms: readonly RoomId[] = []) {}
+  /**
+   * @param resolveProfile maps a user id to the name/avatar to show (nickname, Discord name,
+   *   users.json name); participants it does not know keep the name LiveKit reported.
+   */
+  constructor(
+    private readonly knownRooms: readonly RoomId[] = [],
+    private readonly resolveProfile?: ProfileResolver,
+  ) {}
 
   subscribe(listener: PresenceListener): () => void {
     this.listeners.add(listener);
@@ -94,6 +110,31 @@ export class PresenceStore {
     if (entry.screenTracks.size === 0) this.emit({ type: 'stream_stopped', room, participantId });
   }
 
+  /**
+   * Re-resolves a user's name and avatar and emits `participant_updated` in every room where
+   * they are present and something visible changed.
+   */
+  refreshUser(userId: string): void {
+    for (const [room, entries] of this.rooms) {
+      const entry = entries.get(userId);
+      if (!entry) continue;
+      const { name, avatarUrl } = this.resolve(entry.id, entry.livekitName);
+      if (name === entry.name && avatarUrl === entry.avatarUrl) continue;
+      entry.name = name;
+      entry.avatarUrl = avatarUrl;
+      this.emit({ type: 'participant_updated', room, participant: toParticipant(entry) });
+    }
+  }
+
+  /** Refreshes everyone present (e.g. after users.json was reloaded). */
+  refreshAll(): void {
+    const ids = new Set<string>();
+    for (const entries of this.rooms.values()) {
+      for (const id of entries.keys()) ids.add(id);
+    }
+    for (const id of ids) this.refreshUser(id);
+  }
+
   clearRoom(room: RoomId): void {
     const entries = this.rooms.get(room);
     if (!entries) return;
@@ -137,13 +178,26 @@ export class PresenceStore {
     }
     const existing = entries.get(participant.id);
     if (existing) {
-      existing.name = participant.name;
+      // A repeated join silently refreshes the name (profile changes are announced by refreshUser).
+      existing.livekitName = participant.name;
+      Object.assign(existing, this.resolve(participant.id, participant.name));
       return existing;
     }
-    const entry: Entry = { ...participant, screenTracks: new Set() };
+    const entry: Entry = {
+      id: participant.id,
+      livekitName: participant.name,
+      joinedAt: participant.joinedAt,
+      screenTracks: new Set(),
+      ...this.resolve(participant.id, participant.name),
+    };
     entries.set(participant.id, entry);
     this.emit({ type: 'participant_joined', room, participant: toParticipant(entry) });
     return entry;
+  }
+
+  private resolve(id: string, livekitName: string): { name: string; avatarUrl: string | null } {
+    const profile = this.resolveProfile?.(id);
+    return { name: profile?.name ?? livekitName, avatarUrl: profile?.avatarUrl ?? null };
   }
 
   private emit(event: PresenceEvent): void {

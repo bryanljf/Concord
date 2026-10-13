@@ -76,7 +76,14 @@ describe('GET /api/me', () => {
     const res = await app.inject({ method: 'GET', url: '/api/me', headers: bearer(ALICE) });
     expect(res.statusCode).toBe(200);
     expect(res.json<MeResponse>()).toEqual({
-      user: { id: 'alice', displayName: 'Alice', admin: true },
+      user: {
+        id: 'alice',
+        displayName: 'Alice',
+        admin: true,
+        avatarUrl: null,
+        discordName: null,
+        nickname: null,
+      },
     });
     await app.close();
   });

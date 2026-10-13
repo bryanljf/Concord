@@ -51,10 +51,14 @@ COPY apps/api/package.json apps/api/
 COPY apps/api/src apps/api/src
 
 WORKDIR /app/apps/api
+# Dados que o api grava (PROFILES_FILE: nomes/avatares do Discord e apelidos). O volume nomeado
+# do compose é criado a partir desta pasta e herda o dono (node) na primeira vez.
+RUN mkdir -p /var/lib/concord && chown node:node /var/lib/concord
 # Usuário sem privilégios (uid 1000, já existe na imagem oficial do Node).
 USER node
 EXPOSE 3000
-# HOST, PORT, USERS_FILE e LIVEKIT_* vêm do ambiente (infra/docker-compose.yml + infra/.env).
+# HOST, PORT, USERS_FILE, PROFILES_FILE e LIVEKIT_* vêm do ambiente (infra/docker-compose.yml +
+# infra/.env).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -q -O /dev/null "http://127.0.0.1:${PORT:-3000}/api/health" || exit 1
 CMD ["node", "--import", "tsx", "src/index.ts"]

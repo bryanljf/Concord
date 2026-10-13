@@ -46,16 +46,18 @@ const POPOUT_GRANT: Omit<VideoGrant, 'room'> = {
 /**
  * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share publish
  * grants; `popout` joins as the auxiliary identity `<id>~popout`, hidden and subscribe-only.
+ * `name` is the display name LiveKit shows (the resolved profile name; defaults to users.json).
  */
 export async function createRoomToken(
   livekit: LiveKitConfig,
   user: User,
   room: RoomId,
   purpose: TokenPurpose = 'main',
+  name: string = user.displayName,
 ): Promise<RoomToken> {
   const token = new AccessToken(livekit.apiKey, livekit.apiSecret, {
     identity: purpose === 'main' ? user.id : auxiliaryIdentity(user.id, purpose),
-    name: user.displayName,
+    name,
     ttl: TOKEN_TTL_SECONDS,
   });
   token.addGrant({ ...(purpose === 'main' ? MAIN_GRANT : POPOUT_GRANT), room });
