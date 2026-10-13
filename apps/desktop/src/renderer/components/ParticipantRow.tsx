@@ -1,15 +1,17 @@
-import type { PresenceParticipant, RoomId } from '@concord/shared';
+import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
 import { formatJoinedAgo } from '../lib/format';
 import { Avatar } from './Avatar';
 
 interface ParticipantRowProps {
   room: RoomId;
   participant: PresenceParticipant;
+  /** You are watching this live in the current room. */
+  watching: boolean;
   now: number;
   onWatch(room: RoomId, participantId: string): void;
 }
 
-export function ParticipantRow({ room, participant, now, onWatch }: ParticipantRowProps) {
+export function ParticipantRow({ room, participant, watching, now, onWatch }: ParticipantRowProps) {
   const className = participant.streaming ? 'participant participant--streaming' : 'participant';
   return (
     <li
@@ -21,10 +23,16 @@ export function ParticipantRow({ room, participant, now, onWatch }: ParticipantR
       {participant.streaming && (
         <button
           type="button"
-          className="participant__live"
+          className={
+            watching ? 'participant__live participant__live--watching' : 'participant__live'
+          }
           data-navitem
-          aria-label={`Assistir ${participant.name} em #${room}`}
-          title="Assistir"
+          aria-label={
+            watching
+              ? `Destacar ${participant.name}, que você já está assistindo`
+              : `Assistir ${participant.name} em ${roomLabel(room)}`
+          }
+          title={watching ? 'Você está assistindo — clique para destacar' : 'Assistir'}
           onClick={() => onWatch(room, participant.id)}
         >
           <span className="badge-live">AO VIVO</span>

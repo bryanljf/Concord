@@ -9,6 +9,8 @@ interface SidebarProps {
   rooms: RoomId[];
   snapshot: PresenceSnapshot;
   currentRoom: RoomId | null;
+  /** Lives watched in the current room (their badge reads "assistindo"). */
+  watchedIds: readonly string[];
   onJoin(room: RoomId): void;
   onWatch(room: RoomId, participantId: string): void;
 }
@@ -24,7 +26,16 @@ function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
   items[(index + step + items.length) % items.length]?.focus();
 }
 
-export function Sidebar({ rooms, snapshot, currentRoom, onJoin, onWatch }: SidebarProps) {
+const NONE: readonly string[] = [];
+
+export function Sidebar({
+  rooms,
+  snapshot,
+  currentRoom,
+  watchedIds,
+  onJoin,
+  onWatch,
+}: SidebarProps) {
   const now = useNow();
 
   return (
@@ -46,6 +57,7 @@ export function Sidebar({ rooms, snapshot, currentRoom, onJoin, onWatch }: Sideb
               room={room}
               participants={participantsOf(snapshot, room)}
               current={room === currentRoom}
+              watchedIds={room === currentRoom ? watchedIds : NONE}
               now={now}
               onJoin={onJoin}
               onWatch={onWatch}

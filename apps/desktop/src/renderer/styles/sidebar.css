@@ -131,3 +131,10 @@
 .participant__live:hover .badge-live {
   background: var(--live-hover);
 }
+
+/* Watched in the current room: the badge gets a ring so it reads as "assistindo". */
+.participant__live--watching .badge-live {
+  box-shadow:
+    0 0 0 2px var(--bg-secondary),
+    0 0 0 3px var(--live);
+}

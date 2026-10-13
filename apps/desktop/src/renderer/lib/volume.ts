@@ -1,31 +1,50 @@
-/** Per-stream playback volume (0–200 %) and mute, mapped to a Web Audio gain. */
+/** Per-stream playback volume (0–100 %) and mute, mapped to a Web Audio gain. */
 
 export const MIN_VOLUME = 0;
-export const MAX_VOLUME = 200;
-export const DEFAULT_VOLUME = 100;
+export const MAX_VOLUME = 100;
+/** Every live starts at half volume (watching, and in the pop-out). */
+export const DEFAULT_VOLUME = 50;
 export const VOLUME_STEP = 5;
 
 export interface VolumeSetting {
-  /** Percent, 0–200. */
+  /** Percent, 0–100. */
   volume: number;
   muted: boolean;
 }
 
 export const DEFAULT_VOLUME_SETTING: VolumeSetting = { volume: DEFAULT_VOLUME, muted: false };
 
-/** Clamps to 0–200 and rounds; anything that is not a finite number becomes 100. */
+/** Clamps to 0–100 and rounds; anything that is not a finite number becomes the default (50). */
 export function clampVolume(volume: number): number {
   if (!Number.isFinite(volume)) return DEFAULT_VOLUME;
   return Math.min(MAX_VOLUME, Math.max(MIN_VOLUME, Math.round(volume)));
 }
 
-/** Gain for a `GainNode`: 100 % → 1, 200 % → 2, muted → 0. */
+/** A remembered setting brought inside the current range (older values could reach 200 %). */
+export function normalizeVolumeSetting(setting: VolumeSetting): VolumeSetting {
+  const volume = clampVolume(setting.volume);
+  return volume === setting.volume ? setting : { ...setting, volume };
+}
+
+/** Gain for a `GainNode`: 50 % → 0.5, 100 % → 1 (the maximum), muted → 0. */
 export function volumeToGain(setting: VolumeSetting): number {
   if (setting.muted) return 0;
   return clampVolume(setting.volume) / 100;
 }
 
-/** "Mudo" / "150%" (slider labels and tooltips). */
+/**
+ * The mute toggle (button, M key, menu): muting keeps the volume, so unmuting brings back the
+ * previous non-zero value; a slider left at 0 comes back at the default instead of staying silent.
+ */
+export function toggleMuteSetting(setting: VolumeSetting): VolumeSetting {
+  const volume = clampVolume(setting.volume);
+  if (setting.muted || volume === 0) {
+    return { volume: volume > 0 ? volume : DEFAULT_VOLUME, muted: false };
+  }
+  return { volume, muted: true };
+}
+
+/** "Mudo" / "50%" (slider labels and tooltips). */
 export function volumeLabel(setting: VolumeSetting): string {
   if (setting.muted || setting.volume === 0) return 'Mudo';
   return `${clampVolume(setting.volume)}%`;
@@ -41,5 +60,5 @@ export type VolumeIconLevel = 'muted' | 'low' | 'high';
 
 export function volumeIconLevel(setting: VolumeSetting): VolumeIconLevel {
   if (setting.muted || setting.volume === 0) return 'muted';
-  return setting.volume < 60 ? 'low' : 'high';
+  return setting.volume < 50 ? 'low' : 'high';
 }

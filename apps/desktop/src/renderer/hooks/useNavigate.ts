@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { concord, type NavigateTarget } from '../lib/concord';
 
 export interface UseNavigate {
-  /** Pending request from main (tray, notification click); null when none. */
+  /** Pending request from main (tray, dev `--room`); null when none. */
   target: NavigateTarget | null;
   /** Clears the pending target once it has been handled. */
   consume(): void;

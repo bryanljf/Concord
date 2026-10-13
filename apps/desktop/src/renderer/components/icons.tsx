@@ -280,3 +280,25 @@ export function DownloadIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** A screen with two arrows going round: switch what is being shared. */
+export function SwapScreenIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="M8 8.5h7.5l-2-2" />
+      <path d="M16 11.5H8.5l2 2" />
+    </Icon>
+  );
+}
+
+/** A handset laid down: leave the room. */
+export function LeaveRoomIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 14.2c5.3-4.8 13.7-4.8 19 0l-2.4 2.7-3.9-1.5v-2.7a10.6 10.6 0 0 0-6.4 0v2.7l-3.9 1.5z" />
+    </Icon>
+  );
+}

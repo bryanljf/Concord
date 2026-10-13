@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react';
-import { QUALITY_PRESETS, type QualityPresetId, type RoomId } from '@concord/shared';
+import { QUALITY_PRESETS, roomLabel, type QualityPresetId, type RoomId } from '@concord/shared';
 import type { CaptureSource } from '../../../preload/api';
-import type { BroadcastRequest } from '../../hooks/useBroadcast';
+import type { BroadcastAudioMode, BroadcastRequest } from '../../hooks/useBroadcast';
 import { useCaptureSources } from '../../hooks/useCaptureSources';
 import { useProcessAudioSupport } from '../../hooks/useProcessAudioSupport';
 import type { Settings } from '../../lib/concord';
 import { presetDescription } from '../../lib/encoding';
+import { sourceKindOf } from '../../lib/sourceSwitch';
 import { Spinner } from '../Spinner';
 import {
   CloseIcon,
   MonitorIcon,
   RefreshIcon,
   SpeakerIcon,
+  SwapScreenIcon,
   WarningIcon,
   WindowIcon,
 } from '../icons';
@@ -31,8 +33,13 @@ interface SourcePickerProps {
   /** Room already joined, or null: the picker then asks which room to stream to. */
   currentRoom: RoomId | null;
   settings: Settings;
-  /** A broadcast is being started with the last request. */
+  /** A broadcast is being started (or switched) with the last request. */
   starting: boolean;
+  /**
+   * Switch mode (while live): the room is fixed, the shared source is marked "Transmitindo
+   * agora", the current quality/audio are preselected and the button reads "Trocar".
+   */
+  live?: { sourceId: string; quality: QualityPresetId; audio: BroadcastAudioMode } | null;
   onCancel(): void;
   onStart(request: BroadcastRequest): void;
 }
@@ -45,16 +52,20 @@ export function SourcePicker({
   currentRoom,
   settings,
   starting,
+  live = null,
   onCancel,
   onStart,
 }: SourcePickerProps) {
+  const switching = live !== null;
   const [room, setRoom] = useState<RoomId | null>(
     currentRoom ?? (rooms.length === 1 ? (rooms[0] ?? null) : null),
   );
-  const [tab, setTab] = useState<Tab>('window');
+  const [tab, setTab] = useState<Tab>(live ? sourceKindOf(live.sourceId) : 'window');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [quality, setQuality] = useState<QualityPresetId>(settings.defaultQuality);
-  const [audioChoice, setAudioChoice] = useState<boolean | null>(null);
+  const [quality, setQuality] = useState<QualityPresetId>(live?.quality ?? settings.defaultQuality);
+  const [audioChoice, setAudioChoice] = useState<boolean | null>(
+    live ? live.audio !== 'none' : null,
+  );
   const support = useProcessAudioSupport();
   const choosingRoom = room === null;
   const { sources, loading, error, refresh } = useCaptureSources(!choosingRoom);
@@ -89,12 +100,16 @@ export function SourcePicker({
       >
         <div className="picker__header">
           <h2 id="picker-title" className="picker__title">
-            {choosingRoom ? 'Transmitir em qual sala?' : 'O que você quer transmitir?'}
+            {choosingRoom
+              ? 'Transmitir em qual sala?'
+              : switching
+                ? 'Trocar o que você está transmitindo'
+                : 'O que você quer transmitir?'}
           </h2>
           {!choosingRoom && room && (
             <span className="picker__room">
-              em <strong>#{room}</strong>
-              {!currentRoom && rooms.length > 1 && (
+              em <strong>{roomLabel(room)}</strong>
+              {!currentRoom && !switching && rooms.length > 1 && (
                 <button type="button" className="btn btn--link" onClick={() => setRoom(null)}>
                   trocar
                 </button>
@@ -128,7 +143,7 @@ export function SourcePicker({
                   onClick={() => setRoom(candidate)}
                 >
                   <SpeakerIcon size={20} />
-                  <span>#{candidate}</span>
+                  <span>{roomLabel(candidate)}</span>
                 </button>
               ))
             )}
@@ -197,6 +212,7 @@ export function SourcePicker({
                       <SourceCard
                         source={source}
                         selected={source.id === selectedId}
+                        live={source.id === live?.sourceId}
                         onSelect={() => setSelectedId(source.id)}
                         onConfirm={start}
                       />
@@ -271,8 +287,20 @@ export function SourcePicker({
                 disabled={!selected || starting}
                 onClick={start}
               >
-                {starting ? <Spinner size="sm" label="Iniciando" /> : <MonitorIcon size={18} />}
-                {starting ? 'Iniciando…' : 'Transmitir'}
+                {starting ? (
+                  <Spinner size="sm" label={switching ? 'Trocando' : 'Iniciando'} />
+                ) : switching ? (
+                  <SwapScreenIcon size={18} />
+                ) : (
+                  <MonitorIcon size={18} />
+                )}
+                {starting
+                  ? switching
+                    ? 'Trocando…'
+                    : 'Iniciando…'
+                  : switching
+                    ? 'Trocar'
+                    : 'Transmitir'}
               </button>
             </div>
           </>

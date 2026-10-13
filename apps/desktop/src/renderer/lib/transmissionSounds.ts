@@ -46,3 +46,11 @@ export function playTransmissionEnded(): void {
     [523.25, 0.22, 0.22],
   ]);
 }
+
+/** Someone else went live in the room you are in: a light, higher two-note chime. */
+export function playLiveStartedInRoom(): void {
+  play([
+    [987.77, 0, 0.1],
+    [1318.51, 0.09, 0.26],
+  ]);
+}

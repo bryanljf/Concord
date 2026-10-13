@@ -17,12 +17,6 @@
   font-weight: 600;
 }
 
-.header__hash {
-  color: var(--text-muted);
-  font-size: 20px;
-  font-weight: 500;
-}
-
 .header__room {
   overflow: hidden;
   text-overflow: ellipsis;

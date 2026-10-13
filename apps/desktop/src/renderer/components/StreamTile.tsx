@@ -1,3 +1,4 @@
+import type { KeyboardEvent, MouseEvent } from 'react';
 import { useAutoHide } from '../hooks/useAutoHide';
 import type { RemoteStream } from '../hooks/useRemoteStreams';
 import { useStreamStats } from '../hooks/useStreamStats';
@@ -18,9 +19,16 @@ interface FocusedTileProps {
   onToggleMute(): void;
   onToggleFullscreen(): void;
   onPopout(): void;
+  /** Right click: opens the watched-live menu. */
+  onContextMenu(event: MouseEvent<HTMLElement>): void;
+  /** ContextMenu key / Shift+F10 while the tile has the focus. */
+  onKeyDown(event: KeyboardEvent<HTMLElement>): void;
 }
 
-/** The stream on the stage: video, auto-hiding controls, stats on hover (SPEC 5.5). */
+/**
+ * The watched live on the stage: video at full quality with audio, auto-hiding controls, stats on
+ * hover (SPEC 5.5). Focusable so its context menu also opens from the keyboard.
+ */
 export function FocusedStreamTile({
   stream,
   volume,
@@ -29,6 +37,8 @@ export function FocusedStreamTile({
   onToggleMute,
   onToggleFullscreen,
   onPopout,
+  onContextMenu,
+  onKeyDown,
 }: FocusedTileProps) {
   const controls = useAutoHide(3000);
   const stats = useStreamStats(stream.videoTrack, controls.visible);
@@ -37,8 +47,16 @@ export function FocusedStreamTile({
   return (
     <div
       className={controls.visible ? 'tile tile--focused tile--controls' : 'tile tile--focused'}
+      role="group"
+      tabIndex={0}
+      aria-label={`Transmissão de ${stream.name}. Shift+F10 abre as opções.`}
+      aria-haspopup="menu"
+      aria-keyshortcuts="Shift+F10 ContextMenu"
+      data-focused-live=""
       onMouseMove={controls.poke}
       onMouseLeave={controls.hide}
+      onContextMenu={onContextMenu}
+      onKeyDown={onKeyDown}
     >
       <VideoSurface
         track={stream.videoTrack}
@@ -99,17 +117,28 @@ export function FocusedStreamTile({
 interface MiniTileProps {
   stream: RemoteStream;
   onSelect(): void;
+  /** Right click: opens the watched-live menu. */
+  onContextMenu(event: MouseEvent<HTMLElement>): void;
+  /** ContextMenu key / Shift+F10 while the tile has the focus. */
+  onKeyDown(event: KeyboardEvent<HTMLElement>): void;
 }
 
-/** A mini tile in the strip (lowest simulcast layer); clicking swaps it onto the stage. */
-export function MiniStreamTile({ stream, onSelect }: MiniTileProps) {
+/**
+ * A watched live in the strip (lowest simulcast layer, no audio); clicking only swaps it onto
+ * the stage, it never subscribes anything new.
+ */
+export function MiniStreamTile({ stream, onSelect, onContextMenu, onKeyDown }: MiniTileProps) {
   return (
     <button
       type="button"
       className="tile tile--mini"
       aria-label={`Destacar a transmissão de ${stream.name}`}
-      data-tooltip="Clique para destacar"
+      aria-haspopup="menu"
+      aria-keyshortcuts="Shift+F10 ContextMenu"
+      data-tooltip="Clique para destacar · botão direito: opções"
       onClick={onSelect}
+      onContextMenu={onContextMenu}
+      onKeyDown={onKeyDown}
     >
       <VideoSurface track={stream.videoTrack} className="tile__video" />
       <StreamStatus stream={stream} compact />

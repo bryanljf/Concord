@@ -1,0 +1,70 @@
+/* "Conectado à sala" strip above the user panel (Discord's voice-connected look). */
+.room-status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: var(--user-panel-height);
+  padding: 0 8px 0 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.room-status__info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.room-status__state {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-status__state--online {
+  color: var(--online);
+}
+
+.room-status__state--pending {
+  color: var(--warning);
+}
+
+.room-status__state--error {
+  color: var(--danger);
+}
+
+.room-status__room {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-status__leave {
+  transition:
+    background-color var(--transition),
+    color var(--transition);
+}
+
+.room-status__leave:hover,
+.room-status__leave:focus-visible {
+  background: var(--live);
+  color: var(--text-on-accent);
+}
+
+/* Tooltip above the button: the strip sits at the bottom of the window. */
+.room-status [data-tooltip]::after {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.room-status [data-tooltip]:hover::after,
+.room-status [data-tooltip]:focus-visible::after {
+  transform: none;
+}

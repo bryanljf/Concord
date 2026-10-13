@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UserInfo } from '@concord/shared';
+import { roomLabel, type UserInfo } from '@concord/shared';
+import type { BroadcastSwitchRequest } from '../hooks/useBroadcast';
 import {
   useBroadcast,
   type BroadcastEndReason,
@@ -7,6 +8,7 @@ import {
 } from '../hooks/useBroadcast';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { useHotkeys } from '../hooks/useHotkeys';
+import { useLiveStartedSound } from '../hooks/useLiveStartedSound';
 import { useNavigate } from '../hooks/useNavigate';
 import { usePresence } from '../hooks/usePresence';
 import { useRemoteStreams } from '../hooks/useRemoteStreams';
@@ -20,7 +22,6 @@ import { useToast } from '../hooks/useToast';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { formatShortcut } from '../lib/format';
 import { knownParticipants, presenceProfiles, withPresenceProfiles } from '../lib/presence';
-import { pickFocused } from '../lib/subscriptions';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
 import { playTransmissionEnded, playTransmissionStarted } from '../lib/transmissionSounds';
 import { AppShell } from './AppShell';
@@ -30,6 +31,7 @@ import { UpdateBanner } from './UpdateBanner';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { Stage } from './Stage';
+import { RoomStatusPanel } from './RoomStatusPanel';
 import { UserPanel } from './UserPanel';
 import { SourcePicker } from './picker/SourcePicker';
 import { SettingsView } from './settings/SettingsView';
@@ -59,16 +61,28 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     connectionState,
     error,
     focusedParticipantId,
+    watchedParticipantIds,
     audioPlayback,
     join,
     leave,
+    watch,
+    unwatch,
     focus,
+    syncLive,
     startAudio,
   } = useRoom();
   const streams = useRemoteStreams(room);
-  const focusedId = pickFocused(streams, focusedParticipantId);
   const connected = connectionState === 'connected';
-  useSubscriptions(streams, focusedId, connected);
+  // Only what the user chose is on the stage: the focused live, if it is (still) live.
+  const focusedId = streams.some((stream) => stream.participantId === focusedParticipantId)
+    ? focusedParticipantId
+    : null;
+  useSubscriptions(streams, focusedId, connected, watchedParticipantIds);
+  // A watched live that ended (stopped streaming, left the room) leaves the watched list. Only
+  // while connected: during a reconnect livekit briefly drops every participant.
+  useEffect(() => {
+    if (connected) syncLive(streams.map((stream) => stream.participantId));
+  }, [connected, streams, syncLive]);
   const audio = useStreamAudio({
     room,
     connectionState,
@@ -80,7 +94,9 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Opened from the user panel: land on Conta with the display-name field focused. */
   const [editProfile, setEditProfile] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  /** Source picker: 'start' a broadcast, or 'switch' what is shared while live. */
+  const [picker, setPicker] = useState<'start' | 'switch' | null>(null);
+  const pickerOpen = picker !== null;
 
   const onBroadcastEnded = useCallback(
     (reason: BroadcastEndReason) => {
@@ -111,12 +127,26 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     wasStreaming.current = active;
   }, [broadcast.state.status]);
 
-  // Tray / notification clicks: enter the room and focus the stream that triggered it.
+  // Navigation requests from main (tray, dev --room): enter the room; a target with a participant
+  // is an explicit choice to watch that live, so it is watched and focused.
   useEffect(() => {
     if (!target) return;
     consume();
     void join(target.room, target.participantId ?? null);
   }, [target, consume, join]);
+
+  // Chime when someone else goes live in this room (Settings → Sons mutes rooms/people).
+  const liveSoundContext = useMemo(
+    () => ({
+      currentRoom,
+      connected,
+      selfId: user.id,
+      mutedRooms: settings?.mutedRooms ?? [],
+      mutedUsers: settings?.mutedUsers ?? [],
+    }),
+    [currentRoom, connected, user.id, settings?.mutedRooms, settings?.mutedUsers],
+  );
+  useLiveStartedSound(liveSoundContext);
 
   const saveSettings = useCallback(
     (patch: Partial<Settings>) => {
@@ -147,15 +177,20 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   useEffect(() => concord().onOpenSettings(openSettings), [openSettings]);
 
-  const openPicker = useCallback(() => {
-    if (!settings) {
-      toast.show('Aguarde as configurações carregarem.');
-      return;
-    }
-    setSettingsOpen(false);
-    setPickerOpen(true);
-  }, [settings, toast]);
-  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const openPickerAs = useCallback(
+    (mode: 'start' | 'switch') => {
+      if (!settings) {
+        toast.show('Aguarde as configurações carregarem.');
+        return;
+      }
+      setSettingsOpen(false);
+      setPicker(mode);
+    },
+    [settings, toast],
+  );
+  const openPicker = useCallback(() => openPickerAs('start'), [openPickerAs]);
+  const openSwitchPicker = useCallback(() => openPickerAs('switch'), [openPickerAs]);
+  const closePicker = useCallback(() => setPicker(null), []);
 
   const stopBroadcast = useCallback(() => {
     broadcast.stop().catch((err: unknown) => {
@@ -167,9 +202,9 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     (request: BroadcastRequest) => {
       broadcast.start(request).then(
         () => {
-          setPickerOpen(false);
+          setPicker(null);
           playTransmissionStarted();
-          toast.show(`Você está ao vivo em #${request.room}.`, { tone: 'success' });
+          toast.show(`Você está ao vivo em ${roomLabel(request.room)}.`, { tone: 'success' });
         },
         (err: unknown) => {
           toast.show(toErrorMessage(err, 'Não foi possível iniciar a transmissão.'), {
@@ -182,6 +217,33 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     [broadcast, toast],
   );
 
+  const switchSource = useCallback(
+    (request: BroadcastSwitchRequest) => {
+      broadcast.switchSource(request).then(
+        () => {
+          setPicker(null);
+          toast.show(`Agora transmitindo: ${request.sourceName}`, { tone: 'success' });
+        },
+        (err: unknown) => {
+          // The previous source is still live; the picker stays open to try another one.
+          toast.show(toErrorMessage(err, 'Não foi possível trocar a fonte.'), {
+            tone: 'error',
+            durationMs: 7000,
+          });
+        },
+      );
+    },
+    [broadcast, toast],
+  );
+
+  // Leaving while live stops the broadcast first (no "a conexão caiu" notice for a choice).
+  const leaveRoom = useCallback(async () => {
+    const status = broadcast.state.status;
+    if (status === 'live' || status === 'starting') await broadcast.stop().catch(() => undefined);
+    await leave();
+  }, [broadcast, leave]);
+
+  // Global shortcut / tray "Transmitir…" keep meaning start/stop.
   useStreamToggle({ streaming, onStart: openPicker, onStop: stopBroadcast });
 
   const changeFullscreen = useCallback(
@@ -204,16 +266,19 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     if (fullscreen && !currentRoom) changeFullscreen(false);
   }, [fullscreen, currentRoom, changeFullscreen]);
 
-  const openPopout = useCallback(() => {
-    if (!currentRoom || !focusedId) return;
-    concord()
-      .openPopout({ room: currentRoom, participantId: focusedId })
-      .catch((err: unknown) => {
-        toast.show(toErrorMessage(err, 'Não foi possível abrir a janela separada.'), {
-          tone: 'error',
+  const openPopout = useCallback(
+    (participantId: string | null) => {
+      if (!currentRoom || !participantId) return;
+      concord()
+        .openPopout({ room: currentRoom, participantId })
+        .catch((err: unknown) => {
+          toast.show(toErrorMessage(err, 'Não foi possível abrir a janela separada.'), {
+            tone: 'error',
+          });
         });
-      });
-  }, [currentRoom, focusedId, toast]);
+    },
+    [currentRoom, toast],
+  );
 
   const enableAudio = useCallback(() => {
     startAudio().catch(() => {
@@ -257,26 +322,36 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             rooms={rooms}
             snapshot={snapshot}
             currentRoom={currentRoom}
+            watchedIds={watchedParticipantIds}
             onJoin={(roomId) => void join(roomId)}
             onWatch={(roomId, participantId) => void join(roomId, participantId)}
           />
         }
         userPanel={
-          <UserPanel
-            user={user}
-            status={status}
-            onOpenSettings={openSettings}
-            onOpenProfile={openProfile}
-          />
+          <>
+            {currentRoom && (
+              <RoomStatusPanel
+                room={currentRoom}
+                connectionState={connectionState}
+                failed={error !== null}
+                onLeave={() => void leaveRoom()}
+              />
+            )}
+            <UserPanel
+              user={user}
+              status={status}
+              onOpenSettings={openSettings}
+              onOpenProfile={openProfile}
+            />
+          </>
         }
         header={
           <Header
             currentRoom={currentRoom}
             hasFocusedStream={focusedId !== null && connected}
             fullscreen={fullscreen}
-            onLeave={() => void leave()}
             onToggleFullscreen={onToggleFullscreen}
-            onPopout={openPopout}
+            onPopout={() => openPopout(focusedId)}
             onOpenSettings={openSettings}
           />
         }
@@ -284,7 +359,9 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           <BottomBar
             defaultQuality={settings?.defaultQuality ?? 'standard'}
             broadcast={broadcast.state}
+            switching={broadcast.switching}
             onStream={openPicker}
+            onSwitch={openSwitchPicker}
             onStop={stopBroadcast}
           />
         }
@@ -295,11 +372,14 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           error={error}
           streams={stageStreams}
           focusedId={focusedId}
+          watchedIds={watchedParticipantIds}
           broadcast={broadcast.state}
           audio={audio}
           audioPlayback={audioPlayback}
           fullscreen={fullscreen}
           shortcutLabel={shortcutLabel}
+          onWatch={watch}
+          onUnwatch={unwatch}
           onFocus={focus}
           onRetry={() => {
             if (currentRoom) void join(currentRoom, focusedParticipantId);
@@ -308,9 +388,10 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           onPopout={openPopout}
           onEnableAudio={enableAudio}
           onStopBroadcast={stopBroadcast}
+          onSwitchSource={openSwitchPicker}
         />
       </AppShell>
-      {pickerOpen && settings && (
+      {picker === 'start' && settings && (
         <SourcePicker
           rooms={rooms}
           currentRoom={currentRoom}
@@ -318,6 +399,23 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           starting={broadcast.state.status === 'starting'}
           onCancel={closePicker}
           onStart={startBroadcast}
+        />
+      )}
+      {picker === 'switch' && settings && broadcast.state.status === 'live' && (
+        <SourcePicker
+          rooms={rooms}
+          currentRoom={broadcast.state.room}
+          settings={settings}
+          starting={broadcast.switching}
+          live={{
+            sourceId: broadcast.state.sourceId,
+            quality: broadcast.state.quality,
+            audio: broadcast.state.audio,
+          }}
+          onCancel={closePicker}
+          onStart={({ sourceId, sourceName, quality, audio: audioMode }) =>
+            switchSource({ sourceId, sourceName, quality, audio: audioMode })
+          }
         />
       )}
       {settingsOpen && settings && (

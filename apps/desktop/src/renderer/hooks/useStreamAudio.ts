@@ -3,6 +3,8 @@ import { Track, type RemoteAudioTrack, type Room } from 'livekit-client';
 import {
   DEFAULT_VOLUME_SETTING,
   clampVolume,
+  normalizeVolumeSetting,
+  toggleMuteSetting,
   volumeToGain,
   type VolumeSetting,
 } from '../lib/volume';
@@ -10,7 +12,7 @@ import type { RoomConnectionState } from './useRoom';
 import type { RemoteStream } from './useRemoteStreams';
 
 export interface StreamAudio {
-  /** Current setting for a participant (defaults to 100 %, unmuted). */
+  /** Current setting for a participant (defaults to 50 %, unmuted; 100 % at most). */
   settingFor(participantId: string): VolumeSetting;
   setVolume(participantId: string, volume: number): void;
   setMuted(participantId: string, muted: boolean): void;
@@ -96,8 +98,10 @@ export function useStreamAudio(options: UseStreamAudioOptions): StreamAudio {
     };
   }, [room, connectionState, outputDeviceId]);
 
+  // Remembered values above 100 % (from the old 0–200 % range) are clamped on the way out.
   const settingFor = useCallback(
-    (participantId: string) => settings.get(participantId) ?? DEFAULT_VOLUME_SETTING,
+    (participantId: string) =>
+      normalizeVolumeSetting(settings.get(participantId) ?? DEFAULT_VOLUME_SETTING),
     [settings],
   );
 
@@ -105,7 +109,8 @@ export function useStreamAudio(options: UseStreamAudioOptions): StreamAudio {
     (participantId: string, patch: (current: VolumeSetting) => VolumeSetting) => {
       setSettings((prev) => {
         const next = new Map(prev);
-        next.set(participantId, patch(prev.get(participantId) ?? DEFAULT_VOLUME_SETTING));
+        const current = normalizeVolumeSetting(prev.get(participantId) ?? DEFAULT_VOLUME_SETTING);
+        next.set(participantId, patch(current));
         return next;
       });
     },
@@ -133,7 +138,7 @@ export function useStreamAudio(options: UseStreamAudioOptions): StreamAudio {
 
   const toggleMute = useCallback(
     (participantId: string) => {
-      update(participantId, (current) => ({ ...current, muted: !current.muted }));
+      update(participantId, toggleMuteSetting);
     },
     [update],
   );

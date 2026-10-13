@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { roomLabel } from '@concord/shared';
 import type { PopoutTarget } from '../../../preload/api';
 import { useHotkeys } from '../../hooks/useHotkeys';
 import { usePresence } from '../../hooks/usePresence';
@@ -90,7 +91,7 @@ export function PopoutView() {
 
   const name = stream?.name ?? profile?.name ?? targetParticipant ?? 'Concord';
   useEffect(() => {
-    document.title = targetRoom ? `${name} — #${targetRoom} — Concord` : 'Concord';
+    document.title = targetRoom ? `${name} — ${roomLabel(targetRoom)} — Concord` : 'Concord';
   }, [name, targetRoom]);
 
   const togglePin = useCallback(() => {
@@ -151,7 +152,7 @@ export function PopoutView() {
     body = (
       <div className="popout__state" role="status">
         <Spinner label="Conectando" />
-        <span>Entrando em #{target.room}…</span>
+        <span>Entrando em {roomLabel(target.room)}…</span>
       </div>
     );
   } else if (stream) {
@@ -191,7 +192,7 @@ export function PopoutView() {
         <MonitorOffIcon size={36} />
         <span>Transmissão encerrada</span>
         <span className="popout__sub">
-          {name} não está mais na sala #{target.room}.
+          {name} não está mais em {roomLabel(target.room)}.
         </span>
       </div>
     );
@@ -206,7 +207,7 @@ export function PopoutView() {
             <Avatar id={targetParticipant} name={name} src={profile?.avatarUrl} size="xs" />
           )}
           <span className="popout__name">{name}</span>
-          {targetRoom && <span className="popout__room">#{targetRoom}</span>}
+          {targetRoom && <span className="popout__room">{roomLabel(targetRoom)}</span>}
           {stream && <QualityBars quality={stream.quality} size={14} />}
         </span>
         <span className="popout__actions">

@@ -1,0 +1,86 @@
+/* Custom context menu (Discord-like): dark floating panel, accent highlight, red destructive. */
+.context-menu {
+  position: fixed;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  min-width: 188px;
+  max-width: 280px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    var(--shadow);
+  animation: context-menu-in 100ms ease-out;
+}
+
+.context-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 32px;
+  margin: 2px 0;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-normal);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu__item:hover,
+.context-menu__item:focus-visible,
+.context-menu__item:focus {
+  outline: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.context-menu__item--danger {
+  color: var(--danger);
+}
+
+.context-menu__item--danger:hover,
+.context-menu__item--danger:focus-visible,
+.context-menu__item--danger:focus {
+  background: var(--live);
+  color: var(--text-on-accent);
+}
+
+.context-menu__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-menu__icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+.context-menu__separator {
+  height: 1px;
+  margin: 4px 4px;
+  background: var(--border);
+}
+
+@keyframes context-menu-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-menu {
+    animation: none;
+  }
+}

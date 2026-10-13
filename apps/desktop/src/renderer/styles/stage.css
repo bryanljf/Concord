@@ -141,6 +141,113 @@
   animation: fade-in var(--transition-slow) ease;
 }
 
+/* Lives nobody picked yet: cards without video (nothing is subscribed until "Assistir"). */
+.stage__cards {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 8px 4px;
+  overflow-y: auto;
+  animation: fade-in var(--transition-slow) ease;
+}
+
+.stage__cards-header h2 {
+  color: var(--text-strong);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.stage__cards-header p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.stage__cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.live-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  min-height: 220px;
+  padding: 24px 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  text-align: center;
+  transition:
+    border-color var(--transition),
+    background-color var(--transition);
+}
+
+.live-card:hover,
+.live-card:focus-within {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.live-card__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+
+.live-card__name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-card .btn {
+  gap: 6px;
+}
+
+.live-card--strip {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 26px 10px 10px;
+}
+
+.live-card--strip .live-card__badge {
+  top: 6px;
+  left: 8px;
+}
+
+.live-card--strip .live-card__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  text-align: left;
+}
+
+.live-card--strip .live-card__watch {
+  width: 100%;
+  height: 28px;
+}
+
+/* Watched lives: focusable so the context menu also opens from the keyboard. */
+.tile--focused:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
 /* Tiles */
 .tile {
   position: relative;
@@ -375,6 +482,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .stage__empty,
+  .stage__cards,
   .stage__focus,
   .stage__strip li,
   .stage__notice {

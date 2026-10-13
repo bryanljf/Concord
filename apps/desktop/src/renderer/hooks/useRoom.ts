@@ -2,6 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RoomId, TokenPurpose, TokenResponse } from '@concord/shared';
 import { ConnectionState, DisconnectReason, Room, RoomEvent } from 'livekit-client';
 import { concord, toErrorMessage } from '../lib/concord';
+import {
+  EMPTY_WATCHING,
+  focusWatched,
+  pruneWatching,
+  unwatch as unwatchLive,
+  watch as watchLive,
+  type WatchingState,
+} from '../lib/watching';
 
 export type RoomConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -12,14 +20,30 @@ export interface UseRoom {
   currentRoom: RoomId | null;
   connectionState: RoomConnectionState;
   error: string | null;
-  /** Participant whose stream the user asked to watch. */
+  /**
+   * The watched live on the stage (full quality + audio). Null when nothing is watched: entering
+   * a room subscribes to nothing until the user picks "Assistir".
+   */
   focusedParticipantId: string | null;
+  /** Every live the user chose to watch in this room session, in the order they were picked. */
+  watchedParticipantIds: readonly string[];
   /** False when the browser blocked audio playback: call `startAudio()` from a user gesture. */
   audioPlayback: boolean;
-  /** Leaves the previous room (if any), requests a token and connects. Resolves true when connected. */
-  join(roomId: RoomId, focusParticipantId?: string | null): Promise<boolean>;
+  /**
+   * Leaves the previous room (if any), requests a token and connects. Resolves true when
+   * connected. `watchParticipantId` is an explicit choice (sidebar badge, navigation from main):
+   * that live is watched and focused. Switching rooms starts a new session with nothing watched.
+   */
+  join(roomId: RoomId, watchParticipantId?: string | null): Promise<boolean>;
   leave(): Promise<void>;
-  focus(participantId: string | null): void;
+  /** Watches a live (subscribes it) and puts it on the stage; the previous one becomes a mini tile. */
+  watch(participantId: string): void;
+  /** Stops watching (unsubscribes video and audio); the next watched live takes the stage. */
+  unwatch(participantId: string): void;
+  /** Switches the stage to an already watched live; never subscribes anything new. */
+  focus(participantId: string): void;
+  /** Drops watched lives that are no longer live; call with the current remote streams. */
+  syncLive(liveParticipantIds: readonly string[]): void;
   startAudio(): Promise<void>;
 }
 
@@ -65,8 +89,9 @@ export function disconnectMessage(reason: DisconnectReason | undefined): string 
 /**
  * Room options (SPEC 5.6): adaptive stream picks the simulcast layer from the size of the
  * attached <video>, dynacast lets the publisher pause layers nobody watches, and the Web Audio
- * mix routes every remote audio track through an AudioContext + GainNode so per-stream volume
- * can go above 100 % and the output device can be switched with `AudioContext.setSinkId`.
+ * mix routes every remote audio track through an AudioContext + GainNode for per-stream volume
+ * (0–100 %, 50 % by default) and lets the output device be switched with
+ * `AudioContext.setSinkId`.
  */
 export function createRoom(): Room {
   return new Room({ adaptiveStream: true, dynacast: true, webAudioMix: true });
@@ -81,7 +106,7 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
   const [currentRoom, setCurrentRoom] = useState<RoomId | null>(null);
   const [connectionState, setConnectionState] = useState<RoomConnectionState>('disconnected');
   const [error, setError] = useState<string | null>(null);
-  const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
+  const [watching, setWatching] = useState<WatchingState>(EMPTY_WATCHING);
   const [audioPlayback, setAudioPlayback] = useState(true);
 
   useEffect(() => {
@@ -115,15 +140,21 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
   );
 
   const join = useCallback(
-    async (roomId: RoomId, focusParticipantId: string | null = null): Promise<boolean> => {
+    async (roomId: RoomId, watchParticipantId: string | null = null): Promise<boolean> => {
       const alreadyThere =
         currentRoomRef.current === roomId && room.state !== ConnectionState.Disconnected;
       if (alreadyThere) {
-        // Re-clicking the current room keeps the focus; a badge click re-targets it.
-        if (focusParticipantId) setFocusedParticipantId(focusParticipantId);
+        // Re-clicking the current room keeps what is watched; a badge click watches that live.
+        if (watchParticipantId) setWatching((prev) => watchLive(prev, watchParticipantId));
         return room.state === ConnectionState.Connected;
       }
-      setFocusedParticipantId(focusParticipantId);
+      // A new room session: only the explicitly chosen live (if any) is watched.
+      setWatching(
+        watchParticipantId ? watchLive(EMPTY_WATCHING, watchParticipantId) : EMPTY_WATCHING,
+      );
+      // Not "connected" from here on, so the previous room's streams never prune the new
+      // session's choice (the owner only calls syncLive while connected).
+      setConnectionState('connecting');
 
       const seq = ++sequence.current;
       setError(null);
@@ -163,13 +194,25 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
     currentRoomRef.current = null;
     setCurrentRoom(null);
     setError(null);
-    setFocusedParticipantId(null);
+    setWatching(EMPTY_WATCHING);
     setConnectionState('disconnected');
     if (room.state !== ConnectionState.Disconnected) await room.disconnect();
   }, [room]);
 
-  const focus = useCallback((participantId: string | null) => {
-    setFocusedParticipantId(participantId);
+  const watch = useCallback((participantId: string) => {
+    setWatching((prev) => watchLive(prev, participantId));
+  }, []);
+
+  const unwatch = useCallback((participantId: string) => {
+    setWatching((prev) => unwatchLive(prev, participantId));
+  }, []);
+
+  const focus = useCallback((participantId: string) => {
+    setWatching((prev) => focusWatched(prev, participantId));
+  }, []);
+
+  const syncLive = useCallback((liveParticipantIds: readonly string[]) => {
+    setWatching((prev) => pruneWatching(prev, liveParticipantIds));
   }, []);
 
   const startAudio = useCallback(async () => {
@@ -181,11 +224,15 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
     currentRoom,
     connectionState,
     error,
-    focusedParticipantId,
+    focusedParticipantId: watching.focused,
+    watchedParticipantIds: watching.watched,
     audioPlayback,
     join,
     leave,
+    watch,
+    unwatch,
     focus,
+    syncLive,
     startAudio,
   };
 }

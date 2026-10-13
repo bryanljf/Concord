@@ -16,7 +16,7 @@ const SECTIONS = [
   { id: 'inicializacao', label: 'Inicialização' },
   { id: 'atalho', label: 'Atalho' },
   { id: 'transmissao', label: 'Transmissão' },
-  { id: 'notificacoes', label: 'Notificações' },
+  { id: 'notificacoes', label: 'Sons' },
   { id: 'audio', label: 'Áudio' },
   { id: 'sobre', label: 'Sobre' },
 ] as const;

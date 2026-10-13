@@ -1,4 +1,4 @@
-import type { PresenceParticipant, RoomId } from '@concord/shared';
+import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
 import type { Settings } from '../../lib/concord';
 import { Avatar } from '../Avatar';
 import { SettingsSection } from './SettingsSection';
@@ -30,12 +30,13 @@ export function NotificationsSection({
   ];
 
   return (
-    <SettingsSection id="notificacoes" title="Notificações">
+    <SettingsSection id="notificacoes" title="Sons">
       <p className="field__hint">
-        Você recebe um aviso quando alguém começa a transmitir. Silencie salas ou pessoas aqui.
+        Som quando alguém entra ao vivo na sua sala: toca um aviso curto enquanto você está numa
+        sala e outra pessoa começa a transmitir nela. Silencie salas ou pessoas aqui.
       </p>
       <fieldset className="settings__fieldset">
-        <legend className="field__label">Silenciar salas</legend>
+        <legend className="field__label">Sem som nestas salas</legend>
         {rooms.length === 0 ? (
           <p className="field__hint">Nenhuma sala conhecida ainda.</p>
         ) : (
@@ -46,13 +47,13 @@ export function NotificationsSection({
                 checked={settings.mutedRooms.includes(room)}
                 onChange={() => onUpdate({ mutedRooms: toggle(settings.mutedRooms, room) })}
               />
-              <span>#{room}</span>
+              <span>{roomLabel(room)}</span>
             </label>
           ))
         )}
       </fieldset>
       <fieldset className="settings__fieldset">
-        <legend className="field__label">Silenciar pessoas</legend>
+        <legend className="field__label">Sem som para estas pessoas</legend>
         {people.length === 0 ? (
           <p className="field__hint">
             Ninguém conectado agora. As pessoas aparecem aqui quando entram numa sala.
@@ -67,7 +68,11 @@ export function NotificationsSection({
                   type="button"
                   className="chip"
                   aria-pressed={muted}
-                  title={muted ? `Reativar avisos de ${person.name}` : `Silenciar ${person.name}`}
+                  title={
+                    muted
+                      ? `Voltar a tocar o som quando ${person.name} entrar ao vivo`
+                      : `Não tocar som quando ${person.name} entrar ao vivo`
+                  }
                   onClick={() => onUpdate({ mutedUsers: toggle(settings.mutedUsers, person.id) })}
                 >
                   <Avatar id={person.id} name={person.name} src={person.avatarUrl} size="xs" />

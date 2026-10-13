@@ -5,8 +5,23 @@
   height: 100%;
 }
 
+/*
+ * Explicit placement: in fullscreen the banner and sidebar are display:none, and auto-placement
+ * would then drop .shell__main into the first (0×0) cell, leaving a grey, zero-size stage.
+ */
 .shell__banner {
   grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.shell__sidebar {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.shell__main {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .shell__sidebar {

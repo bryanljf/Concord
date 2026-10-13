@@ -176,6 +176,7 @@
 }
 
 .source-card__thumb {
+  position: relative;
   display: grid;
   place-items: center;
   aspect-ratio: 16 / 9;
@@ -271,4 +272,12 @@
   .picker__options {
     grid-template-columns: 1fr;
   }
+}
+
+/* Switch mode: what is being shared right now. */
+.source-card__live {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
 }

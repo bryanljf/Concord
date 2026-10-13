@@ -4,19 +4,27 @@ import { MonitorIcon, WindowIcon } from '../icons';
 interface SourceCardProps {
   source: CaptureSource;
   selected: boolean;
+  /** This is what is being shared right now (switch mode). */
+  live?: boolean;
   onSelect(): void;
   /** Double-click: select and start right away. */
   onConfirm(): void;
 }
 
 /** Thumbnail card for one window or screen (the thumbnail refreshes every 2 s). */
-export function SourceCard({ source, selected, onSelect, onConfirm }: SourceCardProps) {
+export function SourceCard({
+  source,
+  selected,
+  live = false,
+  onSelect,
+  onConfirm,
+}: SourceCardProps) {
   return (
     <button
       type="button"
       className={selected ? 'source-card source-card--selected' : 'source-card'}
       aria-pressed={selected}
-      title={source.name}
+      title={live ? `${source.name} — transmitindo agora` : source.name}
       onClick={onSelect}
       onDoubleClick={() => {
         onSelect();
@@ -24,6 +32,7 @@ export function SourceCard({ source, selected, onSelect, onConfirm }: SourceCard
       }}
     >
       <span className="source-card__thumb">
+        {live && <span className="source-card__live badge-live">Transmitindo agora</span>}
         {source.thumbnailDataUrl ? (
           <img src={source.thumbnailDataUrl} alt="" draggable={false} />
         ) : (

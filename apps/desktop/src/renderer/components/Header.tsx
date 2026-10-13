@@ -1,4 +1,4 @@
-import type { RoomId } from '@concord/shared';
+import { roomLabel, type RoomId } from '@concord/shared';
 import { ExitFullscreenIcon, FullscreenIcon, GearIcon, PopOutIcon } from './icons';
 import '../styles/header.css';
 
@@ -7,7 +7,6 @@ interface HeaderProps {
   /** A remote stream is on the stage (pop-out and fullscreen act on it). */
   hasFocusedStream: boolean;
   fullscreen: boolean;
-  onLeave(): void;
   onToggleFullscreen(): void;
   onPopout(): void;
   onOpenSettings(): void;
@@ -17,7 +16,6 @@ export function Header({
   currentRoom,
   hasFocusedStream,
   fullscreen,
-  onLeave,
   onToggleFullscreen,
   onPopout,
   onOpenSettings,
@@ -26,21 +24,11 @@ export function Header({
     <header className="header">
       <h1 className="header__title">
         {currentRoom ? (
-          <>
-            <span className="header__hash" aria-hidden="true">
-              #
-            </span>
-            <span className="header__room">{currentRoom}</span>
-          </>
+          <span className="header__room">{roomLabel(currentRoom)}</span>
         ) : (
           <span className="header__none">Nenhuma sala</span>
         )}
       </h1>
-      {currentRoom && (
-        <button type="button" className="btn btn--ghost btn--sm" onClick={onLeave}>
-          Sair da sala
-        </button>
-      )}
       <div className="header__actions">
         <button
           type="button"
