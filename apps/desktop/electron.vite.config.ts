@@ -21,7 +21,17 @@ export default defineConfig({
   preload: {
     define,
     // Sandboxed preloads can't require node_modules: bundle everything.
-    build: { externalizeDeps: false },
+    build: {
+      externalizeDeps: false,
+      rollupOptions: {
+        input: {
+          // Bridge of the app windows.
+          index: 'src/preload/index.ts',
+          // Discord login window only: disables WebAuthn (see the file header).
+          oauth: 'src/preload/oauth.ts',
+        },
+      },
+    },
   },
   renderer: {
     plugins: [react()],

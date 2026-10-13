@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron';
+import { join } from 'node:path';
 import { log } from './log';
 
 const logger = log('discord-auth');
@@ -11,6 +12,8 @@ export function openDiscordLogin(serverUrl: string): Promise<string> {
     title: 'Entrar com Discord — Concord',
     autoHideMenuBar: true,
     webPreferences: {
+      // Turns off WebAuthn/passkeys so Windows does not pop its security-key dialog.
+      preload: join(__dirname, '../preload/oauth.js'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
