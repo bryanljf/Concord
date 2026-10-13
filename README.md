@@ -7,7 +7,7 @@ e o chat continuam lá; o Concord transmite a tela (com o som do jogo) por um se
 - **App desktop** (Windows 10/11, Electron): fica na bandeja e abre uma janela com visual
   inspirado no Discord para assistir ou transmitir.
 - **Servidor** (`concord-api` + `livekit-server` + Caddy): roda numa VM **Oracle Cloud Always
-  Free** em `https://exemplo.duckdns.org`.
+  Free**, atrás de um domínio com HTTPS (DuckDNS + Let's Encrypt).
 
 Como instalar e usar (guia para os amigos): [docs/INSTALAR.md](docs/INSTALAR.md). Último
 instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/latest).
@@ -68,7 +68,7 @@ Passo a passo completo do servidor: [infra/README-deploy.md](infra/README-deploy
 | Mudar as salas             | `ROOMS=sala-1,sala-2,sala-3` em `~/concord/infra/.env` na VM e `docker compose -f infra/docker-compose.yml up -d api`. O app mostra `sala-1` como "Sala 1".                                                         |
 | Atualizar o servidor       | Push em `main`: o workflow **CI** roda e, se passar, o **Deploy Oracle** entra na VM por SSH e executa `infra/scripts/deploy-oracle.sh`. Commits com `[skip ci]` não disparam nada.                                 |
 | Publicar uma versão do app | Subir `version` em `apps/desktop/package.json`, criar e enviar a tag `vX.Y.Z` (igual à versão). O workflow **Release** gera `Concord-Setup-X.Y.Z.exe` e `latest.yml`, e os apps instalados atualizam sozinhos.      |
-| Logs e consumo             | `ssh ubuntu@203.0.113.10`, depois `cd ~/concord && docker compose -f infra/docker-compose.yml logs -f` e `docker stats`.                                                                                         |
+| Logs e consumo             | `ssh ubuntu@<IP da VM>` (o IP sai do `terraform output`), depois `cd ~/concord && docker compose -f infra/docker-compose.yml logs -f` e `docker stats`.                                                             |
 | Infraestrutura             | `infra/terraform` (state e `terraform.tfvars` só no PC do administrador, fora do Git). A VM ignora mudanças de imagem e de cloud-init, então um `terraform apply` comum nunca a recria.                             |
 
 Segredos ficam só na VM (`~/concord/infra/.env`: segredo do LiveKit, client secret e bot token
