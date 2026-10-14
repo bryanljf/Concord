@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EMPTY_WATCHING,
+  endedWatchedLives,
   focusWatched,
   pruneWatching,
   resetWatching,
@@ -110,5 +111,16 @@ describe('pruneWatching', () => {
 
   it('never adds lives that were not chosen', () => {
     expect(pruneWatching(EMPTY_WATCHING, ['ana', 'beto'])).toBe(EMPTY_WATCHING);
+  });
+});
+
+describe('endedWatchedLives', () => {
+  it('reports watched lives that are no longer on the air', () => {
+    expect(endedWatchedLives(['ana', 'bia'], new Set(['bia', 'caio']))).toEqual(['ana']);
+  });
+
+  it('is empty when every watched live is still on', () => {
+    expect(endedWatchedLives(['ana'], new Set(['ana']))).toEqual([]);
+    expect(endedWatchedLives([], new Set())).toEqual([]);
   });
 });

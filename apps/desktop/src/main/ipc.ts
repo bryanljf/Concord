@@ -110,6 +110,8 @@ export function registerIpc(deps: IpcDeps): () => void {
   // `settings.update` validates every field of the patch and throws on anything unexpected.
   handle(IPC.UPDATE_SETTINGS, (_ctx, patch) => settings.update(patch as Partial<Settings>));
   handle(IPC.GET_ROOMS, () => api.rooms());
+  handle(IPC.GET_SERVER_INFO, () => api.server());
+  handle(IPC.PING_SERVER, () => api.ping());
   handle(IPC.REQUEST_TOKEN, (_ctx, room, purpose) =>
     api.token(expectRoomId(room), expectOptionalTokenPurpose(purpose)),
   );

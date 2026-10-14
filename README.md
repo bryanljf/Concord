@@ -19,15 +19,21 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
 - **Salas** fixas (Sala 1, 2 e 3) com presença em tempo real: quem está em cada sala e quem
   está **AO VIVO**, mesmo para quem está fora da sala.
 - **Transmitir** uma janela ou uma tela inteira em Leve (720p30), Padrão (1080p30) ou Jogo
-  (1080p60), H.264 com simulcast. **Áudio por processo**: só o som do aplicativo, sem a call do
+  (1080p60), H.264 com simulcast; todos mantêm a taxa de quadros e reduzem a resolução quando
+  falta banda ou CPU. **Áudio por processo**: só o som do aplicativo, sem a call do
   Discord (WASAPI Process Loopback). **Trocar fonte** durante a live sem derrubar quem assiste.
 - **Assistir sob demanda**: ao entrar numa sala nada é baixado; cada live aparece como cartão
   com **Assistir**. A live em destaque recebe qualidade cheia e áudio; as demais assistidas
-  ficam em miniatura (camada baixa, sem áudio). Menu de clique direito (parar de assistir,
+  ficam em miniatura (camada baixa, sem áudio). Botão de parar de assistir no próprio vídeo e menu de clique direito (parar de assistir,
   destacar, pop-out, silenciar), volume por live (padrão 50%, máximo 100%), tela cheia e
   janela pop-out sempre no topo.
-- **Som de aviso** quando alguém entra ao vivo na sala em que você está (silenciável por sala
-  ou pessoa). Sem notificações do Windows para lives.
+- **Quem está assistindo**, como no Go Live do Discord: cada live (e a prévia da sua) mostra o
+  número de espectadores e os avatares; passar o mouse lista os nomes. Cada app publica as lives
+  que assiste num atributo do LiveKit (`concord.watching`).
+- **Sons de aviso**: quando alguém entra ao vivo na sala em que você está (silenciável por sala
+  ou pessoa); quando alguém começa ou para de assistir a sua live ou uma live que você assiste;
+  e quando alguém (ou você) entra ou sai da sala. Os dois últimos se desligam em Configurações →
+  Sons. Sem notificações do Windows para lives.
 - **Bandeja e inicialização**: inicia com o Windows escondido, opcionalmente só enquanto o
   Discord está aberto; atalho global (`Ctrl+Shift+L`) para transmitir/parar.
 - **Atualização automática**: o app verifica de hora em hora, baixa em segundo plano e avisa

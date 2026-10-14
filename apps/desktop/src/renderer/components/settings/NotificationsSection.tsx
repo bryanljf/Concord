@@ -31,6 +31,24 @@ export function NotificationsSection({
 
   return (
     <SettingsSection id="notificacoes" title="Sons">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={settings.viewerSounds}
+          onChange={() => onUpdate({ viewerSounds: !settings.viewerSounds })}
+        />
+        <span>
+          Tocar um som quando alguém entrar ou sair da sua live ou de uma live que você assiste
+        </span>
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={settings.roomSounds}
+          onChange={() => onUpdate({ roomSounds: !settings.roomSounds })}
+        />
+        <span>Tocar um som quando alguém (ou você) entrar ou sair da sala em que você está</span>
+      </label>
       <p className="field__hint">
         Som quando alguém entra ao vivo na sua sala: toca um aviso curto enquanto você está numa
         sala e outra pessoa começa a transmitir nela. Silencie salas ou pessoas aqui.

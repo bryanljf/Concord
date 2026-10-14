@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { QUALITY_PRESETS } from '@concord/shared';
 import {
   SCREEN_SHARE_AUDIO_PRESET,
-  degradationPreference,
   displayMediaConstraints,
   encodingParams,
   presetDescription,
@@ -41,12 +40,14 @@ describe('displayMediaConstraints', () => {
   });
 });
 
-describe('degradationPreference / encodingParams', () => {
-  it('keeps the frame rate for games and the resolution otherwise', () => {
-    expect(degradationPreference(QUALITY_PRESETS.game)).toBe('maintain-framerate');
-    expect(degradationPreference(QUALITY_PRESETS.standard)).toBe('maintain-resolution');
-    expect(degradationPreference(QUALITY_PRESETS.light)).toBe('maintain-resolution');
-  });
+describe('encodingParams', () => {
+  it.each(['light', 'standard', 'game'] as const)(
+    '%s keeps the frame rate and lowers the resolution under pressure',
+    (id) => {
+      expect(encodingParams(id).contentHint).toBe('motion');
+      expect(encodingParams(id).degradationPreference).toBe('maintain-framerate');
+    },
+  );
 
   it('bundles the content hint, encoding and audio preset', () => {
     expect(encodingParams('game')).toEqual({
@@ -55,7 +56,6 @@ describe('degradationPreference / encodingParams', () => {
       degradationPreference: 'maintain-framerate',
       audioPreset: SCREEN_SHARE_AUDIO_PRESET,
     });
-    expect(encodingParams('light').contentHint).toBe('detail');
     expect(SCREEN_SHARE_AUDIO_PRESET.maxBitrate).toBe(128_000);
   });
 });

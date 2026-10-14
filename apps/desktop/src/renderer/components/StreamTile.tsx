@@ -4,21 +4,27 @@ import type { RemoteStream } from '../hooks/useRemoteStreams';
 import { useStreamStats } from '../hooks/useStreamStats';
 import { formatStats } from '../lib/streamStats';
 import { Avatar } from './Avatar';
+import type { Viewer } from '../lib/viewers';
 import type { VolumeSetting } from '../lib/volume';
-import { ExitFullscreenIcon, FullscreenIcon, PopOutIcon } from './icons';
+import { CloseIcon, ExitFullscreenIcon, FullscreenIcon, MonitorOffIcon, PopOutIcon } from './icons';
 import { QualityBars } from './stream/QualityBars';
 import { StreamStatus } from './stream/StreamStatus';
+import { ViewerList } from './stream/ViewerList';
 import { VideoSurface } from './stream/VideoSurface';
 import { VolumeControl } from './stream/VolumeControl';
 
 interface FocusedTileProps {
   stream: RemoteStream;
+  /** Who is watching this live (you included). */
+  viewers: readonly Viewer[];
   volume: VolumeSetting;
   fullscreen: boolean;
   onVolume(volume: number): void;
   onToggleMute(): void;
   onToggleFullscreen(): void;
   onPopout(): void;
+  /** "Parar de assistir" (also in the right-click menu). */
+  onStopWatching(): void;
   /** Right click: opens the watched-live menu. */
   onContextMenu(event: MouseEvent<HTMLElement>): void;
   /** ContextMenu key / Shift+F10 while the tile has the focus. */
@@ -31,12 +37,14 @@ interface FocusedTileProps {
  */
 export function FocusedStreamTile({
   stream,
+  viewers,
   volume,
   fullscreen,
   onVolume,
   onToggleMute,
   onToggleFullscreen,
   onPopout,
+  onStopWatching,
   onContextMenu,
   onKeyDown,
 }: FocusedTileProps) {
@@ -82,14 +90,26 @@ export function FocusedStreamTile({
         onMouseEnter={() => controls.hold(true)}
         onMouseLeave={() => controls.hold(false)}
       >
-        <VolumeControl
-          setting={volume}
-          name={stream.name}
-          onVolume={onVolume}
-          onToggleMute={onToggleMute}
-          onHold={controls.hold}
-        />
+        <div className="tile__bottom-left">
+          <VolumeControl
+            setting={volume}
+            name={stream.name}
+            onVolume={onVolume}
+            onToggleMute={onToggleMute}
+            onHold={controls.hold}
+          />
+          <ViewerList viewers={viewers} />
+        </div>
         <div className="tile__actions">
+          <button
+            type="button"
+            className="icon-btn icon-btn--overlay"
+            aria-label={`Parar de assistir ${stream.name}`}
+            data-tooltip="Parar de assistir"
+            onClick={onStopWatching}
+          >
+            <MonitorOffIcon size={18} />
+          </button>
           <button
             type="button"
             className="icon-btn icon-btn--overlay"
@@ -117,6 +137,8 @@ export function FocusedStreamTile({
 interface MiniTileProps {
   stream: RemoteStream;
   onSelect(): void;
+  /** The small × in the corner (also in the right-click menu). */
+  onStopWatching(): void;
   /** Right click: opens the watched-live menu. */
   onContextMenu(event: MouseEvent<HTMLElement>): void;
   /** ContextMenu key / Shift+F10 while the tile has the focus. */
@@ -127,26 +149,43 @@ interface MiniTileProps {
  * A watched live in the strip (lowest simulcast layer, no audio); clicking only swaps it onto
  * the stage, it never subscribes anything new.
  */
-export function MiniStreamTile({ stream, onSelect, onContextMenu, onKeyDown }: MiniTileProps) {
+export function MiniStreamTile({
+  stream,
+  onSelect,
+  onStopWatching,
+  onContextMenu,
+  onKeyDown,
+}: MiniTileProps) {
   return (
-    <button
-      type="button"
-      className="tile tile--mini"
-      aria-label={`Destacar a transmissão de ${stream.name}`}
-      aria-haspopup="menu"
-      aria-keyshortcuts="Shift+F10 ContextMenu"
-      data-tooltip="Clique para destacar · botão direito: opções"
-      onClick={onSelect}
-      onContextMenu={onContextMenu}
-      onKeyDown={onKeyDown}
-    >
-      <VideoSurface track={stream.videoTrack} className="tile__video" />
-      <StreamStatus stream={stream} compact />
-      <div className="tile__top tile__top--mini">
-        <Avatar id={stream.participantId} name={stream.name} src={stream.avatarUrl} size="xs" />
-        <span className="tile__name">{stream.name}</span>
-        <QualityBars quality={stream.quality} size={14} />
-      </div>
-    </button>
+    <div className="tile-mini">
+      <button
+        type="button"
+        className="tile tile--mini"
+        aria-label={`Destacar a transmissão de ${stream.name}`}
+        aria-haspopup="menu"
+        aria-keyshortcuts="Shift+F10 ContextMenu"
+        data-tooltip="Clique para destacar · botão direito: opções"
+        onClick={onSelect}
+        onContextMenu={onContextMenu}
+        onKeyDown={onKeyDown}
+      >
+        <VideoSurface track={stream.videoTrack} className="tile__video" />
+        <StreamStatus stream={stream} compact />
+        <div className="tile__top tile__top--mini">
+          <Avatar id={stream.participantId} name={stream.name} src={stream.avatarUrl} size="xs" />
+          <span className="tile__name">{stream.name}</span>
+          <QualityBars quality={stream.quality} size={14} />
+        </div>
+      </button>
+      <button
+        type="button"
+        className="tile-mini__close"
+        aria-label={`Parar de assistir ${stream.name}`}
+        title="Parar de assistir"
+        onClick={onStopWatching}
+      >
+        <CloseIcon size={14} />
+      </button>
+    </div>
   );
 }

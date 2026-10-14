@@ -15,6 +15,8 @@ export const IPC = {
   UPDATE_SETTINGS: 'settings:update',
   GET_ROOMS: 'api:rooms',
   REQUEST_TOKEN: 'api:token',
+  GET_SERVER_INFO: 'api:server',
+  PING_SERVER: 'api:ping',
   GET_PRESENCE: 'presence:get',
   /** Fire-and-forget (`send`), not `invoke`. */
   HIDE_TO_TRAY: 'window:hide-to-tray',

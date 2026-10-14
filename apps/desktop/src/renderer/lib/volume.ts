@@ -4,7 +4,7 @@ export const MIN_VOLUME = 0;
 export const MAX_VOLUME = 100;
 /** Every live starts at half volume (watching, and in the pop-out). */
 export const DEFAULT_VOLUME = 50;
-export const VOLUME_STEP = 5;
+export const VOLUME_STEP = 1;
 
 export interface VolumeSetting {
   /** Percent, 0–100. */

@@ -1,14 +1,18 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { QUALITY_PRESETS, type QualityPresetId } from '@concord/shared';
 import { presetShortLabel } from '../../lib/encoding';
+import type { Viewer } from '../../lib/viewers';
 import { AudioWaveIcon, StopIcon } from '../icons';
 import { LocalPreview } from './LocalPreview';
+import { ViewerList } from './ViewerList';
 
 interface LocalPreviewTileProps {
   track: MediaStreamTrack;
   sourceName: string;
   quality: QualityPresetId;
   hasAudio: boolean;
+  /** Who is watching your live. */
+  viewers: readonly Viewer[];
   /** Large (on the stage, when nobody else streams) or mini (in the strip). */
   focused: boolean;
   onStop(): void;
@@ -23,6 +27,7 @@ export function LocalPreviewTile({
   sourceName,
   quality,
   hasAudio,
+  viewers,
   focused,
   onStop,
   onContextMenu,
@@ -50,11 +55,15 @@ export function LocalPreviewTile({
             {hasAudio ? ' · com áudio' : ' · sem áudio'}
           </span>
         )}
+        {!focused && <ViewerList viewers={viewers} variant="compact" />}
         {!focused && hasAudio && <AudioWaveIcon size={14} />}
       </div>
       {focused && (
         <div className="tile__controls tile__controls--static">
-          <span className="tile__hint">Prévia da sua transmissão (sem som para você).</span>
+          <div className="tile__bottom-left">
+            <ViewerList viewers={viewers} />
+            <span className="tile__hint">Prévia da sua transmissão (sem som para você).</span>
+          </div>
           <button type="button" className="btn btn--danger btn--sm" onClick={onStop}>
             <StopIcon size={16} />
             Parar transmissão

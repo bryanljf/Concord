@@ -12,6 +12,7 @@ import {
   type WatchedTileKind,
 } from '../lib/contextMenu';
 import { liveCardsTitle, stageTitles } from '../lib/stageText';
+import type { Viewer } from '../lib/viewers';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { Spinner } from './Spinner';
 import { FocusedStreamTile, MiniStreamTile } from './StreamTile';
@@ -30,6 +31,10 @@ interface StageProps {
   focusedId: string | null;
   /** Lives the user chose to watch, in the order they were picked. */
   watchedIds: readonly string[];
+  /** Who watches each remote live, by participant id. */
+  viewers: ReadonlyMap<string, readonly Viewer[]>;
+  /** Who watches your own broadcast. */
+  localViewers: readonly Viewer[];
   broadcast: BroadcastState;
   audio: StreamAudio;
   /** False when playback was blocked until a user gesture. */
@@ -64,6 +69,8 @@ type MenuTarget = { kind: WatchedTileKind; participantId: string } | { kind: 'lo
 
 const LOCAL_TARGET: MenuTarget = { kind: 'local' };
 
+const NO_VIEWERS: readonly Viewer[] = [];
+
 function EmptyState({ icon, title, children, tone = 'default' }: EmptyStateProps) {
   return (
     <div
@@ -89,6 +96,8 @@ export function Stage({
   streams,
   focusedId,
   watchedIds,
+  viewers,
+  localViewers,
   broadcast,
   audio,
   audioPlayback,
@@ -276,12 +285,14 @@ export function Stage({
           <FocusedStreamTile
             key={focused.participantId}
             stream={focused}
+            viewers={viewers.get(focused.participantId) ?? NO_VIEWERS}
             volume={audio.settingFor(focused.participantId)}
             fullscreen={fullscreen}
             onVolume={(volume) => audio.setVolume(focused.participantId, volume)}
             onToggleMute={() => audio.toggleMute(focused.participantId)}
             onToggleFullscreen={onToggleFullscreen}
             onPopout={() => onPopout(focused.participantId)}
+            onStopWatching={() => onUnwatch(focused.participantId)}
             onContextMenu={(event) =>
               contextMenu.onContextMenu(event, watchTarget('focused', focused.participantId))
             }
@@ -297,6 +308,7 @@ export function Stage({
             sourceName={broadcast.sourceName}
             quality={broadcast.quality}
             hasAudio={broadcast.hasAudio}
+            viewers={localViewers}
             focused
             onStop={onStopBroadcast}
             {...localMenu}
@@ -340,6 +352,7 @@ export function Stage({
                 sourceName={broadcast.sourceName}
                 quality={broadcast.quality}
                 hasAudio={broadcast.hasAudio}
+                viewers={localViewers}
                 focused={false}
                 onStop={onStopBroadcast}
                 {...localMenu}
@@ -351,6 +364,7 @@ export function Stage({
               <MiniStreamTile
                 stream={stream}
                 onSelect={() => onFocus(stream.participantId)}
+                onStopWatching={() => onUnwatch(stream.participantId)}
                 onContextMenu={(event) =>
                   contextMenu.onContextMenu(event, watchTarget('mini', stream.participantId))
                 }

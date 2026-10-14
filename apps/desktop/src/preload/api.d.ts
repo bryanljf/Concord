@@ -9,6 +9,7 @@ import type {
   PresenceSnapshot,
   QualityPresetId,
   RoomId,
+  ServerInfoResponse,
   TokenPurpose,
   TokenResponse,
   UserInfo,
@@ -28,6 +29,10 @@ export interface Settings {
   /** Rooms and users whose "ao vivo" notifications are silenced. */
   mutedRooms: RoomId[];
   mutedUsers: string[];
+  /** Chimes when someone starts or stops watching your live or a live you watch. */
+  viewerSounds: boolean;
+  /** Chimes when someone (or you) enters or leaves the room you are in. */
+  roomSounds: boolean;
   /** `MediaDeviceInfo.deviceId` used to play streams, or null for the system default. */
   audioOutputDeviceId: string | null;
   /** Whether the "closing hides to the tray" notice was already shown once. */
@@ -148,6 +153,10 @@ export interface ConcordApi {
   getRooms(): Promise<RoomId[]>;
   /** `purpose: 'popout'` yields a hidden, subscribe-only identity for the pop-out window. */
   requestToken(room: RoomId, purpose?: TokenPurpose): Promise<TokenResponse>;
+  /** Instance name and region of the server (`GET /api/server`). */
+  getServerInfo(): Promise<ServerInfoResponse>;
+  /** Round trip to the server in milliseconds; rejects when it does not answer. */
+  pingServer(): Promise<number>;
 
   // --- Presence (SSE lives in main) --------------------------------------------
   getPresence(): Promise<PresenceState>;

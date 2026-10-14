@@ -49,14 +49,17 @@ export function screenShareEncoding(preset: QualityPreset): ScreenShareEncoding 
   return { maxBitrate: preset.maxBitrate, maxFramerate: preset.fps };
 }
 
-/** Games keep their frame rate; everything else keeps the text readable. */
-export function degradationPreference(preset: QualityPreset): DegradationPreference {
-  return preset.contentHint === 'motion' ? 'maintain-framerate' : 'maintain-resolution';
-}
+/**
+ * Every preset keeps its frame rate: when bandwidth or CPU run short, the encoder lowers the
+ * resolution instead of dropping frames. The `detail` hint would put the encoder in screen-content
+ * mode, which drops frames under pressure (a 30 fps live fell to ~24 fps in a game at 4 Mbps).
+ */
+export const SCREEN_SHARE_CONTENT_HINT = 'motion';
+export const DEGRADATION_PREFERENCE: DegradationPreference = 'maintain-framerate';
 
 /** Everything the broadcast hook needs from a preset, in one place. */
 export interface EncodingParams {
-  contentHint: QualityPreset['contentHint'];
+  contentHint: typeof SCREEN_SHARE_CONTENT_HINT;
   screenShareEncoding: ScreenShareEncoding;
   degradationPreference: DegradationPreference;
   audioPreset: AudioEncoding;
@@ -65,9 +68,9 @@ export interface EncodingParams {
 export function encodingParams(id: QualityPresetId): EncodingParams {
   const preset = presetOf(id);
   return {
-    contentHint: preset.contentHint,
+    contentHint: SCREEN_SHARE_CONTENT_HINT,
     screenShareEncoding: screenShareEncoding(preset),
-    degradationPreference: degradationPreference(preset),
+    degradationPreference: DEGRADATION_PREFERENCE,
     audioPreset: SCREEN_SHARE_AUDIO_PRESET,
   };
 }

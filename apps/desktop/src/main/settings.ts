@@ -24,6 +24,8 @@ export function defaultSettings(): Settings {
     codec: 'h264',
     mutedRooms: [],
     mutedUsers: [],
+    viewerSounds: true,
+    roomSounds: true,
     audioOutputDeviceId: null,
     trayNoticeShown: false,
   };
@@ -76,6 +78,8 @@ const validators: { [K in keyof Settings]: Validator<K> } = {
       : undefined,
   mutedRooms: stringList,
   mutedUsers: stringList,
+  viewerSounds: boolean,
+  roomSounds: boolean,
   audioOutputDeviceId: (value) =>
     value === null || typeof value === 'string' ? (value as string | null) : undefined,
   trayNoticeShown: boolean,

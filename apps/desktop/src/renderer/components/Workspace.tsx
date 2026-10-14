@@ -9,6 +9,8 @@ import {
 import { useFullscreen } from '../hooks/useFullscreen';
 import { useHotkeys } from '../hooks/useHotkeys';
 import { useLiveStartedSound } from '../hooks/useLiveStartedSound';
+import { useRoomSounds } from '../hooks/useRoomSounds';
+import { useServerPing } from '../hooks/useServerPing';
 import { useNavigate } from '../hooks/useNavigate';
 import { usePresence } from '../hooks/usePresence';
 import { useRemoteStreams } from '../hooks/useRemoteStreams';
@@ -19,11 +21,15 @@ import { useStreamAudio } from '../hooks/useStreamAudio';
 import { useStreamToggle } from '../hooks/useStreamToggle';
 import { useSubscriptions } from '../hooks/useSubscriptions';
 import { useToast } from '../hooks/useToast';
+import { useViewerSounds } from '../hooks/useViewerSounds';
+import { useWatchedLiveEndedSound } from '../hooks/useWatchedLiveEndedSound';
+import { usePublishWatching, useViewers } from '../hooks/useViewers';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { formatShortcut } from '../lib/format';
 import { knownParticipants, presenceProfiles, withPresenceProfiles } from '../lib/presence';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
 import { playTransmissionEnded, playTransmissionStarted } from '../lib/transmissionSounds';
+import { resolveViewers, type Viewer } from '../lib/viewers';
 import { AppShell } from './AppShell';
 import { BottomBar } from './BottomBar';
 import { ConnectionBanner } from './ConnectionBanner';
@@ -49,6 +55,8 @@ const END_MESSAGES: Record<BroadcastEndReason, string | null> = {
   disconnected: 'Transmissão encerrada: a conexão com a sala caiu.',
 };
 
+const NO_VIEWERS: readonly Viewer[] = [];
+
 /** The main UI once a session exists: wires presence, rooms, settings, media and main's requests. */
 export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const toast = useToast();
@@ -73,6 +81,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   } = useRoom();
   const streams = useRemoteStreams(room);
   const connected = connectionState === 'connected';
+  const ping = useServerPing(currentRoom !== null);
   // Only what the user chose is on the stage: the focused live, if it is (still) live.
   const focusedId = streams.some((stream) => stream.participantId === focusedParticipantId)
     ? focusedParticipantId
@@ -83,6 +92,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   useEffect(() => {
     if (connected) syncLive(streams.map((stream) => stream.participantId));
   }, [connected, streams, syncLive]);
+  // A live you watch went off the air: the same chime the streamer hears when stopping.
+  useWatchedLiveEndedSound(streams, watchedParticipantIds, currentRoom, connected);
+  // Who watches what: you publish your watched lives, everyone's attributes give the viewers.
+  usePublishWatching(room, connected, watchedParticipantIds);
+  const viewerIds = useViewers(room);
   const audio = useStreamAudio({
     room,
     connectionState,
@@ -148,6 +162,30 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   );
   useLiveStartedSound(liveSoundContext);
 
+  // Voice-channel style chimes: people (you included) entering or leaving your room.
+  useRoomSounds({
+    currentRoom,
+    connectionState,
+    selfId: user.id,
+    enabled: settings?.roomSounds ?? true,
+  });
+
+  // Chime when someone starts or stops watching your live or a live you watch (Settings → Sons).
+  // Only lives still on the air: when one ends, its viewers stop watching without leaving.
+  const involvedLiveIds = useMemo(() => {
+    const live = new Set(streams.map((stream) => stream.participantId));
+    const watchedLive = watchedParticipantIds.filter((id) => live.has(id));
+    return broadcast.state.status === 'live' ? [user.id, ...watchedLive] : watchedLive;
+  }, [streams, broadcast.state.status, user.id, watchedParticipantIds]);
+  useViewerSounds({
+    viewers: viewerIds,
+    currentRoom,
+    connected,
+    involvedLiveIds,
+    selfId: user.id,
+    enabled: settings?.viewerSounds ?? true,
+  });
+
   const saveSettings = useCallback(
     (patch: Partial<Settings>) => {
       update(patch).catch((err: unknown) => {
@@ -163,6 +201,15 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   // LiveKit names are fixed when the token is issued; presence follows nickname/avatar changes.
   const profiles = useMemo(() => presenceProfiles(snapshot), [snapshot]);
   const stageStreams = useMemo(() => withPresenceProfiles(streams, profiles), [streams, profiles]);
+  const viewers = useMemo(() => {
+    const livekitName = (id: string): string | undefined =>
+      room.getParticipantByIdentity(id)?.name || undefined;
+    const resolved = new Map<string, Viewer[]>();
+    for (const [liveId, ids] of viewerIds) {
+      resolved.set(liveId, resolveViewers(ids, profiles, livekitName));
+    }
+    return resolved;
+  }, [viewerIds, profiles, room]);
   const platform = getPlatform();
   const shortcutLabel = formatShortcut(settings?.shortcut ?? DEFAULT_SHORTCUT, platform);
 
@@ -334,6 +381,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
                 room={currentRoom}
                 connectionState={connectionState}
                 failed={error !== null}
+                ping={ping}
                 onLeave={() => void leaveRoom()}
               />
             )}
@@ -373,6 +421,8 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           streams={stageStreams}
           focusedId={focusedId}
           watchedIds={watchedParticipantIds}
+          viewers={viewers}
+          localViewers={viewers.get(user.id) ?? NO_VIEWERS}
           broadcast={broadcast.state}
           audio={audio}
           audioPlayback={audioPlayback}

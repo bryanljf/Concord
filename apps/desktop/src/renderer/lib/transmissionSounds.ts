@@ -47,6 +47,38 @@ export function playTransmissionEnded(): void {
   ]);
 }
 
+/** Someone started watching a live you are part of: a soft, quick rising pair of notes. */
+export function playViewerJoined(): void {
+  play([
+    [659.25, 0, 0.09],
+    [880, 0.07, 0.18],
+  ]);
+}
+
+/** Someone stopped watching a live you are part of: the same pair, falling. */
+export function playViewerLeft(): void {
+  play([
+    [880, 0, 0.09],
+    [659.25, 0.07, 0.18],
+  ]);
+}
+
+/** Someone (or you) entered the room: a lower, rounder rising pair, like a voice channel. */
+export function playRoomJoined(): void {
+  play([
+    [392, 0, 0.1],
+    [587.33, 0.08, 0.22],
+  ]);
+}
+
+/** Someone (or you) left the room: the same pair, falling. */
+export function playRoomLeft(): void {
+  play([
+    [587.33, 0, 0.1],
+    [392, 0.08, 0.22],
+  ]);
+}
+
 /** Someone else went live in the room you are in: a light, higher two-note chime. */
 export function playLiveStartedInRoom(): void {
   play([

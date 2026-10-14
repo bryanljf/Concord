@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { PresenceEvent, RoomId, TokenResponse, UserInfo } from '@concord/shared';
+import type {
+  PresenceEvent,
+  RoomId,
+  ServerInfoResponse,
+  TokenResponse,
+  UserInfo,
+} from '@concord/shared';
 import type {
   CaptureSource,
   ConcordApi,
@@ -71,6 +77,8 @@ const api: ConcordApi = {
 
   getRooms: () => invoke<RoomId[]>(IPC.GET_ROOMS),
   requestToken: (room, purpose) => invoke<TokenResponse>(IPC.REQUEST_TOKEN, room, purpose),
+  getServerInfo: () => invoke<ServerInfoResponse>(IPC.GET_SERVER_INFO),
+  pingServer: () => invoke<number>(IPC.PING_SERVER),
 
   getPresence: () => invoke<PresenceState>(IPC.GET_PRESENCE),
   onPresenceEvent: (listener) => subscribe<PresenceEvent>(EVENTS.PRESENCE_EVENT, listener),

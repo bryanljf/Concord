@@ -4,6 +4,7 @@ import type {
   NicknameRequest,
   RoomId,
   RoomsResponse,
+  ServerInfoResponse,
   TokenPurpose,
   TokenRequest,
   TokenResponse,
@@ -188,6 +189,20 @@ function parseToken(value: unknown): TokenResponse | null {
   return { token, url, expiresAt };
 }
 
+export function parseServerInfo(value: unknown): ServerInfoResponse | null {
+  if (!isRecord(value)) return null;
+  const { name, region, provider } = value as Partial<ServerInfoResponse>;
+  if (typeof name !== 'string' || name === '') return null;
+  return {
+    name,
+    region: typeof region === 'string' && region !== '' ? region : null,
+    provider: provider === 'oracle' ? 'oracle' : null,
+  };
+}
+
+/** A ping that takes longer than this counts as lost. */
+export const PING_TIMEOUT_MS = 5_000;
+
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -209,6 +224,10 @@ export interface ApiClient {
   token(room: RoomId, purpose?: TokenPurpose): Promise<TokenResponse>;
   /** `PUT /api/me/nickname`; null clears the nickname (back to the Discord name). */
   setNickname(nickname: string | null): Promise<UserInfo>;
+  /** `GET /api/server`: instance name and region. */
+  server(): Promise<ServerInfoResponse>;
+  /** Round trip of `GET /api/health` in milliseconds (the connection is kept alive between pings). */
+  ping(): Promise<number>;
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PUT';
@@ -269,6 +288,25 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     setNickname: (nickname) => {
       const body: NicknameRequest = { nickname };
       return request('/api/me/nickname', parseMe, body, 'PUT');
+    },
+    server: () => request('/api/server', parseServerInfo),
+    ping: async () => {
+      const base = normalizeServerUrl(options.getServerUrl());
+      const host = serverHost(base);
+      const started = performance.now();
+      let res: Response;
+      try {
+        res = await fetchImpl(`${base}/api/health`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(PING_TIMEOUT_MS),
+        });
+        await res.arrayBuffer();
+      } catch (err) {
+        if (isTimeoutError(err)) throw new ApiClientError('timeout', timeoutErrorMessage(host));
+        throw new ApiClientError('network', networkErrorMessage(host));
+      }
+      if (!res.ok) throw new ApiClientError('bad_response', unexpectedStatusMessage(res.status));
+      return Math.max(0, Math.round(performance.now() - started));
     },
   };
 }

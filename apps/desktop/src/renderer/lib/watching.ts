@@ -75,3 +75,14 @@ export function pruneWatching(state: WatchingState, liveIds: Iterable<string>): 
   const live = new Set(liveIds);
   return removeMany(state, new Set(state.watched.filter((id) => !live.has(id))));
 }
+
+/**
+ * Watched lives that went off the air between two snapshots: `prevLiveWatched` were watched and
+ * live before, `liveIds` are live now. Unwatching a live that is still on never counts.
+ */
+export function endedWatchedLives(
+  prevLiveWatched: readonly string[],
+  liveIds: ReadonlySet<string>,
+): string[] {
+  return prevLiveWatched.filter((id) => !liveIds.has(id));
+}

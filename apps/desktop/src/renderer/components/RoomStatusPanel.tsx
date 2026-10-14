@@ -1,6 +1,8 @@
 import { roomLabel, type RoomId } from '@concord/shared';
 import type { RoomConnectionState } from '../hooks/useRoom';
+import type { ServerPing } from '../hooks/useServerPing';
 import { LeaveRoomIcon } from './icons';
+import { PingIndicator } from './PingIndicator';
 import '../styles/room-status-panel.css';
 
 interface RoomStatusPanelProps {
@@ -8,6 +10,8 @@ interface RoomStatusPanelProps {
   connectionState: RoomConnectionState;
   /** Joining failed or the room dropped (the stage offers "Tentar de novo"). */
   failed: boolean;
+  /** Latency to the server, instance and region (the bars on the left). */
+  ping: ServerPing;
   onLeave(): void;
 }
 
@@ -25,13 +29,20 @@ const STATUS: Record<RoomConnectionState, { label: string; tone: Tone }> = {
 
 /**
  * The strip above the user panel while you are in a room (like Discord's "voice connected"):
- * connection status, the room, and the button to leave it.
+ * ping bars, connection status, the room, and the button to leave it.
  */
-export function RoomStatusPanel({ room, connectionState, failed, onLeave }: RoomStatusPanelProps) {
+export function RoomStatusPanel({
+  room,
+  connectionState,
+  failed,
+  ping,
+  onLeave,
+}: RoomStatusPanelProps) {
   const status = failed ? FAILED : STATUS[connectionState];
   const label = roomLabel(room);
   return (
     <section className="room-status" aria-label={`Sala atual: ${label}`}>
+      <PingIndicator ping={ping} />
       <div className="room-status__info" role="status">
         <span className={`room-status__state room-status__state--${status.tone}`}>
           {status.label}

@@ -92,10 +92,10 @@ describe('labels and icon levels', () => {
 });
 
 describe('stepVolume', () => {
-  it('moves in 5 % steps and clamps', () => {
-    expect(stepVolume(50, 1)).toBe(55);
-    expect(stepVolume(50, -3)).toBe(35);
-    expect(stepVolume(98, 1)).toBe(100);
-    expect(stepVolume(2, -1)).toBe(0);
+  it('moves in 1 % steps and clamps', () => {
+    expect(stepVolume(50, 1)).toBe(51);
+    expect(stepVolume(50, -3)).toBe(47);
+    expect(stepVolume(100, 1)).toBe(100);
+    expect(stepVolume(0, -1)).toBe(0);
   });
 });
