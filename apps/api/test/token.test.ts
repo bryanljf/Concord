@@ -34,6 +34,7 @@ describe('POST /api/token', () => {
       canPublish: true,
       canPublishSources: ['screen_share', 'screen_share_audio'],
       canPublishData: true,
+      canUpdateOwnMetadata: true,
     });
     const exp = claims.exp ?? 0;
     expect(exp).toBeGreaterThanOrEqual(before + TOKEN_TTL_SECONDS);
@@ -76,6 +77,7 @@ describe('POST /api/token', () => {
       canPublish: true,
       canPublishSources: ['screen_share', 'screen_share_audio'],
       canPublishData: true,
+      canUpdateOwnMetadata: true,
     });
     await app.close();
   });

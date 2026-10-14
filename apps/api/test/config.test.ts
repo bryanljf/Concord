@@ -24,6 +24,7 @@ describe('loadConfig', () => {
       usersFile: resolve('/srv/concord/apps/api', '../../infra/users.json'),
       profilesFile: resolve('/srv/concord/apps/api', '../../infra/profiles.json'),
       discordBotToken: undefined,
+      server: { name: undefined, region: undefined },
       auth: {
         discordClientId: 'client',
         discordClientSecret: 'secret',
@@ -52,6 +53,8 @@ describe('loadConfig', () => {
       USERS_FILE: 'data/users.json',
       PROFILES_FILE: '/var/lib/concord/profiles.json',
       DISCORD_BOT_TOKEN: ' bot-token ',
+      SERVER_NAME: ' Principal ',
+      SERVER_REGION: 'Casa',
       LIVEKIT_LOCAL_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_URL: 'http://127.0.0.1:7880',
     };
@@ -63,6 +66,7 @@ describe('loadConfig', () => {
       usersFile: resolve('/srv', 'data/users.json'),
       profilesFile: resolve('/srv', '/var/lib/concord/profiles.json'),
       discordBotToken: 'bot-token',
+      server: { name: 'Principal', region: 'Casa' },
       auth: {
         discordClientId: 'client',
         discordClientSecret: 'secret',

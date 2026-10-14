@@ -99,6 +99,16 @@ export interface RoomsResponse {
   rooms: RoomId[];
 }
 
+/** `GET /api/server`: where the server runs (shown next to the ping in the app). */
+export interface ServerInfoResponse {
+  /** Instance name: `SERVER_NAME`, the cloud instance's display name, or the host name. */
+  name: string;
+  /** Cloud region id (`sa-saopaulo-1`) or a free label from `SERVER_REGION`; null when unknown. */
+  region: string | null;
+  /** Where the region came from, so the app can name the cloud. */
+  provider: 'oracle' | null;
+}
+
 /**
  * `main`: the regular participant (publishes and subscribes). `popout`: a hidden, subscribe-only
  * identity used by the pop-out window, so one person can hold two LiveKit connections.
@@ -154,7 +164,6 @@ export interface QualityPreset {
   height: number;
   fps: number;
   maxBitrate: number;
-  contentHint: 'motion' | 'detail';
 }
 
 export const QUALITY_PRESETS = {
@@ -164,7 +173,6 @@ export const QUALITY_PRESETS = {
     height: 720,
     fps: 30,
     maxBitrate: 2_500_000,
-    contentHint: 'detail',
   },
   standard: {
     label: 'Padrão',
@@ -172,7 +180,6 @@ export const QUALITY_PRESETS = {
     height: 1080,
     fps: 30,
     maxBitrate: 4_000_000,
-    contentHint: 'detail',
   },
   game: {
     label: 'Jogo',
@@ -180,7 +187,6 @@ export const QUALITY_PRESETS = {
     height: 1080,
     fps: 60,
     maxBitrate: 6_000_000,
-    contentHint: 'motion',
   },
 } as const satisfies Record<string, QualityPreset>;
 

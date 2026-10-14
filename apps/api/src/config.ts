@@ -36,6 +36,8 @@ export interface ApiConfig {
     sessionTtlSeconds: number;
   };
   livekit: LiveKitConfig;
+  /** `SERVER_NAME` / `SERVER_REGION`: override the detected instance name and region. */
+  server?: { name?: string; region?: string };
 }
 
 export class ConfigError extends Error {
@@ -146,6 +148,10 @@ export function loadConfig(env: Env = process.env, cwd: string = process.cwd()):
     usersFile: resolve(cwd, env.USERS_FILE?.trim() || '../../infra/users.json'),
     profilesFile: resolve(cwd, env.PROFILES_FILE?.trim() || '../../infra/profiles.json'),
     discordBotToken: env.DISCORD_BOT_TOKEN?.trim() || undefined,
+    server: {
+      name: env.SERVER_NAME?.trim() || undefined,
+      region: env.SERVER_REGION?.trim() || undefined,
+    },
     auth: {
       discordClientId: required(env, 'DISCORD_CLIENT_ID'),
       discordClientSecret: required(env, 'DISCORD_CLIENT_SECRET'),

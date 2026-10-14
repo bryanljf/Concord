@@ -25,13 +25,17 @@ export interface RoomToken {
   expiresAt: number;
 }
 
-/** The regular participant: publishes screen-share video/audio only (no camera or mic). */
+/**
+ * The regular participant: publishes screen-share video/audio only (no camera or mic), and sets
+ * its own attributes (the lives it watches, so the others can list their viewers).
+ */
 const MAIN_GRANT: Omit<VideoGrant, 'room'> = {
   roomJoin: true,
   canSubscribe: true,
   canPublish: true,
   canPublishSources: [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO],
   canPublishData: true,
+  canUpdateOwnMetadata: true,
 };
 
 /** The pop-out window: a second, hidden, subscribe-only connection of the same person. */

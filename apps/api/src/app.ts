@@ -6,10 +6,11 @@ import Fastify, {
   type FastifyServerOptions,
 } from 'fastify';
 import type { WebhookReceiver } from 'livekit-server-sdk';
-import type { ApiErrorResponse } from '@concord/shared';
+import type { ApiErrorResponse, ServerInfoResponse } from '@concord/shared';
 import type { UserStore } from './auth';
 import type { ApiConfig } from './config';
 import { createWebhookReceiver } from './livekit';
+import { cachedServerInfo } from './server-info';
 import type { PresenceStore } from './presence-store';
 import type { ProfileStore } from './profiles';
 import { healthRoutes } from './routes/health';
@@ -17,6 +18,7 @@ import { livekitWebhookRoutes } from './routes/livekit-webhook';
 import { meRoutes } from './routes/me';
 import { presenceRoutes } from './routes/presence';
 import { roomsRoutes } from './routes/rooms';
+import { serverRoutes } from './routes/server';
 import { tokenRoutes } from './routes/token';
 import { discordAuthRoutes } from './routes/discord-auth';
 
@@ -34,6 +36,8 @@ export interface BuildAppOptions {
   heartbeatMs?: number;
   /** Verifier for LiveKit webhooks; defaults to one built from the config. */
   webhookReceiver?: Pick<WebhookReceiver, 'receive'>;
+  /** Instance name and region for `GET /api/server`; defaults to detecting them once. */
+  serverInfo?: () => Promise<ServerInfoResponse>;
 }
 
 const NOT_FOUND: ApiErrorResponse = { error: 'not_found', message: 'Rota não encontrada.' };
@@ -102,6 +106,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     users,
     rooms: config.rooms,
     sessionSecret: config.auth.sessionSecret,
+  });
+  app.register(serverRoutes, {
+    users,
+    sessionSecret: config.auth.sessionSecret,
+    serverInfo: options.serverInfo ?? cachedServerInfo(config.server),
   });
   app.register(tokenRoutes, {
     config,

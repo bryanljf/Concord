@@ -31,10 +31,14 @@ describe('auxiliary identities', () => {
 });
 
 describe('QUALITY_PRESETS', () => {
-  it('uses motion hint only for the game preset', () => {
-    expect(QUALITY_PRESETS.game.contentHint).toBe('motion');
-    expect(QUALITY_PRESETS.light.contentHint).toBe('detail');
-    expect(QUALITY_PRESETS.standard.contentHint).toBe('detail');
+  it('caps the frame rate and bitrate per preset', () => {
+    expect(QUALITY_PRESETS.light).toMatchObject({ height: 720, fps: 30, maxBitrate: 2_500_000 });
+    expect(QUALITY_PRESETS.standard).toMatchObject({
+      height: 1080,
+      fps: 30,
+      maxBitrate: 4_000_000,
+    });
+    expect(QUALITY_PRESETS.game).toMatchObject({ height: 1080, fps: 60, maxBitrate: 6_000_000 });
   });
 });
 
