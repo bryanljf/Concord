@@ -406,7 +406,8 @@ export function Stage({
     const stream = byKey.get(tile.key);
     if (!stream) return null;
     if (tile.elsewhere) return elsewhereTile(stream, 'focused');
-    // Volume, mute and the pop-out only exist for a screen share with audio / a screen share.
+    // Volume and mute only exist for a screen share with audio; "another window" is the pop-out
+    // for a screen share and the cameras' picture-in-picture for a webcam.
     const screen = stream.kind === 'screen';
     const withAudio = screen && stream.audio !== null;
     return (
@@ -419,7 +420,7 @@ export function Stage({
         onToggleMute={withAudio ? () => audio.toggleMute(stream.participantId) : undefined}
         fullscreen={fullscreen}
         onToggleFullscreen={onToggleFullscreen}
-        onPopout={screen ? () => onPopout(stream.participantId) : undefined}
+        onPopout={screen ? () => onPopout(stream.participantId) : onOpenPip}
         onStopWatching={() => onUnwatch(stream.key)}
         onShowGrid={layout.canShowGrid ? onShowGrid : undefined}
         {...watchedMenu('focused', stream.key)}

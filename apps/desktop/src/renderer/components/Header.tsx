@@ -4,8 +4,11 @@ import '../styles/header.css';
 
 interface HeaderProps {
   currentRoom: RoomId | null;
-  /** A remote screen share plays big on the stage (the pop-out button acts on it). */
-  hasFocusedStream: boolean;
+  /**
+   * What plays big on the stage, which the "another window" button acts on: a screen share
+   * goes to the pop-out, a webcam to the cameras' picture-in-picture; null disables it.
+   */
+  focusedKind: 'screen' | 'camera' | null;
   fullscreen: boolean;
   onToggleFullscreen(): void;
   onPopout(): void;
@@ -14,7 +17,7 @@ interface HeaderProps {
 
 export function Header({
   currentRoom,
-  hasFocusedStream,
+  focusedKind,
   fullscreen,
   onToggleFullscreen,
   onPopout,
@@ -43,11 +46,19 @@ export function Header({
         <button
           type="button"
           className="icon-btn"
-          disabled={!hasFocusedStream}
+          disabled={focusedKind === null}
           data-tooltip={
-            hasFocusedStream ? 'Abrir em janela separada' : 'Destaque uma transmissão primeiro'
+            focusedKind === 'camera'
+              ? 'Picture-in-picture'
+              : focusedKind === 'screen'
+                ? 'Abrir em janela separada'
+                : 'Destaque uma transmissão primeiro'
           }
-          aria-label="Abrir a transmissão em destaque em uma janela separada"
+          aria-label={
+            focusedKind === 'camera'
+              ? 'Abrir as câmeras em picture-in-picture'
+              : 'Abrir a transmissão em destaque em uma janela separada'
+          }
           onClick={onPopout}
         >
           <PopOutIcon />

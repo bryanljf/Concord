@@ -29,9 +29,12 @@ const logger = log('pip');
 // Geometry (pure, unit-tested)
 // ---------------------------------------------------------------------------
 
-/** Space between the window edge and the cameras, and between two cameras. */
-export const PIP_PADDING = 6;
-export const PIP_GAP = 6;
+/**
+ * Space between the window edge and the cameras, and between two cameras: none, the cameras fill
+ * the window edge to edge (only the window's corners are rounded, in pip.css).
+ */
+export const PIP_PADDING = 0;
+export const PIP_GAP = 0;
 /** Narrowest camera, unless even that does not fit on the screen. */
 export const PIP_MIN_TILE_WIDTH = 160;
 /** Distance from the screen edges of the default (top-right) position. */

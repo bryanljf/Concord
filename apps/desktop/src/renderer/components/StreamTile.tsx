@@ -35,7 +35,7 @@ interface FocusedTileProps {
   fullscreen: boolean;
   onToggleFullscreen(): void;
   // Optional actions: each button is only rendered when its callback is given.
-  /** Stage, screen shares: open in the pop-out window. */
+  /** Stage: open in another window (the pop-out for a screen share, the PiP for a webcam). */
   onPopout?(): void;
   /** Stage: "Parar de assistir" (also in the right-click menu). */
   onStopWatching?(): void;
@@ -172,8 +172,10 @@ export function FocusedStreamTile({
             <button
               type="button"
               className="icon-btn icon-btn--overlay"
-              aria-label="Abrir em janela separada"
-              data-tooltip="Janela separada"
+              aria-label={
+                camera ? 'Abrir as câmeras em picture-in-picture' : 'Abrir em janela separada'
+              }
+              data-tooltip={camera ? 'Picture-in-picture' : 'Janela separada'}
               onClick={onPopout}
             >
               <PopOutIcon size={18} />

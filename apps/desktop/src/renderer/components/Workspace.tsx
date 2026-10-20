@@ -728,10 +728,13 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
         header={
           <Header
             currentRoom={currentRoom}
-            hasFocusedStream={effectiveScreen !== null && connected}
+            focusedKind={connected ? (effectiveStream?.kind ?? null) : null}
             fullscreen={fullscreen}
             onToggleFullscreen={onToggleFullscreen}
-            onPopout={() => openPopout(effectiveScreen?.participantId ?? null)}
+            onPopout={() => {
+              if (effectiveStream?.kind === 'camera') openPip();
+              else openPopout(effectiveScreen?.participantId ?? null);
+            }}
             onOpenSettings={openSettings}
           />
         }

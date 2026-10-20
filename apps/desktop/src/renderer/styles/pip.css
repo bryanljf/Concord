@@ -1,6 +1,6 @@
 /*
  * Cameras' picture-in-picture window. The BrowserWindow is transparent (main/pip.ts) and `.pip`
- * paints the rounded #111214 box, so the corners look the same on Windows 10 and 11.
+ * paints the rounded box the cameras fill edge to edge, so the corners look the same on Windows 10/11.
  */
 html.pip-window,
 html.pip-window body,
@@ -14,7 +14,7 @@ html.pip-window #root {
   display: flex;
   height: 100%;
   border-radius: 8px;
-  background: #111214;
+  background: #000;
   color: var(--text-strong);
   overflow: hidden;
   cursor: default;
@@ -25,13 +25,19 @@ html.pip-window #root {
   border-radius: 0;
 }
 
-/* Tiles: stacked like the setting says, 6 px around and between them */
+/*
+ * Tiles: stacked like the setting says, edge to edge (main sizes the window without any margin);
+ * only fullscreen, which letterboxes them anyway, spaces them out.
+ */
 .pip__tiles {
   display: flex;
   flex: 1;
-  gap: 6px;
   min-width: 0;
   min-height: 0;
+}
+
+.pip--fullscreen .pip__tiles {
+  gap: 6px;
   padding: 6px;
 }
 
@@ -63,26 +69,40 @@ html.pip-window #root {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 8px;
   background: #000;
   overflow: hidden;
 }
 
-.pip--fullscreen .pip__tile {
+/*
+ * The window's rounded corners, on the tiles that touch them: a video is not always clipped by an
+ * ancestor's radius, so the outer corners of the first and last tile carry it themselves.
+ */
+.pip--vertical .pip__cell:first-child .pip__tile {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.pip--vertical .pip__cell:last-child .pip__tile {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.pip--horizontal .pip__cell:first-child .pip__tile {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.pip--horizontal .pip__cell:last-child .pip__tile {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.pip--fullscreen .pip__tile,
+.pip--fullscreen .pip__cell .pip__tile {
   width: min(100cqw, 100cqh * 16 / 9);
   height: auto;
   aspect-ratio: 16 / 9;
-}
-
-/* 1 px inner border, drawn over the video */
-.pip__tile::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  pointer-events: none;
+  border-radius: 8px;
 }
 
 .pip__video {
