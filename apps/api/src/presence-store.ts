@@ -12,6 +12,8 @@ export interface ParticipantIdentity {
 export interface ParticipantState extends ParticipantIdentity {
   /** SIDs of the screen-share video tracks currently published. */
   screenTracks: string[];
+  /** SIDs of the camera video tracks currently published. */
+  cameraTracks: string[];
 }
 
 export type RoomState = Record<RoomId, ParticipantState[]>;
@@ -24,6 +26,7 @@ interface Entry {
   livekitName: string;
   joinedAt: number;
   screenTracks: Set<string>;
+  cameraTracks: Set<string>;
   /** Resolved name and avatar, as last emitted to listeners. */
   name: string;
   avatarUrl: string | null;
@@ -36,12 +39,13 @@ function toParticipant(entry: Entry): PresenceParticipant {
     streaming: entry.screenTracks.size > 0,
     joinedAt: entry.joinedAt,
     avatarUrl: entry.avatarUrl,
+    camera: entry.cameraTracks.size > 0,
   };
 }
 
 /**
- * In-memory presence: who is in which room and who is screen-sharing. Fed by LiveKit
- * webhooks and periodic resyncs; emits granular events only when something changes.
+ * In-memory presence: who is in which room, who is screen-sharing and who has a camera on. Fed
+ * by LiveKit webhooks and periodic resyncs; emits granular events only when something changes.
  */
 export class PresenceStore {
   private readonly rooms = new Map<RoomId, Map<string, Entry>>();
@@ -111,6 +115,21 @@ export class PresenceStore {
   }
 
   /**
+   * Registers a published camera track; creates the participant if unknown. A camera is never a
+   * stream: it only flips `camera`, announced with `participant_updated`.
+   */
+  cameraTrackPublished(room: RoomId, participant: ParticipantIdentity, trackSid: string): void {
+    const entry = this.ensure(room, participant);
+    this.updateCamera(room, entry, () => entry.cameraTracks.add(trackSid));
+  }
+
+  cameraTrackUnpublished(room: RoomId, participantId: string, trackSid: string): void {
+    const entry = this.rooms.get(room)?.get(participantId);
+    if (!entry) return;
+    this.updateCamera(room, entry, () => entry.cameraTracks.delete(trackSid));
+  }
+
+  /**
    * Re-resolves a user's name and avatar and emits `participant_updated` in every room where
    * they are present and something visible changed.
    */
@@ -166,6 +185,9 @@ export class PresenceStore {
         for (const sid of wantedTracks) {
           if (!entry.screenTracks.has(sid)) this.screenTrackPublished(room, participant, sid);
         }
+        this.updateCamera(room, entry, () => {
+          entry.cameraTracks = new Set(participant.cameraTracks);
+        });
       }
     }
   }
@@ -188,11 +210,22 @@ export class PresenceStore {
       livekitName: participant.name,
       joinedAt: participant.joinedAt,
       screenTracks: new Set(),
+      cameraTracks: new Set(),
       ...this.resolve(participant.id, participant.name),
     };
     entries.set(participant.id, entry);
     this.emit({ type: 'participant_joined', room, participant: toParticipant(entry) });
     return entry;
+  }
+
+  /** Applies `change` to the entry's camera tracks; announces it only when `camera` flips. */
+  private updateCamera(room: RoomId, entry: Entry, change: () => void): void {
+    const hadCamera = entry.cameraTracks.size > 0;
+    change();
+    const hasCamera = entry.cameraTracks.size > 0;
+    if (hasCamera !== hadCamera) {
+      this.emit({ type: 'participant_updated', room, participant: toParticipant(entry) });
+    }
   }
 
   private resolve(id: string, livekitName: string): { name: string; avatarUrl: string | null } {

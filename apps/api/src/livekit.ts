@@ -26,19 +26,23 @@ export interface RoomToken {
 }
 
 /**
- * The regular participant: publishes screen-share video/audio only (no camera or mic), and sets
- * its own attributes (the lives it watches, so the others can list their viewers).
+ * The regular participant: publishes screen-share video/audio and a webcam (never a mic: voice
+ * stays on Discord), and sets its own attributes (the lives it watches, so the others can list
+ * their viewers).
  */
 const MAIN_GRANT: Omit<VideoGrant, 'room'> = {
   roomJoin: true,
   canSubscribe: true,
   canPublish: true,
-  canPublishSources: [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO],
+  canPublishSources: [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO, TrackSource.CAMERA],
   canPublishData: true,
   canUpdateOwnMetadata: true,
 };
 
-/** The pop-out window: a second, hidden, subscribe-only connection of the same person. */
+/**
+ * The pop-out and picture-in-picture windows: extra, hidden, subscribe-only connections of the
+ * same person.
+ */
 const POPOUT_GRANT: Omit<VideoGrant, 'room'> = {
   roomJoin: true,
   canSubscribe: true,
@@ -48,8 +52,9 @@ const POPOUT_GRANT: Omit<VideoGrant, 'room'> = {
 };
 
 /**
- * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share publish
- * grants; `popout` joins as the auxiliary identity `<id>~popout`, hidden and subscribe-only.
+ * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share and
+ * camera publish grants; `popout` / `pip` join as the auxiliary identity `<id>~<purpose>`, hidden
+ * and subscribe-only.
  * `name` is the display name LiveKit shows (the resolved profile name; defaults to users.json).
  */
 export async function createRoomToken(
@@ -85,7 +90,11 @@ export function isScreenShareVideo(track: Pick<TrackInfo, 'source' | 'type'>): b
   return track.source === TrackSource.SCREEN_SHARE && track.type === TrackType.VIDEO;
 }
 
-/** Auxiliary identities (pop-out windows) are extra connections of a person, not presence. */
+export function isCameraVideo(track: Pick<TrackInfo, 'source' | 'type'>): boolean {
+  return track.source === TrackSource.CAMERA && track.type === TrackType.VIDEO;
+}
+
+/** Auxiliary identities (pop-out/PiP windows) are extra connections of a person, not presence. */
 export function isAuxiliaryParticipant(participant: Pick<ParticipantInfo, 'identity'>): boolean {
   return isAuxiliaryIdentity(participant.identity);
 }
@@ -102,6 +111,7 @@ function toParticipantState(participant: ParticipantInfo): ParticipantState {
   return {
     ...toParticipantIdentity(participant),
     screenTracks: participant.tracks.filter(isScreenShareVideo).map((track) => track.sid),
+    cameraTracks: participant.tracks.filter(isCameraVideo).map((track) => track.sid),
   };
 }
 

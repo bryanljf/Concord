@@ -3,10 +3,11 @@ import type { PresenceEvent } from '@concord/shared';
 import { PresenceStore } from '../src/presence-store';
 import type { ResolvedProfile } from '../src/profiles';
 
-// avatarUrl: null is what presence reports when no profile is known.
-const alice = { id: 'alice', name: 'Alice', joinedAt: 1_000, avatarUrl: null };
-const bob = { id: 'bob', name: 'Bob', joinedAt: 2_000, avatarUrl: null };
-const carol = { id: 'carol', name: 'Carol', joinedAt: 3_000, avatarUrl: null };
+// avatarUrl: null is what presence reports when no profile is known, camera: false while no
+// camera track is published.
+const alice = { id: 'alice', name: 'Alice', joinedAt: 1_000, avatarUrl: null, camera: false };
+const bob = { id: 'bob', name: 'Bob', joinedAt: 2_000, avatarUrl: null, camera: false };
+const carol = { id: 'carol', name: 'Carol', joinedAt: 3_000, avatarUrl: null, camera: false };
 
 describe('PresenceStore', () => {
   let store: PresenceStore;
@@ -49,6 +50,8 @@ describe('PresenceStore', () => {
     store.leave('geral', 'ghost');
     store.leave('nowhere', 'ghost');
     store.screenTrackUnpublished('geral', 'ghost', 'TR_1');
+    store.cameraTrackUnpublished('geral', 'ghost', 'TR_1');
+    store.cameraTrackUnpublished('nowhere', 'ghost', 'TR_1');
     expect(events).toEqual([]);
   });
 
@@ -91,6 +94,96 @@ describe('PresenceStore', () => {
     ]);
   });
 
+  describe('cameras', () => {
+    it('announces camera with participant_updated only when it flips', () => {
+      store.join('geral', alice);
+      store.cameraTrackPublished('geral', alice, 'TR_cam1');
+      store.cameraTrackPublished('geral', alice, 'TR_cam1'); // duplicate webhook
+      store.cameraTrackPublished('geral', alice, 'TR_cam2'); // a second camera
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_cam1');
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_unknown');
+      expect(events.slice(1)).toEqual([
+        {
+          type: 'participant_updated',
+          room: 'geral',
+          participant: { ...alice, streaming: false, camera: true },
+        },
+      ]);
+      expect(store.participant('geral', 'alice')?.camera).toBe(true);
+
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_cam2');
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_cam2'); // duplicate webhook
+      expect(events.slice(2)).toEqual([
+        { type: 'participant_updated', room: 'geral', participant: { ...alice, streaming: false } },
+      ]);
+      expect(store.participant('geral', 'alice')?.camera).toBe(false);
+    });
+
+    it('never counts a camera as streaming nor a screen as a camera', () => {
+      store.join('geral', alice);
+      store.screenTrackPublished('geral', alice, 'TR_screen');
+      store.cameraTrackPublished('geral', alice, 'TR_cam');
+      store.screenTrackUnpublished('geral', 'alice', 'TR_screen');
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_cam');
+      expect(events.slice(1)).toEqual([
+        { type: 'stream_started', room: 'geral', participantId: 'alice' },
+        {
+          type: 'participant_updated',
+          room: 'geral',
+          participant: { ...alice, streaming: true, camera: true },
+        },
+        { type: 'stream_stopped', room: 'geral', participantId: 'alice' },
+        { type: 'participant_updated', room: 'geral', participant: { ...alice, streaming: false } },
+      ]);
+    });
+
+    it('unpublishing a camera track SID never touches the screen tracks', () => {
+      store.screenTrackPublished('geral', alice, 'TR_1');
+      events.length = 0;
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_1');
+      expect(events).toEqual([]);
+      expect(store.participant('geral', 'alice')?.streaming).toBe(true);
+    });
+
+    it('creates the participant when a camera track arrives before the join', () => {
+      store.cameraTrackPublished('jogos', bob, 'TR_cam');
+      expect(events).toEqual([
+        { type: 'participant_joined', room: 'jogos', participant: { ...bob, streaming: false } },
+        {
+          type: 'participant_updated',
+          room: 'jogos',
+          participant: { ...bob, streaming: false, camera: true },
+        },
+      ]);
+    });
+
+    it('a participant with a camera leaves with a single participant_left', () => {
+      store.join('geral', alice);
+      store.cameraTrackPublished('geral', alice, 'TR_cam');
+      events.length = 0;
+      store.leave('geral', 'alice');
+      expect(events).toEqual([
+        {
+          type: 'participant_left',
+          room: 'geral',
+          participant: { ...alice, streaming: false, camera: true },
+        },
+      ]);
+
+      store.join('geral', alice);
+      expect(store.participant('geral', 'alice')?.camera).toBe(false);
+    });
+
+    it('shows the camera flag in snapshots', () => {
+      store.join('geral', alice);
+      store.cameraTrackPublished('geral', bob, 'TR_cam');
+      expect(store.snapshot().rooms.geral).toEqual([
+        { ...alice, streaming: false },
+        { ...bob, streaming: false, camera: true },
+      ]);
+    });
+  });
+
   it('clearRoom removes everyone but keeps configured rooms in the snapshot', () => {
     store.join('geral', alice);
     store.join('geral', bob);
@@ -127,24 +220,21 @@ describe('PresenceStore', () => {
     });
 
     it('refreshUser emits participant_updated in every room where the user is present', () => {
-      resolved.join('geral', alice);
+      resolved.cameraTrackPublished('geral', alice, 'TR_cam');
       resolved.screenTrackPublished('jogos', alice, 'TR_1');
       resolved.join('geral', bob);
       events.length = 0;
 
       profiles.set('alice', { name: 'Lice', avatarUrl: 'https://a/2.png' });
       resolved.refreshUser('alice');
+      const lice = { ...alice, name: 'Lice', avatarUrl: 'https://a/2.png' };
       expect(events).toEqual([
         {
           type: 'participant_updated',
           room: 'geral',
-          participant: { ...alice, name: 'Lice', avatarUrl: 'https://a/2.png', streaming: false },
+          participant: { ...lice, streaming: false, camera: true },
         },
-        {
-          type: 'participant_updated',
-          room: 'jogos',
-          participant: { ...alice, name: 'Lice', avatarUrl: 'https://a/2.png', streaming: true },
-        },
+        { type: 'participant_updated', room: 'jogos', participant: { ...lice, streaming: true } },
       ]);
       expect(resolved.participant('jogos', 'alice')?.name).toBe('Lice');
     });
@@ -176,11 +266,11 @@ describe('PresenceStore', () => {
       store.join('jogos', carol);
       events.length = 0;
 
-      const dave = { id: 'dave', name: 'Dave', joinedAt: 4_000, avatarUrl: null };
+      const dave = { id: 'dave', name: 'Dave', joinedAt: 4_000, avatarUrl: null, camera: false };
       store.replaceAll({
         geral: [
-          { ...alice, screenTracks: ['TR_1'] },
-          { ...dave, screenTracks: ['TR_4'] },
+          { ...alice, screenTracks: ['TR_1'], cameraTracks: [] },
+          { ...dave, screenTracks: ['TR_4'], cameraTracks: [] },
         ],
       });
 
@@ -201,8 +291,8 @@ describe('PresenceStore', () => {
 
     it('is silent when nothing changed', () => {
       const state = {
-        geral: [{ ...alice, screenTracks: ['TR_1'] }],
-        jogos: [{ ...bob, screenTracks: [] }],
+        geral: [{ ...alice, screenTracks: ['TR_1'], cameraTracks: ['TR_cam'] }],
+        jogos: [{ ...bob, screenTracks: [], cameraTracks: [] }],
       };
       store.replaceAll(state);
       events.length = 0;
@@ -211,10 +301,59 @@ describe('PresenceStore', () => {
     });
 
     it('stops streams whose tracks disappeared', () => {
-      store.replaceAll({ geral: [{ ...alice, screenTracks: ['TR_1'] }] });
+      store.replaceAll({ geral: [{ ...alice, screenTracks: ['TR_1'], cameraTracks: [] }] });
       events.length = 0;
-      store.replaceAll({ geral: [{ ...alice, screenTracks: [] }] });
+      store.replaceAll({ geral: [{ ...alice, screenTracks: [], cameraTracks: [] }] });
       expect(events).toEqual([{ type: 'stream_stopped', room: 'geral', participantId: 'alice' }]);
+    });
+
+    it('announces cameras that appeared or disappeared with participant_updated', () => {
+      store.join('geral', alice);
+      store.cameraTrackPublished('geral', bob, 'TR_cam_b');
+      events.length = 0;
+
+      store.replaceAll({
+        geral: [
+          { ...alice, screenTracks: [], cameraTracks: ['TR_cam_a'] },
+          { ...bob, screenTracks: [], cameraTracks: [] },
+        ],
+      });
+      expect(events).toEqual([
+        {
+          type: 'participant_updated',
+          room: 'geral',
+          participant: { ...alice, streaming: false, camera: true },
+        },
+        { type: 'participant_updated', room: 'geral', participant: { ...bob, streaming: false } },
+      ]);
+    });
+
+    it('a participant who joins with a camera never starts a stream', () => {
+      store.replaceAll({ geral: [{ ...alice, screenTracks: [], cameraTracks: ['TR_cam'] }] });
+      expect(events).toEqual([
+        { type: 'participant_joined', room: 'geral', participant: { ...alice, streaming: false } },
+        {
+          type: 'participant_updated',
+          room: 'geral',
+          participant: { ...alice, streaming: false, camera: true },
+        },
+      ]);
+    });
+
+    it('adopts the server camera track SIDs without announcing an unchanged flag', () => {
+      store.cameraTrackPublished('geral', alice, 'TR_old');
+      events.length = 0;
+
+      store.replaceAll({ geral: [{ ...alice, screenTracks: [], cameraTracks: ['TR_new'] }] });
+      expect(events).toEqual([]);
+
+      // The stale track is gone: its late unpublish changes nothing, the current one does.
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_old');
+      expect(events).toEqual([]);
+      store.cameraTrackUnpublished('geral', 'alice', 'TR_new');
+      expect(events).toEqual([
+        { type: 'participant_updated', room: 'geral', participant: { ...alice, streaming: false } },
+      ]);
     });
 
     it('clears rooms missing from the new state, including unconfigured ones', () => {

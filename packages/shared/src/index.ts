@@ -13,6 +13,8 @@ export interface PresenceParticipant {
   joinedAt: number;
   /** Discord avatar (cdn.discordapp.com), or null when unknown. Optional for older servers. */
   avatarUrl?: string | null;
+  /** Publishing a webcam (a camera never counts as `streaming`). Optional for older servers. */
+  camera?: boolean;
 }
 
 export interface PresenceSnapshot {
@@ -22,7 +24,7 @@ export interface PresenceSnapshot {
 export type PresenceEvent =
   | { type: 'snapshot'; data: PresenceSnapshot }
   | {
-      /** `participant_updated`: same person, new name and/or avatar (replaced in place). */
+      /** `participant_updated`: same person, new name, avatar and/or camera (replaced in place). */
       type: 'participant_joined' | 'participant_left' | 'participant_updated';
       room: RoomId;
       participant: PresenceParticipant;
@@ -110,10 +112,11 @@ export interface ServerInfoResponse {
 }
 
 /**
- * `main`: the regular participant (publishes and subscribes). `popout`: a hidden, subscribe-only
- * identity used by the pop-out window, so one person can hold two LiveKit connections.
+ * `main`: the regular participant (publishes and subscribes). `popout` / `pip`: hidden,
+ * subscribe-only identities used by the pop-out window and by the cameras' picture-in-picture
+ * window, so one person can hold several LiveKit connections.
  */
-export type TokenPurpose = 'main' | 'popout';
+export type TokenPurpose = 'main' | 'popout' | 'pip';
 
 export interface TokenRequest {
   room: RoomId;

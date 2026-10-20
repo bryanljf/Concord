@@ -1,8 +1,18 @@
-import { ParticipantInfo, Room } from 'livekit-server-sdk';
+import { ParticipantInfo, Room, TrackInfo, TrackSource, TrackType } from 'livekit-server-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PresenceEvent } from '@concord/shared';
 import { PresenceStore } from '../src/presence-store';
 import { retryDelayMs, startResync } from '../src/resync';
 import { fakeLogger } from './helpers';
+
+const alicePresence = {
+  id: 'alice',
+  name: 'Alice',
+  streaming: false,
+  joinedAt: 10_000,
+  avatarUrl: null,
+  camera: false,
+};
 
 function fakeRoomService(listRooms: () => Promise<Room[]>) {
   return {
@@ -30,9 +40,7 @@ describe('startResync', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(roomService.listRooms).toHaveBeenCalledTimes(1);
-    expect(presence.snapshot().rooms.geral).toEqual([
-      { id: 'alice', name: 'Alice', streaming: false, joinedAt: 10_000, avatarUrl: null },
-    ]);
+    expect(presence.snapshot().rooms.geral).toEqual([alicePresence]);
 
     await vi.advanceTimersByTimeAsync(1000);
     expect(roomService.listRooms).toHaveBeenCalledTimes(2);
@@ -55,8 +63,47 @@ describe('startResync', () => {
     const resync = startResync({ presence, roomService, log: fakeLogger() });
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(presence.snapshot().rooms.geral).toEqual([
-      { id: 'alice', name: 'Alice', streaming: false, joinedAt: 10_000, avatarUrl: null },
+    expect(presence.snapshot().rooms.geral).toEqual([alicePresence]);
+    resync.stop();
+  });
+
+  it('reconciles cameras, announcing each flip with participant_updated', async () => {
+    const presence = new PresenceStore(['geral']);
+    const camera = new TrackInfo({
+      sid: 'TR_cam',
+      type: TrackType.VIDEO,
+      source: TrackSource.CAMERA,
+    });
+    let tracks = [camera];
+    const roomService = {
+      listRooms: vi.fn(async () => [new Room({ name: 'geral' })]),
+      listParticipants: vi.fn(async () => [
+        new ParticipantInfo({ identity: 'alice', name: 'Alice', joinedAt: 10n, tracks }),
+      ]),
+    };
+    const events: PresenceEvent[] = [];
+    presence.subscribe((event) => events.push(event));
+    const resync = startResync({ presence, roomService, log: fakeLogger(), intervalMs: 1000 });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(presence.snapshot().rooms.geral).toEqual([{ ...alicePresence, camera: true }]);
+    expect(events).toEqual([
+      { type: 'participant_joined', room: 'geral', participant: alicePresence },
+      {
+        type: 'participant_updated',
+        room: 'geral',
+        participant: { ...alicePresence, camera: true },
+      },
+    ]);
+
+    events.length = 0;
+    await vi.advanceTimersByTimeAsync(1000); // same camera: nothing to announce
+    expect(events).toEqual([]);
+
+    tracks = [];
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(events).toEqual([
+      { type: 'participant_updated', room: 'geral', participant: alicePresence },
     ]);
     resync.stop();
   });

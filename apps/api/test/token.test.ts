@@ -15,7 +15,7 @@ function requestToken(app: FastifyInstance, payload: object, remoteAddress?: str
 }
 
 describe('POST /api/token', () => {
-  it('issues a LiveKit join token restricted to screen sharing', async () => {
+  it('issues a LiveKit join token restricted to screen sharing and the camera', async () => {
     const { app, config } = testApp();
     const before = Math.floor(Date.now() / 1000);
     const res = await requestToken(app, { room: 'jogos' });
@@ -32,7 +32,7 @@ describe('POST /api/token', () => {
       room: 'jogos',
       canSubscribe: true,
       canPublish: true,
-      canPublishSources: ['screen_share', 'screen_share_audio'],
+      canPublishSources: ['screen_share', 'screen_share_audio', 'camera'],
       canPublishData: true,
       canUpdateOwnMetadata: true,
     });
@@ -43,13 +43,16 @@ describe('POST /api/token', () => {
     await app.close();
   });
 
-  it('issues a hidden, subscribe-only token for the pop-out window', async () => {
+  it.each<[string, string]>([
+    ['pop-out window', 'popout'],
+    ['picture-in-picture window', 'pip'],
+  ])('issues a hidden, subscribe-only token for the %s', async (_label, purpose) => {
     const { app } = testApp();
-    const res = await requestToken(app, { room: 'jogos', purpose: 'popout' });
+    const res = await requestToken(app, { room: 'jogos', purpose });
     expect(res.statusCode).toBe(200);
     const body = res.json<TokenResponse>();
     const claims = await new TokenVerifier(API_KEY, API_SECRET).verify(body.token);
-    expect(claims.sub).toBe('alice~popout');
+    expect(claims.sub).toBe(`alice~${purpose}`);
     expect(claims.name).toBe('Alice');
     expect(claims.video).toEqual({
       roomJoin: true,
@@ -75,7 +78,7 @@ describe('POST /api/token', () => {
       room: 'geral',
       canSubscribe: true,
       canPublish: true,
-      canPublishSources: ['screen_share', 'screen_share_audio'],
+      canPublishSources: ['screen_share', 'screen_share_audio', 'camera'],
       canPublishData: true,
       canUpdateOwnMetadata: true,
     });
@@ -98,6 +101,7 @@ describe('POST /api/token', () => {
     ['an object room', { room: { nested: true } }],
     ['an empty room', { room: '' }],
     ['an unknown purpose', { room: 'geral', purpose: 'spy' }],
+    ['a purpose in the wrong case', { room: 'geral', purpose: 'PIP' }],
     ['an object purpose', { room: 'geral', purpose: { nested: true } }],
   ])('rejects %s with invalid_request', async (_label, payload) => {
     const { app } = testApp();

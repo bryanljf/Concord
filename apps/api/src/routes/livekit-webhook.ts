@@ -1,7 +1,12 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { WebhookEvent, WebhookReceiver } from 'livekit-server-sdk';
 import type { ApiErrorResponse, HealthResponse } from '@concord/shared';
-import { isAuxiliaryParticipant, isScreenShareVideo, toParticipantIdentity } from '../livekit';
+import {
+  isAuxiliaryParticipant,
+  isCameraVideo,
+  isScreenShareVideo,
+  toParticipantIdentity,
+} from '../livekit';
 import type { Logger } from '../logger';
 import type { PresenceStore } from '../presence-store';
 
@@ -12,8 +17,8 @@ export interface LivekitWebhookRoutesOptions {
 
 /**
  * Applies one verified LiveKit webhook event to the presence store. Events about auxiliary
- * identities (pop-out windows) are dropped: the person is already represented by their main
- * connection.
+ * identities (pop-out and PiP windows) are dropped: the person is already represented by their
+ * main connection.
  */
 export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, log: Logger): void {
   const room = event.room?.name;
@@ -39,11 +44,15 @@ export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, 
     case 'track_published':
       if (participant && track && isScreenShareVideo(track)) {
         presence.screenTrackPublished(room, toParticipantIdentity(participant), track.sid);
+      } else if (participant && track && isCameraVideo(track)) {
+        presence.cameraTrackPublished(room, toParticipantIdentity(participant), track.sid);
       }
       break;
     case 'track_unpublished':
       if (participant && track && isScreenShareVideo(track)) {
         presence.screenTrackUnpublished(room, participant.identity, track.sid);
+      } else if (participant && track && isCameraVideo(track)) {
+        presence.cameraTrackUnpublished(room, participant.identity, track.sid);
       }
       break;
     case 'room_finished':

@@ -12,7 +12,7 @@ export interface TokenRoutesOptions {
   sessionSecret: string;
 }
 
-const TOKEN_PURPOSES = ['main', 'popout'] as const satisfies readonly TokenPurpose[];
+const TOKEN_PURPOSES = ['main', 'popout', 'pip'] as const satisfies readonly TokenPurpose[];
 
 const bodySchema = {
   type: 'object',

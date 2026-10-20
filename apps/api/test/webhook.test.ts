@@ -11,6 +11,8 @@ const alice = { sid: 'PA_1', identity: 'alice', name: 'Alice', joinedAt: '170000
 const bob = { sid: 'PA_2', identity: 'bob', name: '', joinedAt: '1700000010' };
 const screenTrack = { sid: 'TR_1', type: 'VIDEO', source: 'SCREEN_SHARE' };
 const cameraTrack = { sid: 'TR_2', type: 'VIDEO', source: 'CAMERA' };
+const screenAudioTrack = { sid: 'TR_3', type: 'AUDIO', source: 'SCREEN_SHARE_AUDIO' };
+const microphoneTrack = { sid: 'TR_4', type: 'AUDIO', source: 'MICROPHONE' };
 
 const alicePresence = {
   id: 'alice',
@@ -18,6 +20,7 @@ const alicePresence = {
   streaming: false,
   joinedAt: 1_700_000_000_000,
   avatarUrl: null,
+  camera: false,
 };
 // LiveKit sent no name for bob: presence resolves it from users.json ("Bob").
 const bobPresence = {
@@ -26,6 +29,7 @@ const bobPresence = {
   streaming: false,
   joinedAt: 1_700_000_010_000,
   avatarUrl: null,
+  camera: false,
 };
 
 interface PostOptions {
@@ -55,7 +59,7 @@ describe('POST /api/livekit/webhook', () => {
 
     const sequence = [
       { event: 'participant_joined', room, participant: alice },
-      { event: 'track_published', room, participant: alice, track: cameraTrack },
+      { event: 'track_published', room, participant: alice, track: screenAudioTrack },
       { event: 'track_published', room, participant: alice, track: screenTrack },
       { event: 'track_unpublished', room, participant: alice, track: screenTrack },
       { event: 'participant_left', room, participant: alice },
@@ -80,28 +84,78 @@ describe('POST /api/livekit/webhook', () => {
     await app.close();
   });
 
-  it('ignores every event about an auxiliary identity (pop-out window)', async () => {
+  it('announces a camera with participant_updated, never as a stream', async () => {
     const { app, presence } = testApp();
     const events: PresenceEvent[] = [];
     presence.subscribe((event) => events.push(event));
-    const anaPopout = { sid: 'PA_3', identity: 'ana~popout', name: 'Ana', joinedAt: '1700000020' };
 
     const sequence = [
-      { event: 'participant_joined', room, participant: anaPopout },
-      { event: 'track_published', room, participant: anaPopout, track: screenTrack },
-      { event: 'track_unpublished', room, participant: anaPopout, track: screenTrack },
-      { event: 'participant_left', room, participant: anaPopout },
+      { event: 'participant_joined', room, participant: alice },
+      { event: 'track_published', room, participant: alice, track: cameraTrack },
+      { event: 'track_published', room, participant: alice, track: cameraTrack },
+      { event: 'track_published', room, participant: alice, track: microphoneTrack },
+      { event: 'track_unpublished', room, participant: alice, track: microphoneTrack },
+      { event: 'track_unpublished', room, participant: alice, track: cameraTrack },
+      { event: 'track_unpublished', room, participant: alice, track: cameraTrack },
     ];
     for (const event of sequence) {
       const res = await postWebhook(app, event);
       expect(res.statusCode, event.event).toBe(200);
-      expect(res.json()).toEqual({ ok: true });
     }
 
-    expect(events).toEqual([]);
-    expect(presence.snapshot()).toEqual({ rooms: { geral: [], jogos: [] } });
+    expect(events).toEqual([
+      { type: 'participant_joined', room: 'geral', participant: alicePresence },
+      {
+        type: 'participant_updated',
+        room: 'geral',
+        participant: { ...alicePresence, camera: true },
+      },
+      { type: 'participant_updated', room: 'geral', participant: alicePresence },
+    ]);
+    expect(presence.snapshot().rooms.geral).toEqual([alicePresence]);
     await app.close();
   });
+
+  it('creates the participant when a camera track is published before the join event', async () => {
+    const { app, presence } = testApp();
+    const res = await postWebhook(app, {
+      event: 'track_published',
+      room,
+      participant: bob,
+      track: cameraTrack,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(presence.snapshot().rooms.geral).toEqual([{ ...bobPresence, camera: true }]);
+    await app.close();
+  });
+
+  it.each(['ana~popout', 'ana~pip'])(
+    'ignores every event about an auxiliary identity (%s)',
+    async (identity) => {
+      const { app, presence } = testApp();
+      const events: PresenceEvent[] = [];
+      presence.subscribe((event) => events.push(event));
+      const auxiliary = { sid: 'PA_3', identity, name: 'Ana', joinedAt: '1700000020' };
+
+      const sequence = [
+        { event: 'participant_joined', room, participant: auxiliary },
+        { event: 'track_published', room, participant: auxiliary, track: screenTrack },
+        { event: 'track_published', room, participant: auxiliary, track: cameraTrack },
+        { event: 'track_unpublished', room, participant: auxiliary, track: cameraTrack },
+        { event: 'track_unpublished', room, participant: auxiliary, track: screenTrack },
+        { event: 'participant_left', room, participant: auxiliary },
+      ];
+      for (const event of sequence) {
+        const res = await postWebhook(app, event);
+        expect(res.statusCode, event.event).toBe(200);
+        expect(res.json()).toEqual({ ok: true });
+      }
+
+      expect(events).toEqual([]);
+      expect(presence.snapshot()).toEqual({ rooms: { geral: [], jogos: [] } });
+      await app.close();
+    },
+  );
 
   it('creates the participant when a screen track is published before the join event', async () => {
     const { app, presence } = testApp();
