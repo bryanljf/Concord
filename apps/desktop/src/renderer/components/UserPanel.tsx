@@ -11,13 +11,21 @@ interface UserPanelProps {
   onOpenSettings(): void;
   /** Avatar/name click: settings on Conta, ready to edit the display name. */
   onOpenProfile(): void;
+  /** Collapsed sidebar: the avatar over the gear, no name (the buttons keep their labels). */
+  compact?: boolean;
 }
 
-export function UserPanel({ user, status, onOpenSettings, onOpenProfile }: UserPanelProps) {
+export function UserPanel({
+  user,
+  status,
+  onOpenSettings,
+  onOpenProfile,
+  compact = false,
+}: UserPanelProps) {
   const tone = statusTone(status);
   const label = statusLabel(status);
   return (
-    <div className="user-panel">
+    <div className={compact ? 'user-panel user-panel--compact' : 'user-panel'}>
       <button
         type="button"
         className="user-panel__profile"
@@ -33,10 +41,12 @@ export function UserPanel({ user, status, onOpenSettings, onOpenProfile }: UserP
             aria-label={label}
           />
         </span>
-        <span className="user-panel__info">
-          <span className="user-panel__name">{user.displayName}</span>
-          <span className="user-panel__status">{statusShortLabel(status)}</span>
-        </span>
+        {!compact && (
+          <span className="user-panel__info">
+            <span className="user-panel__name">{user.displayName}</span>
+            <span className="user-panel__status">{statusShortLabel(status)}</span>
+          </span>
+        )}
       </button>
       <button
         type="button"

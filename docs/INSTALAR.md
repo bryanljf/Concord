@@ -48,7 +48,9 @@ original).
 
 - **Salas**: a barra lateral mostra Sala 1, Sala 2 e Sala 3, quem está em cada uma e o selo
   **AO VIVO** de quem está transmitindo. Clique numa sala para entrar; o painel acima do seu
-  nome mostra a sala atual e tem o botão de **sair da sala**.
+  nome mostra a sala atual e tem o botão de **sair da sala**. O botão **«** ao lado de
+  "CONCORD" recolhe a barra numa coluna de ícones (passe o mouse numa sala para ver quem está
+  nela); **»** expande de novo.
 - **Assistir**: ao entrar numa sala você não recebe vídeo de ninguém até escolher. Cada live (e
   cada câmera ligada) aparece como um cartão com **Assistir** (também dá para clicar no selo AO
   VIVO na barra lateral). Com duas ou mais assistidas, elas ficam lado a lado numa grade, todas

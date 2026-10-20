@@ -34,6 +34,7 @@ export function defaultSettings(): Settings {
     pipTileWidth: 320,
     pipPosition: null,
     musicSounds: true,
+    sidebarCollapsed: false,
   };
 }
 
@@ -117,6 +118,7 @@ const validators: { [K in keyof Settings]: Validator<K> } = {
       : undefined,
   pipPosition: screenPoint,
   musicSounds: boolean,
+  sidebarCollapsed: boolean,
 };
 
 const SETTINGS_KEYS = Object.keys(validators) as (keyof Settings)[];

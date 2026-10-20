@@ -4,9 +4,9 @@
   min-height: 100%;
 }
 
+/* The "CONCORD" row: its own shell cell, as wide as the sidebar column below it. */
 .sidebar__brand {
   display: flex;
-  flex: none;
   align-items: center;
   gap: 8px;
   height: var(--header-height);
@@ -18,10 +18,67 @@
   letter-spacing: 0.14em;
 }
 
-/* The music button (only while someone broadcasts music) sits at the right end of the row. */
+/* The collapse toggle sits at the right end of the row. */
 .sidebar__brand-name {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar__toggle {
+  flex: none;
+  letter-spacing: normal;
+}
+
+/* Tooltip below the toggle and right-aligned (the row is at the top of the window). */
+.sidebar__toggle[data-tooltip]::after {
+  top: calc(100% + 8px);
+  right: 0;
+  bottom: auto;
+  left: auto;
+  transform: translate(0, -4px);
+}
+
+.sidebar__toggle[data-tooltip]:hover::after,
+.sidebar__toggle[data-tooltip]:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+/*
+ * Collapsed: the logo, then a narrower toggle, in the 76 px column
+ * (12 px | 28 px logo | ≥ 4 px | 24 px toggle | 6 px). The logo sits at a fixed offset, so it
+ * stays put while the column animates.
+ */
+.sidebar__brand--collapsed {
+  gap: 4px;
+  justify-content: space-between;
+  padding: 0 6px 0 12px;
+}
+
+.sidebar__logo {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  animation: sidebar-logo-in var(--transition-slow) ease;
+  user-select: none;
+}
+
+@keyframes sidebar-logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+.sidebar__brand--collapsed .sidebar__toggle {
+  width: 24px;
+}
+
+/* The tooltip would leave the window on the left: it opens rightwards instead. */
+.sidebar__brand--collapsed .sidebar__toggle[data-tooltip]::after {
+  right: auto;
+  left: 0;
 }
 
 .sidebar__section {
@@ -195,4 +252,221 @@
 .participant__camera[data-tooltip]:hover::after,
 .participant__music[data-tooltip]:hover::after {
   transform: translate(0, 0);
+}
+
+/* Collapsed: a column of room icons (Discord's server list) under the logo. */
+.sidebar__empty--icon {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+  color: var(--warning);
+}
+
+.sidebar__icons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+/*
+ * Fixed offsets rather than centering, so the icon stays put while the column animates:
+ * 16 px | 44 px icon | 2 px | 12 px headphones | 2 px = --sidebar-collapsed-width.
+ */
+.room-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: 16px;
+}
+
+.room-icon__button {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+  color: var(--text-normal);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background-color var(--transition),
+    color var(--transition);
+}
+
+.room-icon__button:hover {
+  background: var(--bg-hover);
+  color: var(--text-strong);
+}
+
+.room-icon__button[aria-current='true'] {
+  background: var(--bg-selected);
+  color: var(--text-strong);
+}
+
+.room-icon__label {
+  max-width: 40px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Status dots on the icon's corners, cut out of it by a ring in the sidebar's color. */
+.room-icon__online,
+.room-icon__live {
+  position: absolute;
+  right: -3px;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--bg-secondary);
+  border-radius: 50%;
+}
+
+.room-icon__online {
+  bottom: -3px;
+  background: var(--online);
+}
+
+/* Someone is live: the red dot blinks (steady with reduced motion). */
+.room-icon__live {
+  top: -3px;
+  background: var(--live);
+  animation: room-icon-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes room-icon-blink {
+  50% {
+    background-color: var(--bg-secondary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-icon__live {
+    animation: none;
+  }
+}
+
+/* Discord's pill on the column's left edge: a nub on hover or focus, tall for the current room. */
+.room-icon__pill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 4px;
+  height: 0;
+  border-radius: 0 4px 4px 0;
+  background: var(--text-strong);
+  transform: translateY(-50%);
+  transition: height var(--transition-slow) ease;
+}
+
+.room-icon__button:hover ~ .room-icon__pill,
+.room-icon__button:focus-visible ~ .room-icon__pill {
+  height: 20px;
+}
+
+.room-icon__button[aria-current='true'] ~ .room-icon__pill {
+  height: 36px;
+}
+
+/* Someone broadcasts music: just the headphones beside the icon (the drawer opens expanded). */
+.room-icon__music {
+  display: flex;
+  flex: none;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.room-icon__music:hover,
+.room-icon__music:focus-visible {
+  outline: none;
+  color: var(--text-strong);
+}
+
+/* Who is in a collapsed room: a card right of the column (portal, position set in RoomIcon). */
+.room-popover {
+  position: fixed;
+  z-index: 200;
+  min-width: 160px;
+  max-width: 260px;
+  max-height: calc(100vh - 16px);
+  overflow: hidden;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  color: var(--text-normal);
+  pointer-events: none;
+  animation: room-popover-in var(--transition-slow) ease;
+}
+
+@keyframes room-popover-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+.room-popover__title {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-popover__empty {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.room-popover__people {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.room-popover__person {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.room-popover__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-popover__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.room-popover__live {
+  flex: none;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--live);
+  color: var(--text-on-accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
 }

@@ -6,6 +6,7 @@ import {
   participantsOf,
   presenceProfiles,
   resolveFocus,
+  roomIndicators,
   sortParticipants,
   statusLabel,
   statusShortLabel,
@@ -126,5 +127,29 @@ describe('presence profiles', () => {
   it('returns the same array when nothing changes', () => {
     const streams = [{ participantId: 'beto', name: 'Beto', avatarUrl: null }];
     expect(withPresenceProfiles(streams, profiles)).toBe(streams);
+  });
+});
+
+describe('roomIndicators', () => {
+  it('is all off for an empty room', () => {
+    expect(roomIndicators([])).toEqual({ online: false, live: false, music: false });
+  });
+
+  it('is online with people in it, live only when one of them streams', () => {
+    expect(roomIndicators([ana, eric])).toEqual({ online: true, live: false, music: false });
+    expect(roomIndicators([ana, beto])).toEqual({ online: true, live: true, music: false });
+  });
+
+  it('shows music only for a music broadcast, never for a webcam', () => {
+    expect(roomIndicators([{ ...ana, camera: true }])).toEqual({
+      online: true,
+      live: false,
+      music: false,
+    });
+    expect(roomIndicators([ana, { ...eric, music: true }])).toEqual({
+      online: true,
+      live: false,
+      music: true,
+    });
   });
 });

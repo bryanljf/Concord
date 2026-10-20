@@ -1,32 +1,71 @@
+/*
+ * Two columns: the sidebar (its brand row on top) and the rest (the header on top). Collapsing
+ * narrows the whole first column, brand row included, and the stage takes the room it leaves.
+ */
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto var(--header-height) minmax(0, 1fr);
   height: 100%;
 }
 
+.shell--sidebar-collapsed {
+  grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+/* Only a toggle slides (not the saved setting arriving at startup); instant with reduced motion. */
+.shell--sidebar-animated {
+  transition: grid-template-columns var(--transition-slow) ease;
+}
+
 /*
- * Explicit placement: in fullscreen the banner and sidebar are display:none, and auto-placement
- * would then drop .shell__main into the first (0×0) cell, leaving a grey, zero-size stage.
+ * Explicit placement: in fullscreen everything but .shell__main is display:none, and
+ * auto-placement would then drop it into the first cell, leaving a grey, small stage.
  */
 .shell__banner {
   grid-column: 1 / -1;
   grid-row: 1;
 }
 
-.shell__sidebar {
+.shell__brand {
   grid-column: 1;
   grid-row: 2;
 }
 
-.shell__main {
+.shell__header {
   grid-column: 2;
   grid-row: 2;
 }
 
 .shell__sidebar {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.shell__main {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+/* Positioned (no z-index, so tooltips stay above the stage): their bottom shadow is drawn over the
+   row below instead of under it. */
+.shell__brand {
+  position: relative;
+  min-width: 0;
+  background: var(--bg-secondary);
+}
+
+.shell__header {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  background: var(--bg-primary);
+}
+
+.shell__sidebar {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
   background: var(--bg-secondary);
 }
@@ -37,9 +76,15 @@
   overflow-y: auto;
 }
 
+/* No scrollbar eating into the narrow column (it still scrolls with the wheel or the keys). */
+.shell--sidebar-collapsed .shell__sidebar-body {
+  scrollbar-width: none;
+}
+
 .shell__main {
   display: grid;
-  grid-template-rows: var(--header-height) minmax(0, 1fr) var(--bottombar-height);
+  grid-template-rows: minmax(0, 1fr) var(--bottombar-height);
+  min-width: 0;
   min-height: 0;
   background: var(--bg-primary);
 }
@@ -51,19 +96,17 @@
 }
 
 /* Fullscreen: hide the chrome (not unmounting it keeps the <video> elements alive). */
-.shell--immersive {
-  grid-template-columns: 0 minmax(0, 1fr);
-  grid-template-rows: 0 minmax(0, 1fr);
-}
-
 .shell--immersive .shell__banner,
+.shell--immersive .shell__brand,
+.shell--immersive .shell__header,
 .shell--immersive .shell__sidebar,
-.shell--immersive .header,
 .shell--immersive .bottom-bar {
   display: none;
 }
 
 .shell--immersive .shell__main {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
   grid-template-rows: minmax(0, 1fr);
   background: #000;
 }

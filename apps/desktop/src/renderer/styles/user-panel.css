@@ -91,3 +91,17 @@
 .user-panel__profile:hover .user-panel__dot {
   border-color: var(--bg-hover);
 }
+
+/* Collapsed sidebar: the avatar over the settings gear, centered in the narrow column. */
+.user-panel--compact {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  height: auto;
+  padding: 8px 0;
+}
+
+.user-panel--compact .user-panel__profile {
+  flex: none;
+  margin-left: 0;
+}

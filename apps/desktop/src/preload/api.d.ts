@@ -49,6 +49,8 @@ export interface Settings {
   pipPosition: { x: number; y: number } | null;
   /** Chime when someone in your room starts broadcasting music. */
   musicSounds: boolean;
+  /** The rooms sidebar is reduced to a narrow column of room icons. */
+  sidebarCollapsed: boolean;
 }
 
 export type PipLayout = 'vertical' | 'horizontal';

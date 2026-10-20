@@ -22,6 +22,24 @@ export function streamersOf(snapshot: PresenceSnapshot, room: RoomId): PresenceP
   return participantsOf(snapshot, room).filter((p) => p.streaming);
 }
 
+/** What a room's icon shows in the collapsed sidebar. */
+export interface RoomIndicators {
+  /** Someone is in the room (the green dot). */
+  online: boolean;
+  /** Someone in it shares their screen, "AO VIVO" (the blinking red dot); webcams do not count. */
+  live: boolean;
+  /** Someone in it broadcasts music (the headphones next to the icon). */
+  music: boolean;
+}
+
+export function roomIndicators(participants: readonly PresenceParticipant[]): RoomIndicators {
+  return {
+    online: participants.length > 0,
+    live: participants.some((p) => p.streaming),
+    music: participants.some((p) => p.music === true),
+  };
+}
+
 /** Every participant currently known (any room), unique by id and sorted by name. */
 export function knownParticipants(snapshot: PresenceSnapshot): PresenceParticipant[] {
   const byId = new Map<string, PresenceParticipant>();

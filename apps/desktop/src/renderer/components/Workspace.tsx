@@ -53,7 +53,7 @@ import { BottomBar } from './BottomBar';
 import { ConnectionBanner } from './ConnectionBanner';
 import { UpdateBanner } from './UpdateBanner';
 import { Header } from './Header';
-import { Sidebar } from './Sidebar';
+import { Sidebar, SidebarBrand } from './Sidebar';
 import { Stage, type StatsRequest } from './Stage';
 import { RoomStatusPanel } from './RoomStatusPanel';
 import { UserPanel } from './UserPanel';
@@ -417,6 +417,14 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       });
     },
     [update, toast],
+  );
+
+  // Undefined until the settings load: the shell then applies the saved value without sliding.
+  const sidebarSetting = settings?.sidebarCollapsed;
+  const sidebarCollapsed = sidebarSetting ?? false;
+  const toggleSidebar = useCallback(
+    () => saveSettings({ sidebarCollapsed: !sidebarCollapsed }),
+    [saveSettings, sidebarCollapsed],
   );
 
   const participants = useMemo(() => knownParticipants(snapshot), [snapshot]);
@@ -830,6 +838,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     <>
       <AppShell
         immersive={fullscreen}
+        sidebarCollapsed={sidebarSetting}
         banner={
           <>
             <UpdateBanner />
@@ -839,6 +848,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             />
           </>
         }
+        brand={<SidebarBrand collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />}
         sidebar={
           <Sidebar
             rooms={rooms}
@@ -847,6 +857,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             watchedIds={watchedKeys}
             musicListening={listening.listening.length}
             musicOpen={musicOpen}
+            collapsed={sidebarCollapsed}
             onToggleMusic={toggleMusic}
             onJoin={(roomId) => void enterRoom(roomId)}
             onWatch={(roomId, participantId) => void enterRoom(roomId, participantId)}
@@ -860,12 +871,14 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
                 connectionState={connectionState}
                 failed={error !== null}
                 ping={ping}
+                compact={sidebarCollapsed}
                 onLeave={() => void leaveRoom()}
               />
             )}
             <UserPanel
               user={user}
               status={status}
+              compact={sidebarCollapsed}
               onOpenSettings={openSettings}
               onOpenProfile={openProfile}
             />

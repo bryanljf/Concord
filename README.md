@@ -17,7 +17,9 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
 - **Login com Discord** (OAuth2, escopo `identify`) restrito a uma lista de IDs autorizados.
   Nome e foto vêm do Discord e são atualizados sozinhos; cada um pode definir um apelido.
 - **Salas** fixas (Sala 1, 2 e 3) com presença em tempo real: quem está em cada sala e quem
-  está **AO VIVO**, mesmo para quem está fora da sala.
+  está **AO VIVO**, mesmo para quem está fora da sala. A barra lateral recolhe numa coluna de
+  ícones (o logo do Concord no topo): ponto verde se há gente (quem está aparece ao passar o
+  mouse), ponto vermelho piscando se há live, fone se há música.
 - **Transmitir** uma janela ou uma tela inteira em Leve (720p30), Padrão (1080p30) ou Jogo
   (1080p60), H.264 com simulcast; quando falta CPU a resolução cai antes da taxa de quadros, e o
   FrameDropper do WebRTC fica desligado (field trial) para não descartar quadros em cenas com

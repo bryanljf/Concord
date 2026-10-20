@@ -1,9 +1,44 @@
 import type { KeyboardEvent } from 'react';
 import type { PresenceSnapshot, RoomId } from '@concord/shared';
+import logoUrl from '../../../resources/icon.png';
 import { useNow } from '../hooks/useNow';
 import { participantsOf } from '../lib/presence';
+import { ChevronsLeftIcon, ChevronsRightIcon, WarningIcon } from './icons';
+import { RoomIcon } from './RoomIcon';
 import { RoomItem } from './RoomItem';
 import '../styles/sidebar.css';
+
+interface SidebarBrandProps {
+  /** The rooms below are reduced to a column of icons (`Settings.sidebarCollapsed`). */
+  collapsed: boolean;
+  onToggleCollapsed(): void;
+}
+
+/**
+ * The "CONCORD" row above the rooms, with the collapse toggle at its right end. Collapsed, the
+ * name gives way to the app's logo (the same icon as the installer, window and tray).
+ */
+export function SidebarBrand({ collapsed, onToggleCollapsed }: SidebarBrandProps) {
+  const label = collapsed ? 'Expandir a barra lateral' : 'Recolher a barra lateral';
+  return (
+    <div className={collapsed ? 'sidebar__brand sidebar__brand--collapsed' : 'sidebar__brand'}>
+      {collapsed ? (
+        <img className="sidebar__logo" src={logoUrl} alt="Concord" draggable={false} />
+      ) : (
+        <span className="sidebar__brand-name">CONCORD</span>
+      )}
+      <button
+        type="button"
+        className="icon-btn sidebar__toggle"
+        aria-label={label}
+        data-tooltip={label}
+        onClick={onToggleCollapsed}
+      >
+        {collapsed ? <ChevronsRightIcon size={18} /> : <ChevronsLeftIcon size={18} />}
+      </button>
+    </div>
+  );
+}
 
 interface SidebarProps {
   rooms: RoomId[];
@@ -17,6 +52,8 @@ interface SidebarProps {
   /** How many music broadcasts you listen to (the equalizer on your room's music button). */
   musicListening: number;
   musicOpen: boolean;
+  /** Just a column of room icons (`Settings.sidebarCollapsed`). */
+  collapsed: boolean;
   onToggleMusic(): void;
   onJoin(room: RoomId): void;
   onWatch(room: RoomId, participantId: string): void;
@@ -34,6 +71,7 @@ function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
 }
 
 const NONE: readonly string[] = [];
+const NO_ROOMS = 'Nenhuma sala disponível. Verifique a conexão com o servidor.';
 
 export function Sidebar({
   rooms,
@@ -42,25 +80,47 @@ export function Sidebar({
   watchedIds,
   musicListening,
   musicOpen,
+  collapsed,
   onToggleMusic,
   onJoin,
   onWatch,
 }: SidebarProps) {
   const now = useNow();
 
+  if (collapsed) {
+    return (
+      <nav className="sidebar sidebar--collapsed" aria-label="Salas" onKeyDown={handleKeyDown}>
+        {rooms.length === 0 ? (
+          <p className="sidebar__empty sidebar__empty--icon" title={NO_ROOMS}>
+            <WarningIcon size={20} />
+            <span className="sr-only">{NO_ROOMS}</span>
+          </p>
+        ) : (
+          <ul className="sidebar__icons">
+            {rooms.map((room) => (
+              <RoomIcon
+                key={room}
+                room={room}
+                participants={participantsOf(snapshot, room)}
+                current={room === currentRoom}
+                onJoin={onJoin}
+                onToggleMusic={onToggleMusic}
+              />
+            ))}
+          </ul>
+        )}
+      </nav>
+    );
+  }
+
   return (
     <nav className="sidebar" aria-label="Salas" onKeyDown={handleKeyDown}>
-      <div className="sidebar__brand">
-        <span className="sidebar__brand-name">CONCORD</span>
-      </div>
       <h2 className="sidebar__section">
         <span>Salas</span>
         <span aria-hidden="true">{rooms.length}</span>
       </h2>
       {rooms.length === 0 ? (
-        <p className="sidebar__empty">
-          Nenhuma sala disponível. Verifique a conexão com o servidor.
-        </p>
+        <p className="sidebar__empty">{NO_ROOMS}</p>
       ) : (
         <ul className="sidebar__rooms">
           {rooms.map((room) => (

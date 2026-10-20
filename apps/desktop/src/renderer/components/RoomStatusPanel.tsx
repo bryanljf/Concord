@@ -12,6 +12,8 @@ interface RoomStatusPanelProps {
   failed: boolean;
   /** Latency to the server, instance and region (the bars on the left). */
   ping: ServerPing;
+  /** Collapsed sidebar: ping bars over the leave button, the status only for screen readers. */
+  compact?: boolean;
   onLeave(): void;
 }
 
@@ -37,13 +39,17 @@ export function RoomStatusPanel({
   failed,
   ping,
   onLeave,
+  compact = false,
 }: RoomStatusPanelProps) {
   const status = failed ? FAILED : STATUS[connectionState];
   const label = roomLabel(room);
   return (
-    <section className="room-status" aria-label={`Sala atual: ${label}`}>
+    <section
+      className={compact ? 'room-status room-status--compact' : 'room-status'}
+      aria-label={`Sala atual: ${label}`}
+    >
       <PingIndicator ping={ping} />
-      <div className="room-status__info" role="status">
+      <div className={compact ? 'room-status__info sr-only' : 'room-status__info'} role="status">
         <span className={`room-status__state room-status__state--${status.tone}`}>
           {status.label}
         </span>

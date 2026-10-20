@@ -168,6 +168,26 @@ describe('music settings', () => {
   });
 });
 
+describe('sidebar settings', () => {
+  it('starts with the rooms sidebar expanded', () => {
+    expect(defaultSettings().sidebarCollapsed).toBe(false);
+  });
+
+  it('accepts only booleans', () => {
+    expect(sanitizePatch({ sidebarCollapsed: true })).toEqual({ sidebarCollapsed: true });
+    expect(() => sanitizePatch({ sidebarCollapsed: 'yes' })).toThrow(SettingsValidationError);
+    expect(() => sanitizePatch({ sidebarCollapsed: null })).toThrow(SettingsValidationError);
+  });
+
+  it('keeps the stored value, resets a broken one and fills it in for older files', () => {
+    expect(sanitizeSettings({ sidebarCollapsed: true }).settings.sidebarCollapsed).toBe(true);
+    const { settings, rejected } = sanitizeSettings({ sidebarCollapsed: 0 });
+    expect(settings.sidebarCollapsed).toBe(false);
+    expect(rejected).toEqual(['sidebarCollapsed']);
+    expect(sanitizeSettings({ roomSounds: false }).settings.sidebarCollapsed).toBe(false);
+  });
+});
+
 describe('sanitizePatch', () => {
   it('throws on unknown or invalid fields and keeps valid ones', () => {
     expect(sanitizePatch({ followDiscord: false, mutedUsers: ['ana'] })).toEqual({

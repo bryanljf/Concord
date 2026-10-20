@@ -205,3 +205,26 @@
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
+
+/* Collapsed sidebar: the ping bars over the leave button, centered in the narrow column. */
+.room-status--compact {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  height: auto;
+  padding: 8px 0;
+}
+
+/* The column is narrow and at the window's left edge: tooltips open to the right, over the stage. */
+.room-status.room-status--compact [data-tooltip]::after {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: calc(100% + 8px);
+  transform: translate(-4px, -50%);
+}
+
+.room-status.room-status--compact [data-tooltip]:hover::after,
+.room-status.room-status--compact [data-tooltip]:focus-visible::after {
+  transform: translate(0, -50%);
+}

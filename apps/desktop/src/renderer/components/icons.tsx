@@ -354,6 +354,26 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
+/** Two chevrons pointing left: collapse the sidebar. */
+export function ChevronsLeftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m11 17-5-5 5-5" />
+      <path d="m18 17-5-5 5-5" />
+    </Icon>
+  );
+}
+
+/** Two chevrons pointing right: expand the sidebar. */
+export function ChevronsRightIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m6 17 5-5-5-5" />
+      <path d="m13 17 5-5-5-5" />
+    </Icon>
+  );
+}
+
 /** An arrow curving back into a window: bring a popped-out live back. */
 export function ReturnIcon(props: IconProps) {
   return (
