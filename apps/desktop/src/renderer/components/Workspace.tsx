@@ -170,6 +170,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     error,
     focusedKey,
     watchedKeys,
+    silencedKeys,
     audioPlayback,
     join,
     leave,
@@ -177,6 +178,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     unwatch,
     focus,
     showGrid,
+    unmuteInGrid,
     syncLive,
     startAudio,
   } = useRoom();
@@ -225,6 +227,8 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     connectionState,
     streams: screenStreams,
     outputDeviceId: settings?.audioOutputDeviceId ?? null,
+    silenced: silencedKeys,
+    onUnsilence: unmuteInGrid,
   });
   const { fullscreen, setFullscreen } = useFullscreen();
   const { target, consume } = useNavigate();

@@ -320,11 +320,16 @@ interface GridTileProps {
   onStopWatching(): void;
   onContextMenu(event: MouseEvent<HTMLElement>): void;
   onKeyDown(event: KeyboardEvent<HTMLElement>): void;
+  /** Screen shares with audio: the volume shown on hover (muted while the grid silences it). */
+  volume?: VolumeSetting;
+  onVolume?(volume: number): void;
+  onToggleMute?(): void;
 }
 
 /**
  * A watched stream on the grid (2+ watched): full quality (adaptive stream picks the layer from
- * the tile size), name, badge and viewers always visible, × on hover. Fills its grid cell.
+ * the tile size), name, badge and viewers always visible, × and volume on hover (a silent tile
+ * keeps its muted icon). Fills its grid cell.
  */
 export function GridStreamTile({
   stream,
@@ -333,6 +338,9 @@ export function GridStreamTile({
   onStopWatching,
   onContextMenu,
   onKeyDown,
+  volume,
+  onVolume,
+  onToggleMute,
 }: GridTileProps) {
   return (
     <div className="tile-mini tile-grid">
@@ -365,6 +373,21 @@ export function GridStreamTile({
       >
         <CloseIcon size={16} />
       </button>
+      {volume && onVolume && onToggleMute && (
+        <div
+          className={
+            volume.muted ? 'tile-grid__volume tile-grid__volume--muted' : 'tile-grid__volume'
+          }
+        >
+          <VolumeControl
+            setting={volume}
+            name={stream.name}
+            onVolume={onVolume}
+            onToggleMute={onToggleMute}
+            compact
+          />
+        </div>
+      )}
     </div>
   );
 }

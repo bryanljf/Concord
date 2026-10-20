@@ -30,8 +30,8 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
   Câmera), publicada à parte da tela: quem assiste escolhe ver a tela, a câmera ou as duas.
 - **Assistir sob demanda**: ao entrar numa sala nada é baixado; cada live e cada câmera aparece
   como cartão com **Assistir**. Com duas ou mais assistidas, elas ficam numa **grade** de duas
-  colunas (todas as telas com som, cada uma com seu volume); a vaga ímpar oferece
-  **Transmitir**. Clique num bloco para o **destaque** (qualidade cheia e áudio, as outras em
+  colunas; só tem som a última escolhida (Assistir ou destaque), as outras começam mudas e o
+  volume de cada uma aparece ao passar o mouse; a vaga ímpar oferece **Transmitir**. Clique num bloco para o **destaque** (qualidade cheia e áudio, as outras em
   miniatura, câmeras incluídas) e volte à grade pelo botão ou `Esc`. Menu de clique direito
   (destacar, voltar à grade, pop-out, câmeras em picture-in-picture, silenciar, estatísticas,
   parar de assistir), volume por live (padrão 50%, máximo 100%) e tela cheia.

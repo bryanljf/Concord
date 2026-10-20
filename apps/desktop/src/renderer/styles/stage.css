@@ -359,6 +359,49 @@
   height: 28px;
 }
 
+/*
+ * A grid tile's volume, bottom-left, on hover or keyboard focus (like the ×). A silent tile (the
+ * grid plays only the latest stream chosen) keeps its muted icon so you can tell which one plays.
+ */
+.tile-grid__volume {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 3;
+  padding: 2px 10px 2px 2px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.tile-mini:hover .tile-grid__volume,
+.tile-mini:focus-within .tile-grid__volume,
+.tile-grid__volume--muted {
+  opacity: 1;
+}
+
+.tile-grid__volume--muted {
+  padding-right: 2px;
+}
+
+.tile-grid__volume--muted .range,
+.tile-grid__volume--muted .volume__value {
+  display: none;
+}
+
+.tile-mini:hover .tile-grid__volume--muted,
+.tile-mini:focus-within .tile-grid__volume--muted {
+  padding-right: 10px;
+}
+
+.tile-mini:hover .tile-grid__volume--muted .range,
+.tile-mini:hover .tile-grid__volume--muted .volume__value,
+.tile-mini:focus-within .tile-grid__volume--muted .range,
+.tile-mini:focus-within .tile-grid__volume--muted .volume__value {
+  display: revert;
+}
+
 /* Webcams fill the small tiles (grid, strip); in destaque the whole picture is shown. */
 .tile--grid.tile--camera .tile__video,
 .tile--mini.tile--camera .tile__video {

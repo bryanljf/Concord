@@ -12,7 +12,10 @@ import type { RoomConnectionState } from './useRoom';
 import type { RemoteStream } from './useRemoteStreams';
 
 export interface StreamAudio {
-  /** Current setting for a participant (defaults to 50 %, unmuted; 100 % at most). */
+  /**
+   * Current setting for a participant (defaults to 50 %, unmuted; 100 % at most), shown muted
+   * while the grid silences it.
+   */
   settingFor(participantId: string): VolumeSetting;
   setVolume(participantId: string, volume: number): void;
   setMuted(participantId: string, muted: boolean): void;
@@ -21,12 +24,21 @@ export interface StreamAudio {
   outputError: string | null;
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
 interface UseStreamAudioOptions {
   room: Room;
   connectionState: RoomConnectionState;
   streams: readonly RemoteStream[];
   /** `Settings.audioOutputDeviceId`; null = system default. */
   outputDeviceId: string | null;
+  /**
+   * Participants whose screen-share audio the grid keeps silent (`lib/gridAudio.ts`): played at
+   * zero gain without touching their remembered setting.
+   */
+  silenced?: ReadonlySet<string>;
+  /** Turning a silenced participant up (volume above zero, unmute) calls this to lift it. */
+  onUnsilence?(participantId: string): void;
 }
 
 /**
@@ -36,7 +48,7 @@ interface UseStreamAudioOptions {
  * settings via `Room.switchActiveDevice('audiooutput')` (AudioContext.setSinkId + <audio>.setSinkId).
  */
 export function useStreamAudio(options: UseStreamAudioOptions): StreamAudio {
-  const { room, connectionState, streams, outputDeviceId } = options;
+  const { room, connectionState, streams, outputDeviceId, silenced = NONE, onUnsilence } = options;
   const [settings, setSettings] = useState<ReadonlyMap<string, VolumeSetting>>(() => new Map());
   const [outputError, setOutputError] = useState<string | null>(null);
   const attached = useRef(new Set<RemoteAudioTrack>());
@@ -74,9 +86,10 @@ export function useStreamAudio(options: UseStreamAudioOptions): StreamAudio {
   useEffect(() => {
     for (const stream of streams) {
       const setting = settings.get(stream.participantId) ?? DEFAULT_VOLUME_SETTING;
-      stream.participant.setVolume(volumeToGain(setting), Track.Source.ScreenShareAudio);
+      const gain = silenced.has(stream.participantId) ? 0 : volumeToGain(setting);
+      stream.participant.setVolume(gain, Track.Source.ScreenShareAudio);
     }
-  }, [streams, settings]);
+  }, [streams, settings, silenced]);
 
   // Output device: re-applied after every connect because the room's AudioContext is created then.
   useEffect(() => {
@@ -100,9 +113,21 @@ export function useStreamAudio(options: UseStreamAudioOptions): StreamAudio {
 
   // Remembered values above 100 % (from the old 0–200 % range) are clamped on the way out.
   const settingFor = useCallback(
-    (participantId: string) =>
-      normalizeVolumeSetting(settings.get(participantId) ?? DEFAULT_VOLUME_SETTING),
-    [settings],
+    (participantId: string) => {
+      const setting = normalizeVolumeSetting(settings.get(participantId) ?? DEFAULT_VOLUME_SETTING);
+      return silenced.has(participantId) ? { ...setting, muted: true } : setting;
+    },
+    [settings, silenced],
+  );
+
+  /** Lifts the grid's silence; true when the participant was silenced. */
+  const unsilence = useCallback(
+    (participantId: string): boolean => {
+      if (!silenced.has(participantId)) return false;
+      onUnsilence?.(participantId);
+      return true;
+    },
+    [silenced, onUnsilence],
   );
 
   const update = useCallback(
@@ -120,27 +145,34 @@ export function useStreamAudio(options: UseStreamAudioOptions): StreamAudio {
   const setVolume = useCallback(
     (participantId: string, volume: number) => {
       const clamped = clampVolume(volume);
-      // Dragging the slider above zero is an implicit unmute.
+      // Dragging the slider above zero is an implicit unmute, also of the grid's silence.
+      if (clamped > 0) unsilence(participantId);
       update(participantId, (current) => ({
         volume: clamped,
         muted: clamped === 0 ? current.muted : false,
       }));
     },
-    [update],
+    [update, unsilence],
   );
 
   const setMuted = useCallback(
     (participantId: string, muted: boolean) => {
+      if (!muted) unsilence(participantId);
       update(participantId, (current) => ({ ...current, muted }));
     },
-    [update],
+    [update, unsilence],
   );
 
   const toggleMute = useCallback(
     (participantId: string) => {
+      // A silenced stream shows as muted: the toggle makes it heard.
+      if (unsilence(participantId)) {
+        update(participantId, (current) => ({ ...current, muted: false }));
+        return;
+      }
       update(participantId, toggleMuteSetting);
     },
-    [update],
+    [update, unsilence],
   );
 
   return { settingFor, setVolume, setMuted, toggleMute, outputError };

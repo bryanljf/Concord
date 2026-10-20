@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RoomId, TokenPurpose, TokenResponse } from '@concord/shared';
 import { ConnectionState, DisconnectReason, Room, RoomEvent } from 'livekit-client';
 import { concord, toErrorMessage } from '../lib/concord';
+import {
+  EMPTY_GRID_AUDIO,
+  chooseAudio,
+  silencedKeys as silencedGridKeys,
+  unmuteInGrid as unmuteGridStream,
+  type GridAudioState,
+} from '../lib/gridAudio';
 import {
   EMPTY_WATCHING,
   focusWatched,
@@ -29,6 +36,11 @@ export interface UseRoom {
   focusedKey: string | null;
   /** Every stream the user chose to watch in this room session, in the order they were picked. */
   watchedKeys: readonly string[];
+  /**
+   * Watched screen shares kept silent (`lib/gridAudio.ts`): only the latest one clicked
+   * ("Assistir") or put in destaque plays, unless the user turned another one up.
+   */
+  silencedKeys: ReadonlySet<string>;
   /** False when the browser blocked audio playback: call `startAudio()` from a user gesture. */
   audioPlayback: boolean;
   /**
@@ -52,6 +64,8 @@ export interface UseRoom {
   focus(key: string): void;
   /** "Voltar à grade": leaves destaque. */
   showGrid(): void;
+  /** The user turned a silenced stream up (volume, "Ativar som"): it plays too. */
+  unmuteInGrid(key: string): void;
   /** Drops watched streams that are no longer published; call with the current remote streams. */
   syncLive(liveKeys: readonly string[]): void;
   startAudio(): Promise<void>;
@@ -117,6 +131,7 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
   const [connectionState, setConnectionState] = useState<RoomConnectionState>('disconnected');
   const [error, setError] = useState<string | null>(null);
   const [watching, setWatching] = useState<WatchingState>(EMPTY_WATCHING);
+  const [gridAudio, setGridAudio] = useState<GridAudioState>(EMPTY_GRID_AUDIO);
   const [audioPlayback, setAudioPlayback] = useState(true);
 
   useEffect(() => {
@@ -156,11 +171,15 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
       if (alreadyThere) {
         // Re-clicking the current room keeps what is watched; a badge click puts that live in
         // destaque.
-        if (watchKey) setWatching((prev) => watchAndFocusStream(prev, watchKey));
+        if (watchKey) {
+          setWatching((prev) => watchAndFocusStream(prev, watchKey));
+          setGridAudio((prev) => chooseAudio(prev, watchKey));
+        }
         return room.state === ConnectionState.Connected;
       }
       // A new room session: only the explicitly chosen stream (if any) is watched.
       setWatching(watchKey ? watchAndFocusStream(EMPTY_WATCHING, watchKey) : EMPTY_WATCHING);
+      setGridAudio(watchKey ? chooseAudio(EMPTY_GRID_AUDIO, watchKey) : EMPTY_GRID_AUDIO);
       // Not "connected" from here on, so the previous room's streams never prune the new
       // session's choice (the owner only calls syncLive while connected).
       setConnectionState('connecting');
@@ -204,16 +223,20 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
     setCurrentRoom(null);
     setError(null);
     setWatching(EMPTY_WATCHING);
+    setGridAudio(EMPTY_GRID_AUDIO);
     setConnectionState('disconnected');
     if (room.state !== ConnectionState.Disconnected) await room.disconnect();
   }, [room]);
 
+  // "Assistir", the sidebar badge and destaque are choices: that stream's audio is the one heard.
   const watch = useCallback((key: string) => {
     setWatching((prev) => watchStream(prev, key));
+    setGridAudio((prev) => chooseAudio(prev, key));
   }, []);
 
   const watchAndFocus = useCallback((key: string) => {
     setWatching((prev) => watchAndFocusStream(prev, key));
+    setGridAudio((prev) => chooseAudio(prev, key));
   }, []);
 
   const unwatch = useCallback((key: string) => {
@@ -222,11 +245,21 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
 
   const focus = useCallback((key: string) => {
     setWatching((prev) => focusWatched(prev, key));
+    setGridAudio((prev) => chooseAudio(prev, key));
   }, []);
 
   const showGrid = useCallback(() => {
     setWatching(showWatchedGrid);
   }, []);
+
+  const unmuteInGrid = useCallback((key: string) => {
+    setGridAudio((prev) => unmuteGridStream(prev, key));
+  }, []);
+
+  const silencedKeys = useMemo(
+    () => silencedGridKeys(gridAudio, watching.watched),
+    [gridAudio, watching.watched],
+  );
 
   const syncLive = useCallback((liveKeys: readonly string[]) => {
     setWatching((prev) => pruneWatching(prev, liveKeys));
@@ -243,6 +276,7 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
     error,
     focusedKey: watching.focused,
     watchedKeys: watching.watched,
+    silencedKeys,
     audioPlayback,
     join,
     leave,
@@ -251,6 +285,7 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
     unwatch,
     focus,
     showGrid,
+    unmuteInGrid,
     syncLive,
     startAudio,
   };

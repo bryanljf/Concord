@@ -504,6 +504,7 @@ export function Stage({
       const tiles = layout.main.tiles.map((tile) => {
         const stream = byKey.get(tile.key);
         if (!stream) return null;
+        const withAudio = stream.kind === 'screen' && stream.audio !== null;
         return (
           <li key={tile.key}>
             {tile.elsewhere ? (
@@ -514,6 +515,11 @@ export function Stage({
                 viewers={viewers.get(stream.key) ?? NO_VIEWERS}
                 onSelect={() => onFocus(stream.key)}
                 onStopWatching={() => onUnwatch(stream.key)}
+                volume={withAudio ? audio.settingFor(stream.participantId) : undefined}
+                onVolume={
+                  withAudio ? (volume) => audio.setVolume(stream.participantId, volume) : undefined
+                }
+                onToggleMute={withAudio ? () => audio.toggleMute(stream.participantId) : undefined}
                 {...watchedMenu('grid', stream.key)}
               />
             )}

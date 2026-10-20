@@ -53,8 +53,9 @@ original).
   nela); **»** expande de novo.
 - **Assistir**: ao entrar numa sala você não recebe vídeo de ninguém até escolher. Cada live (e
   cada câmera ligada) aparece como um cartão com **Assistir** (também dá para clicar no selo AO
-  VIVO na barra lateral). Com duas ou mais assistidas, elas ficam lado a lado numa grade, todas
-  com som. Clique numa delas para o **destaque**: ela vem em qualidade cheia e com som, e as
+  VIVO na barra lateral). Com duas ou mais assistidas, elas ficam lado a lado numa grade. Só tem
+  som a última que você escolheu (clicando em **Assistir** ou colocando em destaque); as outras
+  começam mudas. Passe o mouse numa delas para ajustar o volume ou ativar o som. Clique numa delas para o **destaque**: ela vem em qualidade cheia e com som, e as
   outras ficam em miniatura embaixo, sem som. O botão de grade (ou `Esc`) volta para a grade.
 - **Clique com o botão direito** numa live para **Colocar em destaque**, **Voltar para a
   grade**, **Abrir em pop-out**, **Silenciar**, **Estatísticas da transmissão** ou **Parar de
