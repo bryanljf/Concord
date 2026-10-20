@@ -20,6 +20,7 @@ function parseParticipant(value: unknown): PresenceParticipant | null {
   };
   // Optional too (servers before v0.2.0): kept only when it is a real boolean.
   if (typeof value.camera === 'boolean') participant.camera = value.camera;
+  if (typeof value.music === 'boolean') participant.music = value.music;
   return participant;
 }
 

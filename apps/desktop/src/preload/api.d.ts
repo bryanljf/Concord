@@ -47,6 +47,8 @@ export interface Settings {
   pipTileWidth: number;
   /** Top-left corner of the picture-in-picture window; null = top-right corner of the screen. */
   pipPosition: { x: number; y: number } | null;
+  /** Chime when someone in your room starts broadcasting music. */
+  musicSounds: boolean;
 }
 
 export type PipLayout = 'vertical' | 'horizontal';
@@ -149,6 +151,50 @@ export interface ProcessAudioSupport {
 export interface ProcessAudioFormat {
   sampleRate: number;
   channels: number;
+}
+
+/** What a process audio capture records. */
+export type ProcessAudioTarget =
+  /** A desktopCapturer window/screen id (the screen share's audio). */
+  | { kind: 'source'; sourceId: string }
+  /** A music app's whole process tree (the separate music track). */
+  | { kind: 'app'; app: MusicAppId };
+
+export interface ProcessAudioCapture {
+  /** Tags this capture's PCM chunks and stops it. */
+  captureId: string;
+  format: ProcessAudioFormat;
+}
+
+// --- Music apps ----------------------------------------------------------------------
+
+/** Apps whose music can be broadcast (Spotify for now). */
+export type MusicAppId = 'spotify';
+
+/** What a music app is playing, from the Windows media controls (SMTC). */
+export interface NowPlaying {
+  app: MusicAppId;
+  title: string;
+  artist: string;
+  album: string;
+  state: 'playing' | 'paused' | 'stopped';
+  /** An advertisement is playing (no artist/album): the UI shows "Anúncio". */
+  ad: boolean;
+  /** Position at `at`; extrapolate while playing (`lib/music.ts`). */
+  positionMs: number;
+  durationMs: number;
+  /** `Date.now()` when `positionMs` was true. */
+  at: number;
+  /** Hash of the cover art (`getMusicArt`); null when the app published none. */
+  artId: string | null;
+}
+
+export interface MusicAppStatus {
+  app: MusicAppId;
+  /** The app's process is running. */
+  running: boolean;
+  /** Null while it has no media session (not played yet, or stopped for a while). */
+  nowPlaying: NowPlaying | null;
 }
 
 export interface ConcordApi {
@@ -276,13 +322,25 @@ export interface ConcordApi {
   // --- Process audio (Phase 3b) ---------------------------------------------------
   getProcessAudioSupport(): Promise<ProcessAudioSupport>;
   /**
-   * Window source: captures only that window's process tree. Screen source: captures
-   * everything except Discord's process tree. PCM arrives through `onProcessAudioData` as
-   * interleaved float32 frames in the returned format.
+   * Starts one capture; several can run at once (the screen share's and the music's), each
+   * owned by the window that started it. Window source: only that window's process tree. Screen
+   * source: everything except Discord's process tree. Music app: that app's process tree
+   * (rejects with code `app_not_running` when it is closed). PCM arrives through
+   * `onProcessAudioData` tagged with the returned `captureId`, as interleaved float32 frames.
    */
-  startProcessAudio(sourceId: string): Promise<ProcessAudioFormat>;
-  stopProcessAudio(): Promise<void>;
-  onProcessAudioData(listener: (chunk: Float32Array) => void): () => void;
+  startProcessAudio(target: ProcessAudioTarget): Promise<ProcessAudioCapture>;
+  stopProcessAudio(captureId: string): Promise<void>;
+  onProcessAudioData(listener: (captureId: string, chunk: Float32Array) => void): () => void;
+  /** A capture ended on its own: the captured app was closed (main stopped it already). */
+  onProcessAudioEnded(listener: (captureId: string, reason: 'app_closed') => void): () => void;
+
+  // --- Music apps (what they play) -------------------------------------------------
+  /** Whether the app runs and what it plays (Windows media controls), right now. */
+  getMusicAppStatus(app: MusicAppId): Promise<MusicAppStatus>;
+  /** Pushed whenever a supported music app starts, closes or changes what it plays. */
+  onMusicAppStatus(listener: (status: MusicAppStatus) => void): () => void;
+  /** Cover art for `NowPlaying.artId` as a `data:image/jpeg` URL (≤ 160 px); null if unknown. */
+  getMusicArt(artId: string): Promise<string | null>;
 }
 
 declare global {

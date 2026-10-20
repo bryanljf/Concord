@@ -1,4 +1,5 @@
 import { app, globalShortcut } from 'electron';
+import { join } from 'node:path';
 import { EVENTS } from '../preload/channels';
 import { createApiClient } from './api-client';
 import { openDiscordLogin } from './discord-auth';
@@ -10,6 +11,7 @@ import { createDiscordWatcher } from './discord-watcher';
 import { registerIpc } from './ipc';
 import { log } from './log';
 import { createNotifier } from './notifications';
+import { createNowPlaying } from './now-playing';
 import { createPipManager } from './pip';
 import { createPopoutManager } from './popout';
 import { PresenceClient } from './presence-client';
@@ -114,6 +116,9 @@ function bootstrap(): void {
   const streaming = createStreamingStore();
   const capture = createCaptureService({ windows });
   const processAudio = createProcessAudioBridge(createProcessAudioEngine());
+  // Second entry of the main build (electron.vite.config.ts), next to this bundle; it only
+  // starts when a window first asks what a music app plays.
+  const nowPlaying = createNowPlaying({ workerPath: join(__dirname, 'now-playing-worker.js') });
   const updater = createUpdater({
     isPackaged: app.isPackaged,
     currentVersion: app.getVersion(),
@@ -168,6 +173,7 @@ function bootstrap(): void {
     windowDrag,
     updater,
     processAudio,
+    nowPlaying,
   });
   capture.install();
   bindAutostart(settings);
@@ -202,7 +208,8 @@ function bootstrap(): void {
     controller.stop();
     discord.stop();
     presence.disconnect('no_session');
-    void processAudio.stop();
+    void processAudio.stopAll();
+    nowPlaying.destroy();
     windowDrag.destroy();
     popout.destroy();
     pip.destroy();

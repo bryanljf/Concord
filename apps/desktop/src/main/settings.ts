@@ -33,6 +33,7 @@ export function defaultSettings(): Settings {
     pipLayout: 'vertical',
     pipTileWidth: 320,
     pipPosition: null,
+    musicSounds: true,
   };
 }
 
@@ -115,6 +116,7 @@ const validators: { [K in keyof Settings]: Validator<K> } = {
       ? Math.round(value)
       : undefined,
   pipPosition: screenPoint,
+  musicSounds: boolean,
 };
 
 const SETTINGS_KEYS = Object.keys(validators) as (keyof Settings)[];

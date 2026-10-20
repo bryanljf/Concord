@@ -84,6 +84,30 @@ describe('parsePresenceEvent', () => {
     ).toEqual({ type: 'snapshot', data: { rooms: { geral: [{ ...anaParsed, camera: true }] } } });
   });
 
+  it('keeps music only when it is a boolean', () => {
+    const parse = (value: unknown) => {
+      const event = parsePresenceEvent({
+        type: 'participant_updated',
+        room: 'geral',
+        participant: { ...ana, music: value },
+      });
+      return event?.type === 'participant_updated' ? event.participant : null;
+    };
+    expect(parse(true)).toEqual({ ...anaParsed, music: true });
+    expect(parse(false)).toEqual({ ...anaParsed, music: false });
+    expect(parse(1)).toEqual(anaParsed);
+    expect(parse(undefined)).not.toHaveProperty('music');
+    expect(
+      parsePresenceEvent({
+        type: 'snapshot',
+        data: { rooms: { geral: [{ ...ana, camera: false, music: true }] } },
+      }),
+    ).toEqual({
+      type: 'snapshot',
+      data: { rooms: { geral: [{ ...anaParsed, camera: false, music: true }] } },
+    });
+  });
+
   it('rejects malformed payloads', () => {
     expect(parsePresenceEvent(null)).toBeNull();
     expect(parsePresenceEvent('snapshot')).toBeNull();

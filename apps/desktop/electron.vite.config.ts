@@ -13,9 +13,23 @@ export default defineConfig({
     build: {
       // @concord/shared ships TS source, so it must be bundled rather than required at runtime.
       externalizeDeps: { exclude: ['@concord/shared'] },
-      // CJS / native packages stay `require`d from node_modules (electron-builder packs them
-      // and asar-unpacks the native prebuilds); never inline them into out/main/index.js.
-      rollupOptions: { external: ['electron-updater', '@concord/process-audio'] },
+      rollupOptions: {
+        input: {
+          // The main process.
+          index: 'src/main/index.ts',
+          // Utility process that reads the Windows media sessions (SMTC locks its thread, so it
+          // never runs in the main process); forked by src/main/now-playing/index.ts.
+          'now-playing-worker': 'src/main/now-playing/worker.ts',
+        },
+        // CJS / native packages stay `require`d from node_modules (electron-builder packs them
+        // and asar-unpacks the native prebuilds); never inline them into the bundles.
+        external: [
+          'electron-updater',
+          '@concord/process-audio',
+          '@concord/now-playing',
+          '@coooookies/windows-smtc-monitor',
+        ],
+      },
     },
   },
   preload: {

@@ -149,6 +149,25 @@ describe('camera and picture-in-picture settings', () => {
   });
 });
 
+describe('music settings', () => {
+  it('plays the music chime by default', () => {
+    expect(defaultSettings().musicSounds).toBe(true);
+  });
+
+  it('accepts only booleans', () => {
+    expect(sanitizePatch({ musicSounds: false })).toEqual({ musicSounds: false });
+    expect(() => sanitizePatch({ musicSounds: 'no' })).toThrow(SettingsValidationError);
+    expect(() => sanitizePatch({ musicSounds: null })).toThrow(SettingsValidationError);
+  });
+
+  it('keeps the stored value and resets a broken one', () => {
+    expect(sanitizeSettings({ musicSounds: false }).settings.musicSounds).toBe(false);
+    const { settings, rejected } = sanitizeSettings({ musicSounds: 1 });
+    expect(settings.musicSounds).toBe(true);
+    expect(rejected).toEqual(['musicSounds']);
+  });
+});
+
 describe('sanitizePatch', () => {
   it('throws on unknown or invalid fields and keeps valid ones', () => {
     expect(sanitizePatch({ followDiscord: false, mutedUsers: ['ana'] })).toEqual({

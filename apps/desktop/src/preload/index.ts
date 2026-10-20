@@ -9,6 +9,7 @@ import type {
 import type {
   CaptureSource,
   ConcordApi,
+  MusicAppStatus,
   NavigateTarget,
   PipState,
   PipTarget,
@@ -16,7 +17,7 @@ import type {
   PopoutTarget,
   PresenceConnectionStatus,
   PresenceState,
-  ProcessAudioFormat,
+  ProcessAudioCapture,
   ProcessAudioSupport,
   Session,
   Settings,
@@ -57,6 +58,15 @@ async function invoke<T>(channel: IpcChannel, ...args: unknown[]): Promise<T> {
 /** Subscribes to a main-process push; returns the unsubscribe function. */
 function subscribe<T>(channel: EventChannel, listener: (payload: T) => void): () => void {
   const handler = (_event: IpcRendererEvent, payload: T): void => listener(payload);
+  ipcRenderer.on(channel, handler);
+  return () => {
+    ipcRenderer.removeListener(channel, handler);
+  };
+}
+
+/** Same as `subscribe` for pushes with two arguments (e.g. a capture id and its payload). */
+function subscribe2<A, B>(channel: EventChannel, listener: (a: A, b: B) => void): () => void {
+  const handler = (_event: IpcRendererEvent, a: A, b: B): void => listener(a, b);
   ipcRenderer.on(channel, handler);
   return () => {
     ipcRenderer.removeListener(channel, handler);
@@ -136,9 +146,16 @@ const api: ConcordApi = {
   onUpdateStatus: (listener) => subscribe<UpdateStatus>(EVENTS.UPDATE_STATUS, listener),
 
   getProcessAudioSupport: () => invoke<ProcessAudioSupport>(IPC.PROCESS_AUDIO_SUPPORT),
-  startProcessAudio: (sourceId) => invoke<ProcessAudioFormat>(IPC.PROCESS_AUDIO_START, sourceId),
-  stopProcessAudio: () => invoke<void>(IPC.PROCESS_AUDIO_STOP),
-  onProcessAudioData: (listener) => subscribe<Float32Array>(EVENTS.PROCESS_AUDIO_DATA, listener),
+  startProcessAudio: (target) => invoke<ProcessAudioCapture>(IPC.PROCESS_AUDIO_START, target),
+  stopProcessAudio: (captureId) => invoke<void>(IPC.PROCESS_AUDIO_STOP, captureId),
+  onProcessAudioData: (listener) =>
+    subscribe2<string, Float32Array>(EVENTS.PROCESS_AUDIO_DATA, listener),
+  onProcessAudioEnded: (listener) =>
+    subscribe2<string, 'app_closed'>(EVENTS.PROCESS_AUDIO_ENDED, listener),
+
+  getMusicAppStatus: (app) => invoke<MusicAppStatus>(IPC.GET_MUSIC_APP_STATUS, app),
+  onMusicAppStatus: (listener) => subscribe<MusicAppStatus>(EVENTS.MUSIC_APP_STATUS, listener),
+  getMusicArt: (artId) => invoke<string | null>(IPC.GET_MUSIC_ART, artId),
 };
 
 /** Main passes `--concord-window=<kind>` through `webPreferences.additionalArguments`. */

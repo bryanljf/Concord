@@ -11,6 +11,7 @@ import type { ApiClient } from './api-client';
 import { ApiClientError } from './api-client';
 import { parseCaptureSelection, type CaptureService } from './capture';
 import { log } from './log';
+import type { NowPlayingService } from './now-playing';
 import type { PipManager } from './pip';
 import { parsePopoutTarget, type PopoutManager } from './popout';
 import type { PresenceClient } from './presence-client';
@@ -22,6 +23,7 @@ import { parseStreamingState, type StreamingStore } from './streaming';
 import type { Updater } from './updater';
 import {
   expectBoolean,
+  expectMusicAppId,
   expectNickname,
   expectOptionalTokenPurpose,
   expectPipResizeCorner,
@@ -53,6 +55,7 @@ export interface IpcDeps {
   windowDrag: WindowDrag;
   updater: Updater;
   processAudio: ProcessAudioBridge;
+  nowPlaying: NowPlayingService;
 }
 
 /** Who is calling: always a registered window (anything else is denied before the handler). */
@@ -84,7 +87,7 @@ type Handler<T> = (context: IpcContext, ...args: unknown[]) => Promise<T> | T;
 
 export function registerIpc(deps: IpcDeps): () => void {
   const { settings, session, api, presence, windows, mainWindow } = deps;
-  const { capture, streaming, popout, pip, windowDrag, updater, processAudio } = deps;
+  const { capture, streaming, popout, pip, windowDrag, updater, processAudio, nowPlaying } = deps;
   const registered: IpcChannel[] = [];
 
   function handle<T>(channel: IpcChannel, handler: Handler<T>): void {
@@ -215,8 +218,19 @@ export function registerIpc(deps: IpcDeps): () => void {
 
   // --- Process audio --------------------------------------------------------------------
   handle(IPC.PROCESS_AUDIO_SUPPORT, () => processAudio.support());
-  handle(IPC.PROCESS_AUDIO_START, (ctx, sourceId) => processAudio.start(ctx.sender, sourceId));
-  handle(IPC.PROCESS_AUDIO_STOP, () => processAudio.stop());
+  handle(IPC.PROCESS_AUDIO_START, (ctx, target) => processAudio.start(ctx.sender, target));
+  handle(IPC.PROCESS_AUDIO_STOP, (ctx, captureId) => processAudio.stop(ctx.sender, captureId));
+
+  // --- Music apps (what they play) ---------------------------------------------------------
+  handle(IPC.GET_MUSIC_APP_STATUS, (ctx, app) => {
+    requireKind(ctx, 'main');
+    return nowPlaying.getStatus(expectMusicAppId(app));
+  });
+  // The artId may come from a listener's RPC: a malformed one is just unknown (null).
+  handle(IPC.GET_MUSIC_ART, (ctx, artId) => {
+    requireKind(ctx, 'main');
+    return nowPlaying.getArt(expectString(artId, 'artId'));
+  });
 
   // --- Fire-and-forget --------------------------------------------------------------------
   const onHide = (event: IpcMainEvent): void => {
@@ -236,6 +250,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     settings.onChange((next) => windows.broadcast(EVENTS.SETTINGS_CHANGED, next)),
     streaming.onChange((state) => windows.broadcast(EVENTS.STREAMING_STATE, state)),
     updater.onStatus((status) => windows.broadcast(EVENTS.UPDATE_STATUS, status)),
+    nowPlaying.onStatus((status) => windows.broadcast(EVENTS.MUSIC_APP_STATUS, status)),
   ];
   logger.info(`registered ${registered.length + 1} channels`);
 

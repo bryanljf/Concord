@@ -26,6 +26,11 @@ asarUnpack:
   - '**/node_modules/@concord/process-audio/**'
   # Native addon with its prebuilt .node binary (loaded through `bindings`).
   - '**/node_modules/loopback-capture/**'
+  # "Now playing" (Windows media controls), loaded by the out/main/now-playing-worker.js utility
+  # process: the adapter, the napi-rs loader and its per-platform binary package
+  # (@coooookies/windows-smtc-monitor-win32-x64-msvc).
+  - '**/node_modules/@concord/now-playing/**'
+  - '**/node_modules/@coooookies/windows-smtc-monitor*/**'
 
 # Tray and notification icons are read from disk at runtime (src/main/resources.ts looks in
 # <resourcesPath>/resources first).
@@ -35,7 +40,8 @@ extraResources:
     filter:
       - '**/*.png'
 
-# @concord/process-audio ships prebuilt binaries; nothing is compiled while packaging.
+# @concord/process-audio and @concord/now-playing ship prebuilt binaries; nothing is compiled
+# while packaging.
 npmRebuild: false
 
 win:

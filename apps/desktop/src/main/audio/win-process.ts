@@ -169,6 +169,11 @@ export async function getWindowOwnerPid(
   }
 }
 
+function byName(names: readonly string[]): (rows: ProcessInfo[]) => ProcessInfo[] {
+  const wanted = new Set(names.map((name) => name.toLowerCase()));
+  return (rows) => rows.filter((row) => wanted.has(row.name.toLowerCase()));
+}
+
 /**
  * Running processes whose image name is in `names` (case-insensitive). PowerShell/CIM gives parent
  * pids; when it fails, `tasklist` provides the pids alone.
@@ -177,9 +182,7 @@ export async function listProcessesByName(
   names: readonly string[],
   run: CommandRunner = runCommand,
 ): Promise<ProcessInfo[]> {
-  const wanted = new Set(names.map((name) => name.toLowerCase()));
-  const matches = (rows: ProcessInfo[]): ProcessInfo[] =>
-    rows.filter((row) => wanted.has(row.name.toLowerCase()));
+  const matches = byName(names);
   try {
     const stdout = await run('powershell.exe', powerShellArgs(processListScript(names)));
     return matches(parseProcessListJson(stdout));
@@ -187,4 +190,17 @@ export async function listProcessesByName(
     const stdout = await run('tasklist', ['/FO', 'CSV', '/NH']);
     return matches(parseTasklistCsv(stdout));
   }
+}
+
+/**
+ * Running processes named `names` from `tasklist` alone: no parent pids, but far cheaper than
+ * starting PowerShell, so periodic checks use it (is the app still open, is a pid still alive).
+ * Rejects when `tasklist` fails.
+ */
+export async function listProcessesQuick(
+  names: readonly string[],
+  run: CommandRunner = runCommand,
+): Promise<ProcessInfo[]> {
+  const stdout = await run('tasklist', ['/FO', 'CSV', '/NH']);
+  return byName(names)(parseTasklistCsv(stdout));
 }

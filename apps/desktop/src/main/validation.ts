@@ -6,7 +6,8 @@ import {
   type RoomId,
   type TokenPurpose,
 } from '@concord/shared';
-import type { PipResizeCorner, PipTarget } from '../preload/api';
+import type { MusicAppId, PipResizeCorner, PipTarget } from '../preload/api';
+import { isMusicAppId } from './music-apps';
 
 /**
  * Error whose `message` is pt-BR and safe to show in the UI. The IPC layer forwards it to the
@@ -94,6 +95,11 @@ export function parsePipTarget(raw: unknown): PipTarget {
     if (!participantIds.includes(id)) participantIds.push(id);
   }
   return { room, participantIds };
+}
+
+export function expectMusicAppId(value: unknown, name = 'app'): MusicAppId {
+  if (!isMusicAppId(value)) throw new IpcValidationError(name);
+  return value;
 }
 
 export function expectPipResizeCorner(value: unknown): PipResizeCorner {

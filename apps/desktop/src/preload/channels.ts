@@ -48,8 +48,12 @@ export const IPC = {
   CHECK_FOR_UPDATES: 'update:check',
   INSTALL_UPDATE: 'update:install',
   PROCESS_AUDIO_SUPPORT: 'process-audio:support',
+  /** Argument: a `ProcessAudioTarget`; resolves with `{ captureId, format }`. */
   PROCESS_AUDIO_START: 'process-audio:start',
+  /** Argument: the `captureId` to stop. */
   PROCESS_AUDIO_STOP: 'process-audio:stop',
+  GET_MUSIC_APP_STATUS: 'music:status',
+  GET_MUSIC_ART: 'music:art',
 } as const;
 
 /** Main → renderer pushes (`webContents.send`), one per `on*` method of `ConcordApi`. */
@@ -70,7 +74,11 @@ export const EVENTS = {
   /** Picture-in-picture window only: entered or left its own (non-native) fullscreen. */
   PIP_FULLSCREEN: 'pip:fullscreen',
   UPDATE_STATUS: 'update:status',
+  /** Owning window only: `(captureId, chunk)`. */
   PROCESS_AUDIO_DATA: 'process-audio:data',
+  /** Owning window only: `(captureId, reason)` after main ended a capture on its own. */
+  PROCESS_AUDIO_ENDED: 'process-audio:ended',
+  MUSIC_APP_STATUS: 'music:status-changed',
 } as const;
 
 /** `additionalArguments` flag that tells the preload which window it runs in. */

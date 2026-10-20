@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   getWindowOwnerPid,
   listProcessesByName,
+  listProcessesQuick,
   parseProcessListJson,
   parseTasklistCsv,
   powerShellArgs,
@@ -129,5 +130,25 @@ describe('listProcessesByName', () => {
       { pid: 42, ppid: null, name: 'Discord.exe' },
     ]);
     expect(run).toHaveBeenLastCalledWith('tasklist', ['/FO', 'CSV', '/NH']);
+  });
+});
+
+describe('listProcessesQuick', () => {
+  it('uses tasklist only and filters by name case-insensitively', async () => {
+    const run = vi
+      .fn<CommandRunner>()
+      .mockResolvedValue(
+        '"Spotify.exe","900","Console","1","90 K"\r\n"spotify.exe","910","Console","1","9 K"\r\n"explorer.exe","9","Console","1","1 K"',
+      );
+    await expect(listProcessesQuick(['Spotify.exe'], run)).resolves.toEqual([
+      { pid: 900, ppid: null, name: 'Spotify.exe' },
+      { pid: 910, ppid: null, name: 'spotify.exe' },
+    ]);
+    expect(run).toHaveBeenCalledExactlyOnceWith('tasklist', ['/FO', 'CSV', '/NH']);
+  });
+
+  it('rejects when tasklist fails', async () => {
+    const run = vi.fn<CommandRunner>().mockRejectedValue(new Error('boom'));
+    await expect(listProcessesQuick(['Spotify.exe'], run)).rejects.toThrow('boom');
   });
 });
