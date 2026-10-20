@@ -44,6 +44,14 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
   e envio) e uma lista de possíveis problemas, com **Copiar diagnóstico** para relatar bugs.
   Cada app publica um resumo do próprio envio nos atributos do LiveKit (`concord.stats.screen` e
   `concord.stats.camera`).
+- **Música do Spotify**, à parte da tela (aba **Música** do seletor; só o Spotify por enquanto):
+  o áudio do processo do Spotify vai numa faixa própria (fonte Microphone do LiveKit, nome
+  `concord:music:spotify`; o app nunca usa o microfone), em Opus estéreo até 320 kbps, com o
+  bitrate caindo em degraus quando o upload perde pacotes ou enfileira e voltando sozinho. Música,
+  artista, capa e posição vêm dos controles de mídia do Windows (SMTC, num `utilityProcess`) e
+  chegam a quem ouve pelo atributo `concord.music` e pela RPC `concord.music.art`. Quem ouve usa o
+  ícone de fone na linha da sala: um painel com capa, progresso, **Ouvir** (uma música por vez) e
+  volume de 1 em 1%. Um som próprio avisa quando alguém começa a transmitir música na sua sala.
 - **Quem está assistindo**, como no Go Live do Discord: cada live (e a prévia da sua) mostra o
   número de espectadores e os avatares; passar o mouse lista os nomes. Cada app publica as lives
   que assiste num atributo do LiveKit (`concord.watching`).

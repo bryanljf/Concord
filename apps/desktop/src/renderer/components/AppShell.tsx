@@ -7,6 +7,11 @@ interface AppShellProps {
   userPanel: ReactNode;
   header: ReactNode;
   footer: ReactNode;
+  /**
+   * Drawn over the stage whatever it shows (the music drawer): positioned against the stage's
+   * top-left corner and clipped by it, so it can slide out from under the sidebar.
+   */
+  stageOverlay?: ReactNode;
   /** Fullscreen: only the stage stays visible (the chrome is hidden, not unmounted). */
   immersive?: boolean;
   children: ReactNode;
@@ -19,6 +24,7 @@ export function AppShell({
   userPanel,
   header,
   footer,
+  stageOverlay,
   immersive = false,
   children,
 }: AppShellProps) {
@@ -31,7 +37,10 @@ export function AppShell({
       </aside>
       <div className="shell__main">
         {header}
-        <main className="shell__stage">{children}</main>
+        <main className="shell__stage">
+          {children}
+          {stageOverlay}
+        </main>
         {footer}
       </div>
     </div>

@@ -281,3 +281,146 @@
   left: 6px;
   z-index: 1;
 }
+
+/* "Música" tab: the music app's card */
+.music-tab {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.music-tab .picker__warning {
+  align-items: flex-start;
+  margin: 0;
+}
+
+.music-tab .picker__warning svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.music-tab__notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(88, 101, 242, 0.15);
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.music-tab__notice svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.music-tab__hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.music-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 12px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+.music-card--live {
+  border-color: var(--online);
+}
+
+.music-card__art {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  overflow: hidden;
+}
+
+.music-card__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.music-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.music-card__app {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Same shape as the live badge, in green: music is never "ao vivo" */
+.music-card__live {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--online);
+  color: var(--text-on-accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.music-card__title {
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.music-card__artist {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.music-card__state {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.music-card__state--playing {
+  color: var(--online);
+}
+
+.music-card__message {
+  color: var(--text-normal);
+  font-size: 14px;
+}
+
+.music-card__missing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.music-card__missing-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--warning);
+  font-size: 14px;
+}

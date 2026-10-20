@@ -70,6 +70,12 @@ original).
   e use o botão direito nela para tela cheia, disposição ou para deixá-la de ficar por cima de
   tudo. Jogos em **tela cheia exclusiva** ficam por cima dela: use **tela cheia sem bordas**. Ela
   não aparece nas suas transmissões nem em capturas de tela.
+- **Música**: para transmitir o seu Spotify, abra **Transmitir → Música** com o Spotify tocando.
+  Dá para transmitir só a música ou junto com a tela. Para ouvir a música de alguém, clique no
+  ícone de **fone** ao lado do número de pessoas da sala e em **Ouvir** (uma música por vez). Se a
+  música não aparecer, ative no Spotify **Configurações → Exibir sobreposição na área de trabalho
+  ao usar as teclas de mídia**. Transmitindo a **tela inteira** com áudio, o Spotify também vai no
+  áudio da tela; quem ouve pode silenciar um dos dois.
 - **Transmitir**: botão **Transmitir**, item **Transmitir…** da bandeja ou o atalho. Escolha uma
   janela (só aquele programa) ou uma tela inteira e a qualidade (Leve 720p30, Padrão 1080p30 ou
   Jogo 1080p60). O **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o

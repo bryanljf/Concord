@@ -36,3 +36,23 @@ describe('liveCardsTitle', () => {
     );
   });
 });
+
+describe('liveCardsTitle with music', () => {
+  it('counts the people broadcasting music alone', () => {
+    expect(liveCardsTitle({ screens: 0, cameras: 0, music: 1 }, 'sala-1')).toBe(
+      '1 pessoa transmitindo música em Sala 1',
+    );
+    expect(liveCardsTitle({ screens: 0, cameras: 0, music: 2 }, 'sala-1')).toBe(
+      '2 pessoas transmitindo música em Sala 1',
+    );
+  });
+
+  it('lists every kind when mixed', () => {
+    expect(liveCardsTitle({ screens: 1, cameras: 0, music: 1 }, 'sala-1')).toBe(
+      '1 transmissão ao vivo e 1 música em Sala 1',
+    );
+    expect(liveCardsTitle({ screens: 2, cameras: 1, music: 3 }, 'sala-1')).toBe(
+      '2 transmissões ao vivo, 1 câmera e 3 músicas em Sala 1',
+    );
+  });
+});

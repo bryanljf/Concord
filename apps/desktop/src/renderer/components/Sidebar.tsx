@@ -14,6 +14,10 @@ interface SidebarProps {
    * badge reads "assistindo" (camera keys never match a participant).
    */
   watchedIds: readonly string[];
+  /** How many music broadcasts you listen to (the equalizer on your room's music button). */
+  musicListening: number;
+  musicOpen: boolean;
+  onToggleMusic(): void;
   onJoin(room: RoomId): void;
   onWatch(room: RoomId, participantId: string): void;
 }
@@ -36,6 +40,9 @@ export function Sidebar({
   snapshot,
   currentRoom,
   watchedIds,
+  musicListening,
+  musicOpen,
+  onToggleMusic,
   onJoin,
   onWatch,
 }: SidebarProps) {
@@ -43,7 +50,9 @@ export function Sidebar({
 
   return (
     <nav className="sidebar" aria-label="Salas" onKeyDown={handleKeyDown}>
-      <div className="sidebar__brand">CONCORD</div>
+      <div className="sidebar__brand">
+        <span className="sidebar__brand-name">CONCORD</span>
+      </div>
       <h2 className="sidebar__section">
         <span>Salas</span>
         <span aria-hidden="true">{rooms.length}</span>
@@ -61,6 +70,9 @@ export function Sidebar({
               participants={participantsOf(snapshot, room)}
               current={room === currentRoom}
               watchedIds={room === currentRoom ? watchedIds : NONE}
+              musicListening={room === currentRoom ? musicListening : 0}
+              musicOpen={musicOpen}
+              onToggleMusic={onToggleMusic}
               now={now}
               onJoin={onJoin}
               onWatch={onWatch}

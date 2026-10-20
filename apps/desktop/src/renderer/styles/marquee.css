@@ -1,0 +1,39 @@
+/* One-line text that slides when it is too long (components/music/Marquee.tsx). */
+.marquee {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.marquee__text {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/*
+ * Long text fades out at the right edge instead of being cut sharply. The text gets as much
+ * room after its end as the fade is wide, so when it has slid all the way the last letter stops
+ * clear of the fade (fully visible) instead of fading out under it.
+ */
+.marquee--overflow {
+  --marquee-fade: 14px;
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--marquee-fade)), transparent);
+}
+
+.marquee--overflow .marquee__text {
+  padding-right: calc(var(--marquee-fade) + 2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee__text {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .marquee--overflow {
+    mask-image: none;
+  }
+}

@@ -202,7 +202,10 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
     ): Promise<{ mode: BroadcastAudioMode; processAudio: ProcessAudioTrack | null }> => {
       if (requested !== 'process') return { mode: requested, processAudio: null };
       try {
-        return { mode: 'process', processAudio: await createProcessAudioTrack(sourceId) };
+        return {
+          mode: 'process',
+          processAudio: await createProcessAudioTrack({ kind: 'source', sourceId }),
+        };
       } catch (err) {
         if (errorCode(err) === DISCORD_NOT_RUNNING) {
           onWarningRef.current?.('Discord fechado: usando o áudio do sistema.', 'info');
@@ -399,7 +402,10 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         Track.Source.ScreenShareAudio,
       )?.audioTrack;
       try {
-        const restored = await createProcessAudioTrack(previous.sourceId);
+        const restored = await createProcessAudioTrack({
+          kind: 'source',
+          sourceId: previous.sourceId,
+        });
         if (localAudio) await localAudio.replaceTrack(restored.track, { userProvidedTrack: true });
         if (published.current === previous) {
           published.current = { ...previous, audio: restored.track, processAudio: restored };

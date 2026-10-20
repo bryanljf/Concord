@@ -20,6 +20,20 @@ export function isCameraKey(key: string): boolean {
   return key.endsWith(CAMERA_KEY_SUFFIX);
 }
 
+/**
+ * Listening to someone's music is published in `concord.watching` as `<id>#music` (so the
+ * broadcaster sees who listens). Not a stage stream: never pass it to `parseStreamKey`.
+ */
+export const MUSIC_KEY_SUFFIX = '#music';
+
+export function musicKey(participantId: string): string {
+  return `${participantId}${MUSIC_KEY_SUFFIX}`;
+}
+
+export function isMusicKey(key: string): boolean {
+  return key.endsWith(MUSIC_KEY_SUFFIX);
+}
+
 export function parseStreamKey(key: string): { participantId: string; kind: StreamKind } {
   return isCameraKey(key)
     ? { participantId: key.slice(0, -CAMERA_KEY_SUFFIX.length), kind: 'camera' }

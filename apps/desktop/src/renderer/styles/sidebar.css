@@ -8,13 +8,20 @@
   display: flex;
   flex: none;
   align-items: center;
+  gap: 8px;
   height: var(--header-height);
-  padding: 0 16px;
+  padding: 0 10px 0 16px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.24);
   color: var(--text-strong);
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.14em;
+}
+
+/* The music button (only while someone broadcasts music) sits at the right end of the row. */
+.sidebar__brand-name {
+  flex: 1;
+  min-width: 0;
 }
 
 .sidebar__section {
@@ -40,6 +47,29 @@
 
 .room {
   margin-bottom: 2px;
+}
+
+/* The row: the room button over its whole width, the music button laid over its right end. */
+.room__row {
+  position: relative;
+}
+
+/* Room for the music button between the name and the people count. */
+.room__button--music {
+  padding-right: 8px;
+}
+
+.room__button--music .room__name {
+  margin-right: 64px;
+}
+
+/* Left of the people count (min-width 16px + the 6px gap + the 8px padding). */
+.room__music {
+  position: absolute;
+  top: 50%;
+  right: 30px;
+  display: flex;
+  transform: translateY(-50%);
 }
 
 .room__button {
@@ -80,6 +110,8 @@
 }
 
 .room__count {
+  min-width: 16px;
+  text-align: right;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
@@ -139,24 +171,28 @@
     0 0 0 3px var(--live);
 }
 
-/* Webcam on: an indicator only (a camera never counts as "AO VIVO"). */
-.participant__camera {
+/* Webcam on / music broadcast: indicators only (neither counts as "AO VIVO"). */
+.participant__camera,
+.participant__music {
   display: inline-flex;
   flex: none;
   color: var(--text-muted);
 }
 
-.participant:hover .participant__camera {
+.participant:hover .participant__camera,
+.participant:hover .participant__music {
   color: var(--text-normal);
 }
 
 /* Right-aligned so the tooltip never runs past the scrolling sidebar's edge. */
-.participant__camera[data-tooltip]::after {
+.participant__camera[data-tooltip]::after,
+.participant__music[data-tooltip]::after {
   right: 0;
   left: auto;
   transform: translate(0, 4px);
 }
 
-.participant__camera[data-tooltip]:hover::after {
+.participant__camera[data-tooltip]:hover::after,
+.participant__music[data-tooltip]:hover::after {
   transform: translate(0, 0);
 }

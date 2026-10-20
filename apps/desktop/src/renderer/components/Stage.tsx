@@ -31,6 +31,7 @@ import { FocusedStreamTile, GridSlotTile, GridStreamTile, MiniStreamTile } from 
 import { HeadphonesIcon, MonitorOffIcon, SpeakerIcon, WarningIcon } from './icons';
 import { ElsewhereTile } from './stream/ElsewhereTile';
 import { LiveCard } from './stream/LiveCard';
+import { MusicCard, type MusicCardItem } from './music/MusicCard';
 import { LocalCameraTile } from './stream/LocalCameraTile';
 import { LocalPreviewTile } from './stream/LocalPreviewTile';
 import '../styles/stage.css';
@@ -94,6 +95,10 @@ interface StageProps {
   onStopCamera(): void;
   /** "Escolher câmera…": Settings on the camera section. */
   onPickCamera(): void;
+  /** Music broadcasts in the room (yours excluded): cards with "Ouvir", like lives' cards. */
+  musicCards: readonly MusicCardItem[];
+  onListen(participantId: string): void;
+  onStopListening(participantId: string): void;
 }
 
 interface EmptyStateProps {
@@ -212,6 +217,9 @@ export function Stage({
   onSwitchSource,
   onStopCamera,
   onPickCamera,
+  musicCards,
+  onListen,
+  onStopListening,
 }: StageProps) {
   const contextMenu = useContextMenu<MenuTarget>(focusedTileElement);
   const byKey = useMemo(() => new Map(streams.map((stream) => [stream.key, stream])), [streams]);
@@ -428,6 +436,15 @@ export function Stage({
     );
   };
 
+  const musicCardOf = (item: MusicCardItem, size: 'stage' | 'strip') => (
+    <MusicCard
+      item={item}
+      size={size}
+      onListen={() => onListen(item.participantId)}
+      onStopListening={() => onStopListening(item.participantId)}
+    />
+  );
+
   const cardOf = (key: string, size: 'stage' | 'strip') => {
     const stream = byKey.get(key);
     if (!stream) return null;
@@ -442,6 +459,41 @@ export function Stage({
       />
     );
   };
+
+  // Cards of lives and cameras nobody picked, plus the music in the room (yours excluded).
+  const cameraCards = layout.cards.filter((key) => byKey.get(key)?.kind === 'camera').length;
+  const cardsSection = (
+    <section className="stage__cards" aria-labelledby="stage-cards-title">
+      <header className="stage__cards-header">
+        <h2 id="stage-cards-title">
+          {liveCardsTitle(
+            {
+              screens: layout.cards.length - cameraCards,
+              cameras: cameraCards,
+              music: musicCards.length,
+            },
+            currentRoom,
+          )}
+        </h2>
+        <p>
+          {musicCards.length > 0
+            ? 'Nada é baixado até você clicar em Assistir ou Ouvir.'
+            : 'Nenhum vídeo é recebido até você clicar em Assistir.'}
+        </p>
+      </header>
+      <ul className="stage__cards-grid">
+        {layout.cards.map((key) => (
+          <li key={key}>{cardOf(key, 'stage')}</li>
+        ))}
+        {musicCards.map((item) => (
+          <li key={`music-${item.participantId}`}>{musicCardOf(item, 'stage')}</li>
+        ))}
+      </ul>
+    </section>
+  );
+  // With something on the stage, the music cards wait in the strip (like the lives' cards).
+  const musicOnStage = layout.main.kind === 'cards' || layout.main.kind === 'empty';
+  const stripMusic = musicOnStage || fullscreen ? [] : musicCards;
 
   let main: ReactNode;
   switch (layout.main.kind) {
@@ -492,26 +544,15 @@ export function Stage({
         </div>
       );
       break;
-    case 'cards': {
-      const cameras = layout.cards.filter((key) => byKey.get(key)?.kind === 'camera').length;
-      main = (
-        <section className="stage__cards" aria-labelledby="stage-cards-title">
-          <header className="stage__cards-header">
-            <h2 id="stage-cards-title">
-              {liveCardsTitle({ screens: layout.cards.length - cameras, cameras }, currentRoom)}
-            </h2>
-            <p>Nenhum vídeo é recebido até você clicar em Assistir.</p>
-          </header>
-          <ul className="stage__cards-grid">
-            {layout.cards.map((key) => (
-              <li key={key}>{cardOf(key, 'stage')}</li>
-            ))}
-          </ul>
-        </section>
-      );
+    case 'cards':
+      main = cardsSection;
       break;
-    }
     case 'empty':
+      // Only music in the room: its cards take the stage instead of "Ninguém está transmitindo".
+      if (musicCards.length > 0) {
+        main = cardsSection;
+        break;
+      }
       main = (
         <EmptyState icon={<MonitorOffIcon size={64} />} title={titles.nobodyLive}>
           <p>
@@ -587,9 +628,12 @@ export function Stage({
 
       {main}
 
-      {layout.strip.length > 0 && (
+      {(layout.strip.length > 0 || stripMusic.length > 0) && (
         <ul className="stage__strip" aria-label="Outras transmissões">
           {layout.strip.map(stripItem)}
+          {stripMusic.map((item) => (
+            <li key={`music-${item.participantId}`}>{musicCardOf(item, 'strip')}</li>
+          ))}
         </ul>
       )}
 

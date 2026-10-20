@@ -49,9 +49,18 @@ export function NotificationsSection({
         />
         <span>Tocar um som quando alguém (ou você) entrar ou sair da sala em que você está</span>
       </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={settings.musicSounds}
+          onChange={() => onUpdate({ musicSounds: !settings.musicSounds })}
+        />
+        <span>Som quando alguém começar a transmitir música</span>
+      </label>
       <p className="field__hint">
-        Som quando alguém entra ao vivo na sua sala: toca um aviso curto enquanto você está numa
-        sala e outra pessoa começa a transmitir nela. Silencie salas ou pessoas aqui.
+        Som quando alguém entra ao vivo ou começa a transmitir música na sua sala: toca um aviso
+        curto enquanto você está numa sala e outra pessoa começa a transmitir nela. Silencie salas
+        ou pessoas aqui.
       </p>
       <fieldset className="settings__fieldset">
         <legend className="field__label">Sem som nestas salas</legend>
@@ -88,8 +97,8 @@ export function NotificationsSection({
                   aria-pressed={muted}
                   title={
                     muted
-                      ? `Voltar a tocar o som quando ${person.name} entrar ao vivo`
-                      : `Não tocar som quando ${person.name} entrar ao vivo`
+                      ? `Voltar a tocar o som quando ${person.name} entrar ao vivo ou transmitir música`
+                      : `Não tocar som quando ${person.name} entrar ao vivo ou transmitir música`
                   }
                   onClick={() => onUpdate({ mutedUsers: toggle(settings.mutedUsers, person.id) })}
                 >

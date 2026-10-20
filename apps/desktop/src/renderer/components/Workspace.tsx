@@ -6,7 +6,7 @@ import {
   type LocalTrackPublication,
   type LocalVideoTrack,
 } from 'livekit-client';
-import type { PopoutState } from '../../preload/api';
+import type { MusicAppId, PopoutState } from '../../preload/api';
 import type { BroadcastSwitchRequest } from '../hooks/useBroadcast';
 import {
   useBroadcast,
@@ -17,11 +17,15 @@ import { useCamera, type CameraEndReason } from '../hooks/useCamera';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { useHotkeys } from '../hooks/useHotkeys';
 import { useLiveStartedSound } from '../hooks/useLiveStartedSound';
+import { useMusicBroadcast, type MusicEndReason } from '../hooks/useMusicBroadcast';
+import { useMusicListening } from '../hooks/useMusicListening';
+import { useMusicStartedSound } from '../hooks/useMusicStartedSound';
 import { usePublishStats } from '../hooks/usePublishStats';
 import { useRoomSounds } from '../hooks/useRoomSounds';
 import { useServerPing } from '../hooks/useServerPing';
 import { useNavigate } from '../hooks/useNavigate';
 import { usePresence } from '../hooks/usePresence';
+import { useRemoteMusic } from '../hooks/useRemoteMusic';
 import { useRemoteStreams } from '../hooks/useRemoteStreams';
 import { useRoom } from '../hooks/useRoom';
 import { useRooms } from '../hooks/useRooms';
@@ -35,10 +39,13 @@ import { useWatchedLiveEndedSound } from '../hooks/useWatchedLiveEndedSound';
 import { usePublishWatching, useViewers } from '../hooks/useViewers';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { formatShortcut } from '../lib/format';
+import { MUSIC_APP_LABELS } from '../lib/music';
+import { musicElsewhere, presenceMusic, watchingWithMusic } from '../lib/musicListening';
+import { musicDuplicationKey, musicDuplicationWarning } from '../lib/musicWarnings';
 import { knownParticipants, presenceProfiles, withPresenceProfiles } from '../lib/presence';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
 import { computeStageLayout } from '../lib/stageLayout';
-import { cameraKey, isCameraKey, parseStreamKey } from '../lib/streamKey';
+import { cameraKey, isCameraKey, musicKey, parseStreamKey } from '../lib/streamKey';
 import { playTransmissionEnded, playTransmissionStarted } from '../lib/transmissionSounds';
 import { resolveViewers, type Viewer } from '../lib/viewers';
 import { AppShell } from './AppShell';
@@ -50,6 +57,8 @@ import { Sidebar } from './Sidebar';
 import { Stage, type StatsRequest } from './Stage';
 import { RoomStatusPanel } from './RoomStatusPanel';
 import { UserPanel } from './UserPanel';
+import { type MusicCardItem } from './music/MusicCard';
+import { MusicDrawer } from './music/MusicDrawer';
 import { SourcePicker } from './picker/SourcePicker';
 import { SettingsView, type SettingsSectionId } from './settings/SettingsView';
 import { StatsPanel, type StatsTarget } from './stats/StatsPanel';
@@ -70,6 +79,13 @@ const END_MESSAGES: Record<BroadcastEndReason, string | null> = {
 const CAMERA_END_MESSAGES: Record<CameraEndReason, string> = {
   ended: 'A câmera foi desconectada. Câmera desligada.',
   disconnected: 'Câmera desligada: a conexão com a sala caiu.',
+};
+
+/** Leaving or switching rooms stops the music first, so a choice never reads as "caiu". */
+const MUSIC_END_MESSAGES: Record<MusicEndReason, string> = {
+  app_closed: 'O Spotify foi fechado. A música parou.',
+  disconnected: 'A música parou: a conexão com a sala caiu.',
+  unpublished: 'A música parou.',
 };
 
 const CPU_MESSAGE =
@@ -189,8 +205,8 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   }, [connected, streams, syncLive]);
   // A live you watch went off the air: the same chime the streamer hears when stopping.
   useWatchedLiveEndedSound(streams, watchedKeys, currentRoom, connected);
-  // Who watches what: you publish your watched streams, everyone's attributes give the viewers.
-  usePublishWatching(room, connected, watchedKeys);
+  // Who watches what: you publish your watched streams (and the music you listen to, below),
+  // everyone's attributes give the viewers.
   const viewerIds = useViewers(room);
   // Volume is remembered per participant for their screen share: a webcam (no audio) must not
   // reach it.
@@ -229,7 +245,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const cameraActive = camera.state.status === 'on' || camera.state.status === 'starting';
 
   // Switching rooms ends this room's webcam: turn it off first, so it is not reported as lost.
-  const enterRoom = useCallback(
+  const joinRoom = useCallback(
     async (roomId: RoomId, watchKey: string | null = null): Promise<boolean> => {
       if (roomId !== currentRoom && cameraActive) await stopCameraTrack().catch(() => undefined);
       return join(roomId, watchKey);
@@ -237,15 +253,43 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     [stopCameraTrack, cameraActive, currentRoom, join],
   );
 
+  const onBroadcastWarning = useCallback(
+    (message: string, tone: 'info' | 'error') => toast.show(message, { tone, durationMs: 7000 }),
+    [toast],
+  );
+
+  // The music broadcast (an app's audio on its own track), independent of the screen share.
+  const onMusicEnded = useCallback(
+    (reason: MusicEndReason) => {
+      toast.show(MUSIC_END_MESSAGES[reason], { tone: 'info', durationMs: 6000 });
+    },
+    [toast],
+  );
+  const music = useMusicBroadcast({
+    room,
+    currentRoom,
+    join: joinRoom,
+    onEnded: onMusicEnded,
+    onWarning: onBroadcastWarning,
+  });
+  const { start: startMusicTrack, stop: stopMusicTrack } = music;
+  const musicLive = music.state.status === 'live';
+
+  // The music belongs to its room: switching rooms stops it first (no "caiu" notice for a
+  // choice). Only once live: stopping a start in progress would cancel it.
+  const enterRoom = useCallback(
+    async (roomId: RoomId, watchKey: string | null = null): Promise<boolean> => {
+      if (roomId !== currentRoom && musicLive) await stopMusicTrack().catch(() => undefined);
+      return joinRoom(roomId, watchKey);
+    },
+    [stopMusicTrack, musicLive, currentRoom, joinRoom],
+  );
+
   const onBroadcastEnded = useCallback(
     (reason: BroadcastEndReason) => {
       const message = END_MESSAGES[reason];
       if (message) toast.show(message, { tone: 'info', durationMs: 6000 });
     },
-    [toast],
-  );
-  const onBroadcastWarning = useCallback(
-    (message: string, tone: 'info' | 'error') => toast.show(message, { tone, durationMs: 7000 }),
     [toast],
   );
   const broadcast = useBroadcast({
@@ -284,6 +328,20 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     };
   }, [room, toast]);
 
+  // The screen's audio also carries the music app (whole screen, system audio or the app's own
+  // window): allowed, with one notice per live and app.
+  const duplicationKey = musicDuplicationKey(
+    broadcast.state.status === 'live' ? broadcast.state : null,
+    music.state.status === 'live' ? music.state : null,
+  );
+  const musicApp = music.state.status === 'live' ? music.state.app : null;
+  const duplicationWarned = useRef<string | null>(null);
+  useEffect(() => {
+    if (!duplicationKey || !musicApp || duplicationWarned.current === duplicationKey) return;
+    duplicationWarned.current = duplicationKey;
+    toast.show(musicDuplicationWarning(musicApp), { tone: 'info', durationMs: 10000 });
+  }, [duplicationKey, musicApp, toast]);
+
   // Sender-side statistics of your screen share and webcam (panel + published summary).
   const localScreenTrack =
     broadcast.state.status === 'live'
@@ -318,6 +376,12 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     [currentRoom, connected, user.id, settings?.mutedRooms, settings?.mutedUsers],
   );
   useLiveStartedSound(liveSoundContext);
+  // Its own chime when someone else starts broadcasting music here (with its own switch).
+  const musicSoundContext = useMemo(
+    () => ({ ...liveSoundContext, enabled: settings?.musicSounds ?? true }),
+    [liveSoundContext, settings?.musicSounds],
+  );
+  useMusicStartedSound(musicSoundContext);
 
   // Voice-channel style chimes: people (you included) entering or leaving your room.
   useRoomSounds({
@@ -359,7 +423,54 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   // LiveKit names are fixed when the token is issued; presence follows nickname/avatar changes.
   const profiles = useMemo(() => presenceProfiles(snapshot), [snapshot]);
   const stageStreams = useMemo(() => withPresenceProfiles(streams, profiles), [streams, profiles]);
-  // Viewers by stream key (your camera's viewers are under `cameraKey(user.id)`).
+
+  // Listening to music, on demand: the broadcasts in this room (livekit), the ones elsewhere
+  // (presence), what you listen to (published as `<id>#music` next to the watched streams).
+  const remoteMusic = useRemoteMusic(room, profiles);
+  const listening = useMusicListening({
+    currentRoom,
+    connected,
+    music: remoteMusic,
+    join: enterRoom,
+    startAudio,
+  });
+  // The music in your room as stage cards ("Ouvir" / "Parar de ouvir"), like the lives' cards.
+  const musicCards = useMemo<MusicCardItem[]>(
+    () =>
+      remoteMusic.map((item) => ({
+        participantId: item.participantId,
+        name: item.name,
+        avatarUrl: item.avatarUrl,
+        artUrl: item.artUrl,
+        nowPlaying: item.nowPlaying,
+        listening: listening.listening.includes(item.participantId),
+      })),
+    [remoteMusic, listening.listening],
+  );
+  const publishedWatching = useMemo(
+    () => watchingWithMusic(watchedKeys, listening.listening),
+    [watchedKeys, listening.listening],
+  );
+  usePublishWatching(room, connected, publishedWatching);
+  const serverMusic = useMemo(() => presenceMusic(snapshot), [snapshot]);
+  const elsewhereMusic = useMemo(
+    () => musicElsewhere(serverMusic, currentRoom, connected, user.id),
+    [serverMusic, currentRoom, connected, user.id],
+  );
+  const ownMusicActive = music.state.status === 'starting' || musicLive;
+  // Presence may lag behind livekit (and your own music) for a moment.
+  const musicCount = Math.max(serverMusic.length, remoteMusic.length + (musicLive ? 1 : 0));
+  const [musicOpen, setMusicOpen] = useState(false);
+  // The drawer closes when the last music ends (the button is gone with it).
+  if (musicOpen && musicCount === 0 && !ownMusicActive) setMusicOpen(false);
+  const toggleMusic = useCallback(() => setMusicOpen((open) => !open), []);
+  const closeMusic = useCallback(() => setMusicOpen(false), []);
+  const selfProfile = useMemo(
+    () => ({ id: user.id, name: user.displayName, avatarUrl: user.avatarUrl ?? null }),
+    [user.id, user.displayName, user.avatarUrl],
+  );
+  // Viewers by stream key (your camera's viewers are under `cameraKey(user.id)`, your music's
+  // listeners under `musicKey(user.id)`).
   const viewers = useMemo(() => {
     const livekitName = (id: string): string | undefined =>
       room.getParticipantByIdentity(id)?.name || undefined;
@@ -481,6 +592,35 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     [broadcast, toast],
   );
 
+  // A start the user cancels ("Parar música" while it starts) resolves silently: no success toast.
+  const musicStartSeq = useRef(0);
+  const startMusic = useCallback(
+    (roomId: RoomId, app: MusicAppId) => {
+      const seq = ++musicStartSeq.current;
+      startMusicTrack(roomId, app).then(
+        () => {
+          if (seq !== musicStartSeq.current) return;
+          setPicker(null);
+          toast.show(`Transmitindo música do ${MUSIC_APP_LABELS[app]}.`, { tone: 'success' });
+        },
+        (err: unknown) => {
+          toast.show(toErrorMessage(err, 'Não foi possível transmitir a música.'), {
+            tone: 'error',
+            durationMs: 7000,
+          });
+        },
+      );
+    },
+    [startMusicTrack, toast],
+  );
+
+  const stopMusic = useCallback(() => {
+    musicStartSeq.current += 1;
+    stopMusicTrack().catch((err: unknown) => {
+      toast.show(toErrorMessage(err, 'Não foi possível parar a música.'), { tone: 'error' });
+    });
+  }, [stopMusicTrack, toast]);
+
   const switchSource = useCallback(
     (request: BroadcastSwitchRequest) => {
       broadcast.switchSource(request).then(
@@ -597,15 +737,16 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       .catch(() => undefined);
   }, [pipOpen, connectionState, currentRoom, pipIds]);
 
-  // Leaving while live stops the broadcast and the camera first (no "a conexão caiu" notice for
-  // a choice); the picture-in-picture closes with the room.
+  // Leaving while live stops the broadcast, the music and the camera first (no "a conexão caiu"
+  // notice for a choice); the picture-in-picture closes with the room.
   const leaveRoom = useCallback(async () => {
     const status = broadcast.state.status;
     if (status === 'live' || status === 'starting') await broadcast.stop().catch(() => undefined);
+    if (musicLive) await stopMusicTrack().catch(() => undefined);
     if (cameraActive) await stopCameraTrack().catch(() => undefined);
     closePip();
     await leave();
-  }, [broadcast, stopCameraTrack, cameraActive, closePip, leave]);
+  }, [broadcast, musicLive, stopMusicTrack, stopCameraTrack, cameraActive, closePip, leave]);
 
   // Global shortcut / tray "Transmitir…" keep meaning start/stop.
   useStreamToggle({ streaming, onStart: openPicker, onStop: stopBroadcast });
@@ -668,9 +809,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   useHotkeys(
     {
       onToggleFullscreen,
-      // One Esc, one step back: statistics panel, picker, fullscreen, destaque → grid.
+      // One Esc, one step back: music drawer, statistics panel, picker, fullscreen, destaque →
+      // grid.
       onEscape: () => {
-        if (statsTarget) closeStats();
+        if (musicOpen) closeMusic();
+        else if (statsTarget) closeStats();
         else if (pickerOpen) closePicker();
         else if (fullscreen) changeFullscreen(false);
         else if (layout.canShowGrid) showGrid();
@@ -702,6 +845,9 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             snapshot={snapshot}
             currentRoom={currentRoom}
             watchedIds={watchedKeys}
+            musicListening={listening.listening.length}
+            musicOpen={musicOpen}
+            onToggleMusic={toggleMusic}
             onJoin={(roomId) => void enterRoom(roomId)}
             onWatch={(roomId, participantId) => void enterRoom(roomId, participantId)}
           />
@@ -753,6 +899,21 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             onToggleCamera={toggleCamera}
             onPickCamera={pickCamera}
             onCameraSettings={openCameraSettings}
+            music={music.state}
+            onStopMusic={stopMusic}
+          />
+        }
+        stageOverlay={
+          <MusicDrawer
+            open={musicOpen}
+            self={selfProfile}
+            own={music.state}
+            ownListeners={viewers.get(musicKey(user.id)) ?? NO_VIEWERS}
+            music={remoteMusic}
+            elsewhere={elsewhereMusic}
+            listening={listening}
+            onStopOwn={stopMusic}
+            onClose={closeMusic}
           />
         }
       >
@@ -792,12 +953,18 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           onSwitchSource={openSwitchPicker}
           onStopCamera={stopCamera}
           onPickCamera={openCameraSettings}
+          musicCards={musicCards}
+          onListen={listening.listen}
+          onStopListening={listening.stop}
         >
           {statsTarget && <StatsPanel target={statsTarget} onClose={closeStats} />}
         </Stage>
       </AppShell>
       {picker === 'start' && settings && (
         <SourcePicker
+          music={music.state}
+          onStartMusic={startMusic}
+          onStopMusic={stopMusic}
           rooms={rooms}
           currentRoom={currentRoom}
           settings={settings}
@@ -808,6 +975,9 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       )}
       {picker === 'switch' && settings && broadcast.state.status === 'live' && (
         <SourcePicker
+          music={music.state}
+          onStartMusic={startMusic}
+          onStopMusic={stopMusic}
           rooms={rooms}
           currentRoom={broadcast.state.room}
           settings={settings}

@@ -6,27 +6,55 @@ function getContext(): AudioContext | null {
   return context;
 }
 
-function tone(audio: AudioContext, frequency: number, start: number, duration: number): void {
+/** How a sequence sounds: the default is a short, clean sine blip. */
+interface Voice {
+  type: OscillatorType;
+  /** Peak gain of each note. */
+  peak: number;
+  /** Seconds to reach the peak (longer is softer). */
+  attack: number;
+  /** Rounds the timbre off (Hz); none by default. */
+  lowpassHz: number | null;
+}
+
+const SINE: Voice = { type: 'sine', peak: 0.08, attack: 0.015, lowpassHz: null };
+
+function tone(
+  audio: AudioContext,
+  output: AudioNode,
+  voice: Voice,
+  frequency: number,
+  start: number,
+  duration: number,
+): void {
   const oscillator = audio.createOscillator();
   const gain = audio.createGain();
-  oscillator.type = 'sine';
+  oscillator.type = voice.type;
   oscillator.frequency.value = frequency;
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(0.08, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(voice.peak, start + voice.attack);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   oscillator.connect(gain);
-  gain.connect(audio.destination);
+  gain.connect(output);
   oscillator.start(start);
   oscillator.stop(start + duration + 0.02);
 }
 
-function play(sequence: readonly [number, number, number][]): void {
+function play(sequence: readonly [number, number, number][], voice: Voice = SINE): void {
   const audio = getContext();
   if (!audio) return;
   void audio.resume().then(() => {
     const start = audio.currentTime;
+    let output: AudioNode = audio.destination;
+    if (voice.lowpassHz !== null) {
+      const filter = audio.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = voice.lowpassHz;
+      filter.connect(audio.destination);
+      output = filter;
+    }
     for (const [frequency, offset, duration] of sequence) {
-      tone(audio, frequency, start + offset, duration);
+      tone(audio, output, voice, frequency, start + offset, duration);
     }
   });
 }
@@ -85,4 +113,23 @@ export function playLiveStartedInRoom(): void {
     [987.77, 0, 0.1],
     [1318.51, 0.09, 0.26],
   ]);
+}
+
+/** Rounder than the sine blips: a soft triangle wave with the brightness filtered off. */
+const HARP: Voice = { type: 'triangle', peak: 0.06, attack: 0.025, lowpassHz: 1800 };
+
+/**
+ * Someone else started broadcasting music in the room you are in: a strummed, harp-like G major
+ * arpeggio whose notes ring into each other (the other chimes are short, separate blips).
+ */
+export function playMusicStartedInRoom(): void {
+  play(
+    [
+      [392, 0, 0.55],
+      [493.88, 0.075, 0.55],
+      [587.33, 0.15, 0.6],
+      [783.99, 0.225, 0.85],
+    ],
+    HARP,
+  );
 }

@@ -19,6 +19,8 @@ export function stageTitles(room: RoomId): {
 export interface LiveCardCounts {
   screens: number;
   cameras: number;
+  /** Music broadcasts in the room (yours excluded); 0 when omitted. */
+  music?: number;
 }
 
 /**
@@ -26,12 +28,25 @@ export interface LiveCardCounts {
  * with screen shares only, "1 câmera ligada em Sala 1" with webcams only, "2 transmissões ao
  * vivo e 1 câmera em Sala 1" with both.
  */
-export function liveCardsTitle({ screens, cameras }: LiveCardCounts, room: RoomId): string {
+export function liveCardsTitle(
+  { screens, cameras, music = 0 }: LiveCardCounts,
+  room: RoomId,
+): string {
   const label = roomLabel(room);
-  if (cameras === 0) return `${pluralize(screens, 'pessoa', 'pessoas')} ao vivo em ${label}`;
-  if (screens === 0) {
+  if (music === 0 && cameras === 0) {
+    return `${pluralize(screens, 'pessoa', 'pessoas')} ao vivo em ${label}`;
+  }
+  if (music === 0 && screens === 0) {
     return `${pluralize(cameras, 'câmera ligada', 'câmeras ligadas')} em ${label}`;
   }
-  const lives = pluralize(screens, 'transmissão ao vivo', 'transmissões ao vivo');
-  return `${lives} e ${pluralize(cameras, 'câmera', 'câmeras')} em ${label}`;
+  if (screens === 0 && cameras === 0) {
+    return `${pluralize(music, 'pessoa transmitindo música', 'pessoas transmitindo música')} em ${label}`;
+  }
+  const parts = [
+    screens > 0 ? pluralize(screens, 'transmissão ao vivo', 'transmissões ao vivo') : null,
+    cameras > 0 ? pluralize(cameras, 'câmera', 'câmeras') : null,
+    music > 0 ? pluralize(music, 'música', 'músicas') : null,
+  ].filter((part): part is string => part !== null);
+  const last = parts.pop();
+  return `${parts.join(', ')} e ${last} em ${label}`;
 }
