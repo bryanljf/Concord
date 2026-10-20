@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  changesWatching,
   collectViewers,
   decodeWatching,
   encodeWatching,
@@ -33,6 +34,18 @@ describe('encodeWatching / decodeWatching', () => {
 
   it('keeps only the string ids of a mixed list', () => {
     expect(decodeWatching('["ana",2,"bia"]')).toEqual(['ana', 'bia']);
+  });
+});
+
+describe('changesWatching', () => {
+  it('is true when the watching attribute changed or was removed', () => {
+    expect(changesWatching({ [WATCHING_ATTRIBUTE]: '["ana"]' })).toBe(true);
+    expect(changesWatching({ [WATCHING_ATTRIBUTE]: '', 'concord.stats.screen': '{}' })).toBe(true);
+  });
+
+  it('ignores updates of other attributes (the periodic stats)', () => {
+    expect(changesWatching({ 'concord.stats.screen': '{"v":1}' })).toBe(false);
+    expect(changesWatching({})).toBe(false);
   });
 });
 

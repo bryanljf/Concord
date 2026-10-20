@@ -1,7 +1,16 @@
-import { useCallback, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useMemo,
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import type { RoomId } from '@concord/shared';
 import type { BroadcastState } from '../hooks/useBroadcast';
+import type { CameraState } from '../hooks/useCamera';
 import { useContextMenu } from '../hooks/useContextMenu';
+import { useElementSize } from '../hooks/useElementSize';
 import type { RemoteStream } from '../hooks/useRemoteStreams';
 import type { RoomConnectionState } from '../hooks/useRoom';
 import type { StreamAudio } from '../hooks/useStreamAudio';
@@ -11,50 +20,80 @@ import {
   type WatchMenuAction,
   type WatchedTileKind,
 } from '../lib/contextMenu';
+import { fitGrid } from '../lib/gridLayout';
+import type { StageLayout, StripItem, WatchedTile } from '../lib/stageLayout';
 import { liveCardsTitle, stageTitles } from '../lib/stageText';
+import type { StreamKind } from '../lib/streamKey';
 import type { Viewer } from '../lib/viewers';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { Spinner } from './Spinner';
-import { FocusedStreamTile, MiniStreamTile } from './StreamTile';
+import { FocusedStreamTile, GridSlotTile, GridStreamTile, MiniStreamTile } from './StreamTile';
 import { HeadphonesIcon, MonitorOffIcon, SpeakerIcon, WarningIcon } from './icons';
+import { ElsewhereTile } from './stream/ElsewhereTile';
 import { LiveCard } from './stream/LiveCard';
+import { LocalCameraTile } from './stream/LocalCameraTile';
 import { LocalPreviewTile } from './stream/LocalPreviewTile';
 import '../styles/stage.css';
+
+/** What "Estatísticas da transmissão" was opened on: a watched stream or one of your previews. */
+export type StatsRequest = { kind: 'remote'; key: string } | { kind: 'local'; source: StreamKind };
 
 interface StageProps {
   currentRoom: RoomId | null;
   connectionState: RoomConnectionState;
   error: string | null;
-  /** Remote screen shares in the room (from livekit), subscribed or not. */
+  /** Remote screen shares and webcams in the room (from livekit), subscribed or not. */
   streams: RemoteStream[];
-  /** The watched live on the stage; null when nothing watched is live. */
-  focusedId: string | null;
-  /** Lives the user chose to watch, in the order they were picked. */
-  watchedIds: readonly string[];
-  /** Who watches each remote live, by participant id. */
+  /** What goes where (computed by the Workspace, whose hotkeys and header use it too). */
+  layout: StageLayout;
+  /** Who watches each remote stream, by stream key. */
   viewers: ReadonlyMap<string, readonly Viewer[]>;
-  /** Who watches your own broadcast. */
+  /** Who watches your own screen share. */
   localViewers: readonly Viewer[];
+  /** Who watches your own webcam. */
+  localCameraViewers: readonly Viewer[];
   broadcast: BroadcastState;
+  camera: CameraState;
   audio: StreamAudio;
   /** False when playback was blocked until a user gesture. */
   audioPlayback: boolean;
+  /** The cameras' picture-in-picture window is open. */
+  pipOpen: boolean;
   fullscreen: boolean;
   /** Shortcut already formatted for display, e.g. "Ctrl+Shift+L". */
   shortcutLabel: string;
-  /** "Assistir": subscribe and put on the stage. */
-  onWatch(participantId: string): void;
+  /** Overlays positioned inside the stage (the statistics panel). */
+  children?: ReactNode;
+  /** "Assistir": subscribe and add to the grid (in destaque, a screen share also takes it). */
+  onWatch(key: string): void;
   /** "Parar de assistir": unsubscribe video and audio. */
-  onUnwatch(participantId: string): void;
-  /** Mini tile click / "Colocar em destaque": switch between watched lives. */
-  onFocus(participantId: string): void;
+  onUnwatch(key: string): void;
+  /** Grid/mini tile click, "Colocar em destaque". */
+  onFocus(key: string): void;
+  /** "Voltar à grade". */
+  onShowGrid(): void;
   onRetry(): void;
   onToggleFullscreen(): void;
   onPopout(participantId: string): void;
+  /** "Trazer de volta": closes the pop-out, the live plays here again. */
+  onClosePopout(): void;
+  /** "Mostrar janela": brings the pop-out to the front. */
+  onShowPopout(): void;
+  /** "Abrir câmeras em picture-in-picture". */
+  onOpenPip(): void;
+  onClosePip(): void;
+  /** "Estatísticas da transmissão". */
+  onStats(request: StatsRequest): void;
   onEnableAudio(): void;
+  /** "Transmitir" in the free cell of the grid. */
+  onStream(): void;
   onStopBroadcast(): void;
-  /** "Trocar fonte" from your own preview's menu. */
+  /** "Trocar fonte" from your screen preview's menu or the free cell of the grid. */
   onSwitchSource(): void;
+  /** "Desligar câmera". */
+  onStopCamera(): void;
+  /** "Escolher câmera…": Settings on the camera section. */
+  onPickCamera(): void;
 }
 
 interface EmptyStateProps {
@@ -64,12 +103,14 @@ interface EmptyStateProps {
   tone?: 'default' | 'error';
 }
 
-/** A watched live (by participant), or your own broadcast preview. */
-type MenuTarget = { kind: WatchedTileKind; participantId: string } | { kind: 'local' };
-
-const LOCAL_TARGET: MenuTarget = { kind: 'local' };
+/** A watched stream (by key and where its tile sits), or one of your own previews. */
+type MenuTarget =
+  { kind: 'watched'; tile: WatchedTileKind; key: string } | { kind: 'local'; source: StreamKind };
 
 const NO_VIEWERS: readonly Viewer[] = [];
+
+/** Pixels between grid tiles (matches the stage gap). */
+const GRID_GAP = 12;
 
 function EmptyState({ icon, title, children, tone = 'default' }: EmptyStateProps) {
   return (
@@ -84,9 +125,56 @@ function EmptyState({ icon, title, children, tone = 'default' }: EmptyStateProps
   );
 }
 
+interface StageGridProps {
+  /** Grid tiles, in order; the free slot (if any) goes last. */
+  tiles: ReactNode[];
+  slot: ReactNode | null;
+}
+
+/** 2 columns of equal 16:9 tiles, the largest that fit, centered in the stage. */
+function StageGrid({ tiles, slot }: StageGridProps) {
+  const [ref, size] = useElementSize<HTMLDivElement>();
+  const fit = fitGrid(tiles.length, size.width, size.height, GRID_GAP);
+  const style: CSSProperties = {
+    gridTemplateColumns: `repeat(${fit.cols}, ${fit.tileWidth}px)`,
+    gridAutoRows: `${fit.tileHeight}px`,
+    gap: `${GRID_GAP}px`,
+  };
+  return (
+    <div ref={ref} className="stage__grid">
+      <ul className="stage__grid-cells" style={style} aria-label="Transmissões assistidas">
+        {tiles}
+        {fit.slot && slot && <li key="slot">{slot}</li>}
+      </ul>
+    </div>
+  );
+}
+
 /** Where the focus goes when the tile that opened the menu is gone. */
 function focusedTileElement(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-focused-live]');
+}
+
+interface RenderedTile {
+  tile: WatchedTileKind;
+  elsewhere: boolean;
+}
+
+/** Which watched tiles are on screen right now, by key (a menu only lives while its tile does). */
+function renderedTiles(layout: StageLayout): Map<string, RenderedTile> {
+  const tiles = new Map<string, RenderedTile>();
+  if (layout.main.kind === 'focus') {
+    tiles.set(layout.main.tile.key, { tile: 'focused', elsewhere: layout.main.tile.elsewhere });
+  }
+  if (layout.main.kind === 'grid') {
+    for (const { key, elsewhere } of layout.main.tiles) tiles.set(key, { tile: 'grid', elsewhere });
+  }
+  for (const item of layout.strip) {
+    if (item.kind === 'mini') {
+      tiles.set(item.tile.key, { tile: 'mini', elsewhere: item.tile.elsewhere });
+    }
+  }
+  return tiles;
 }
 
 export function Stage({
@@ -94,66 +182,86 @@ export function Stage({
   connectionState,
   error,
   streams,
-  focusedId,
-  watchedIds,
+  layout,
   viewers,
   localViewers,
+  localCameraViewers,
   broadcast,
+  camera,
   audio,
   audioPlayback,
+  pipOpen,
   fullscreen,
   shortcutLabel,
+  children,
   onWatch,
   onUnwatch,
   onFocus,
+  onShowGrid,
   onRetry,
   onToggleFullscreen,
   onPopout,
+  onClosePopout,
+  onShowPopout,
+  onOpenPip,
+  onClosePip,
+  onStats,
   onEnableAudio,
+  onStream,
   onStopBroadcast,
   onSwitchSource,
+  onStopCamera,
+  onPickCamera,
 }: StageProps) {
   const contextMenu = useContextMenu<MenuTarget>(focusedTileElement);
-
-  const focused = streams.find((stream) => stream.participantId === focusedId) ?? null;
-  // Watched lives that are live right now, in the order they were picked (mini tiles).
-  const minis = useMemo(() => {
-    const byId = new Map(streams.map((stream) => [stream.participantId, stream]));
-    return watchedIds
-      .filter((id) => id !== focused?.participantId)
-      .map((id) => byId.get(id))
-      .filter((stream): stream is RemoteStream => stream !== undefined);
-  }, [streams, watchedIds, focused]);
-  // Lives nobody picked: cards without video, nothing subscribed.
-  const cards = useMemo(() => {
-    const watched = new Set(watchedIds);
-    return streams.filter(
-      (stream) =>
-        stream.participantId !== focused?.participantId && !watched.has(stream.participantId),
-    );
-  }, [streams, watchedIds, focused]);
+  const byKey = useMemo(() => new Map(streams.map((stream) => [stream.key, stream])), [streams]);
 
   const runMenuAction = useCallback(
-    (action: WatchMenuAction, participantId: string) => {
+    (action: WatchMenuAction, stream: RemoteStream) => {
       switch (action) {
         case 'focus':
-          onFocus(participantId);
+          onFocus(stream.key);
+          break;
+        case 'grid':
+          onShowGrid();
           break;
         case 'popout':
-          onPopout(participantId);
+          onPopout(stream.participantId);
+          break;
+        case 'return':
+          onClosePopout();
+          break;
+        case 'pip-open':
+          onOpenPip();
+          break;
+        case 'pip-close':
+          onClosePip();
           break;
         case 'mute':
-          audio.setMuted(participantId, true);
+          audio.setMuted(stream.participantId, true);
           break;
         case 'unmute':
-          audio.setMuted(participantId, false);
+          audio.setMuted(stream.participantId, false);
+          break;
+        case 'stats':
+          onStats({ kind: 'remote', key: stream.key });
           break;
         case 'stop':
-          onUnwatch(participantId);
+          onUnwatch(stream.key);
           break;
       }
     },
-    [audio, onFocus, onPopout, onUnwatch],
+    [
+      audio,
+      onFocus,
+      onShowGrid,
+      onPopout,
+      onClosePopout,
+      onOpenPip,
+      onClosePip,
+      onStats,
+      onUnwatch,
+    ],
   );
 
   if (!currentRoom) {
@@ -193,61 +301,257 @@ export function Stage({
 
   const live = broadcast.status === 'live';
   const stageClass = live ? 'stage stage--live' : 'stage';
-  const localOnStage = broadcast.status === 'live' && !focused;
-  // With a tile on the stage, the cards of unwatched lives move to the strip.
-  const cardsOnStage = !focused && !localOnStage && cards.length > 0;
-  const stripCards = cardsOnStage ? [] : cards;
-  const hasStrip =
-    minis.length > 0 || stripCards.length > 0 || (broadcast.status === 'live' && focused !== null);
+  // Blocked playback matters as soon as any subscribed screen share carries audio.
+  const audioBlocked =
+    !audioPlayback &&
+    streams.some((stream) => stream.kind === 'screen' && stream.audioTrack !== null);
 
-  // The menu only exists while its target is still there (a watched live that ended, or a
-  // broadcast that stopped, closes it).
+  // The menu only exists while its target is still there (a watched stream that ended or moved,
+  // or a preview that stopped, closes it).
   const menu = contextMenu.menu;
   const target = menu?.target ?? null;
   let menuLabel = '';
   let menuItems: ContextMenuItem[] = [];
   if (target?.kind === 'local') {
-    if (broadcast.status === 'live') {
-      menuLabel = 'Opções da sua transmissão';
-      menuItems = localPreviewMenuItems().map((item) => ({
+    const present = target.source === 'screen' ? live : camera.status === 'on';
+    if (present) {
+      menuLabel = target.source === 'screen' ? 'Opções da sua transmissão' : 'Opções da sua câmera';
+      const handlers = {
+        switch: onSwitchSource,
+        'pick-camera': onPickCamera,
+        stats: () => onStats({ kind: 'local', source: target.source }),
+        'stop-broadcast': onStopBroadcast,
+        'stop-camera': onStopCamera,
+      };
+      menuItems = localPreviewMenuItems(target.source).map((item) => ({
         id: item.action,
         label: item.label,
         danger: item.danger,
         separatorBefore: item.separatorBefore,
-        onSelect: item.action === 'switch' ? onSwitchSource : onStopBroadcast,
+        onSelect: handlers[item.action],
       }));
     }
   } else if (target) {
-    const stillThere =
-      target.kind === 'focused'
-        ? target.participantId === focused?.participantId
-        : minis.some((stream) => stream.participantId === target.participantId);
-    const stream = stillThere
-      ? streams.find((candidate) => candidate.participantId === target.participantId)
-      : undefined;
-    if (stream) {
-      menuLabel = `Opções da transmissão de ${stream.name}`;
-      menuItems = watchMenuItems(target.kind, audio.settingFor(target.participantId).muted).map(
-        (item) => ({
-          id: item.action,
-          label: item.label,
-          danger: item.danger,
-          separatorBefore: item.separatorBefore,
-          onSelect: () => runMenuAction(item.action, target.participantId),
-        }),
-      );
+    const rendered = renderedTiles(layout).get(target.key);
+    const stream = rendered?.tile === target.tile ? byKey.get(target.key) : undefined;
+    if (stream && rendered) {
+      menuLabel =
+        stream.kind === 'camera'
+          ? `Opções da câmera de ${stream.name}`
+          : `Opções da transmissão de ${stream.name}`;
+      menuItems = watchMenuItems({
+        tile: target.tile,
+        kind: stream.kind,
+        muted: audio.settingFor(stream.participantId).muted,
+        hasAudio: stream.audio !== null,
+        canShowGrid: layout.canShowGrid,
+        pipOpen,
+        elsewhere: rendered.elsewhere,
+      }).map((item) => ({
+        id: item.action,
+        label: item.label,
+        danger: item.danger,
+        separatorBefore: item.separatorBefore,
+        onSelect: () => runMenuAction(item.action, stream),
+      }));
     }
   }
-  const localMenu = {
-    onContextMenu: (event: MouseEvent<HTMLElement>) =>
-      contextMenu.onContextMenu(event, LOCAL_TARGET),
-    onKeyDown: (event: KeyboardEvent<HTMLElement>) => contextMenu.onKeyDown(event, LOCAL_TARGET),
+
+  const menuHandlers = (menuTarget: MenuTarget) => ({
+    onContextMenu: (event: MouseEvent<HTMLElement>) => contextMenu.onContextMenu(event, menuTarget),
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => contextMenu.onKeyDown(event, menuTarget),
+  });
+  const watchedMenu = (tile: WatchedTileKind, key: string) =>
+    menuHandlers({ kind: 'watched', tile, key });
+
+  /** A watched stream shown by another window: the notice and the way back. */
+  const elsewhereTile = (stream: RemoteStream, variant: WatchedTileKind) => (
+    <ElsewhereTile
+      stream={stream}
+      variant={variant}
+      onBringBack={stream.kind === 'camera' ? onClosePip : onClosePopout}
+      onShowWindow={stream.kind === 'camera' ? undefined : onShowPopout}
+      onStopWatching={() => onUnwatch(stream.key)}
+      {...watchedMenu(variant, stream.key)}
+    />
+  );
+
+  const localScreenTile = (focused: boolean) =>
+    broadcast.status === 'live' ? (
+      <LocalPreviewTile
+        track={broadcast.videoTrack}
+        sourceName={broadcast.sourceName}
+        quality={broadcast.quality}
+        hasAudio={broadcast.hasAudio}
+        viewers={localViewers}
+        focused={focused}
+        onStop={onStopBroadcast}
+        {...menuHandlers({ kind: 'local', source: 'screen' })}
+      />
+    ) : null;
+
+  const localCameraTile = (focused: boolean) =>
+    camera.status === 'on' ? (
+      <LocalCameraTile
+        track={camera.track}
+        label={camera.label}
+        viewers={localCameraViewers}
+        focused={focused}
+        onStop={onStopCamera}
+        {...menuHandlers({ kind: 'local', source: 'camera' })}
+      />
+    ) : null;
+
+  const focusedTile = (tile: WatchedTile) => {
+    const stream = byKey.get(tile.key);
+    if (!stream) return null;
+    if (tile.elsewhere) return elsewhereTile(stream, 'focused');
+    // Volume, mute and the pop-out only exist for a screen share with audio / a screen share.
+    const screen = stream.kind === 'screen';
+    const withAudio = screen && stream.audio !== null;
+    return (
+      <FocusedStreamTile
+        key={stream.key}
+        stream={stream}
+        viewers={viewers.get(stream.key) ?? NO_VIEWERS}
+        volume={withAudio ? audio.settingFor(stream.participantId) : undefined}
+        onVolume={withAudio ? (volume) => audio.setVolume(stream.participantId, volume) : undefined}
+        onToggleMute={withAudio ? () => audio.toggleMute(stream.participantId) : undefined}
+        fullscreen={fullscreen}
+        onToggleFullscreen={onToggleFullscreen}
+        onPopout={screen ? () => onPopout(stream.participantId) : undefined}
+        onStopWatching={() => onUnwatch(stream.key)}
+        onShowGrid={layout.canShowGrid ? onShowGrid : undefined}
+        {...watchedMenu('focused', stream.key)}
+      />
+    );
   };
 
-  const watchTarget = (kind: WatchedTileKind, participantId: string): MenuTarget => ({
-    kind,
-    participantId,
-  });
+  const cardOf = (key: string, size: 'stage' | 'strip') => {
+    const stream = byKey.get(key);
+    if (!stream) return null;
+    return (
+      <LiveCard
+        participantId={stream.participantId}
+        name={stream.name}
+        avatarUrl={stream.avatarUrl}
+        kind={stream.kind}
+        size={size}
+        onWatch={() => onWatch(stream.key)}
+      />
+    );
+  };
+
+  let main: ReactNode;
+  switch (layout.main.kind) {
+    case 'focus':
+      main = <div className="stage__focus">{focusedTile(layout.main.tile)}</div>;
+      break;
+    case 'grid': {
+      const tiles = layout.main.tiles.map((tile) => {
+        const stream = byKey.get(tile.key);
+        if (!stream) return null;
+        return (
+          <li key={tile.key}>
+            {tile.elsewhere ? (
+              elsewhereTile(stream, 'grid')
+            ) : (
+              <GridStreamTile
+                stream={stream}
+                viewers={viewers.get(stream.key) ?? NO_VIEWERS}
+                onSelect={() => onFocus(stream.key)}
+                onStopWatching={() => onUnwatch(stream.key)}
+                {...watchedMenu('grid', stream.key)}
+              />
+            )}
+          </li>
+        );
+      });
+      main = (
+        <StageGrid
+          tiles={tiles}
+          slot={
+            layout.main.slot ? (
+              <GridSlotTile
+                live={live}
+                busy={broadcast.status === 'starting' || broadcast.status === 'stopping'}
+                onStream={onStream}
+                onSwitch={onSwitchSource}
+              />
+            ) : null
+          }
+        />
+      );
+      break;
+    }
+    case 'local':
+      main = (
+        <div className="stage__focus">
+          {layout.main.source === 'screen' ? localScreenTile(true) : localCameraTile(true)}
+        </div>
+      );
+      break;
+    case 'cards': {
+      const cameras = layout.cards.filter((key) => byKey.get(key)?.kind === 'camera').length;
+      main = (
+        <section className="stage__cards" aria-labelledby="stage-cards-title">
+          <header className="stage__cards-header">
+            <h2 id="stage-cards-title">
+              {liveCardsTitle({ screens: layout.cards.length - cameras, cameras }, currentRoom)}
+            </h2>
+            <p>Nenhum vídeo é recebido até você clicar em Assistir.</p>
+          </header>
+          <ul className="stage__cards-grid">
+            {layout.cards.map((key) => (
+              <li key={key}>{cardOf(key, 'stage')}</li>
+            ))}
+          </ul>
+        </section>
+      );
+      break;
+    }
+    case 'empty':
+      main = (
+        <EmptyState icon={<MonitorOffIcon size={64} />} title={titles.nobodyLive}>
+          <p>
+            Pressione <kbd>{shortcutLabel}</kbd> ou clique em <strong>Transmitir</strong> para
+            compartilhar sua tela.
+          </p>
+        </EmptyState>
+      );
+      break;
+  }
+
+  const stripItem = (item: StripItem): ReactNode => {
+    switch (item.kind) {
+      case 'local':
+        return (
+          <li key={`local-${item.source}`}>
+            {item.source === 'screen' ? localScreenTile(false) : localCameraTile(false)}
+          </li>
+        );
+      case 'mini': {
+        const stream = byKey.get(item.tile.key);
+        if (!stream) return null;
+        return (
+          <li key={stream.key}>
+            {item.tile.elsewhere ? (
+              elsewhereTile(stream, 'mini')
+            ) : (
+              <MiniStreamTile
+                stream={stream}
+                onSelect={() => onFocus(stream.key)}
+                onStopWatching={() => onUnwatch(stream.key)}
+                {...watchedMenu('mini', stream.key)}
+              />
+            )}
+          </li>
+        );
+      }
+      case 'card':
+        return <li key={`card-${item.key}`}>{cardOf(item.key, 'strip')}</li>;
+    }
+  };
 
   return (
     <div className={stageClass}>
@@ -257,7 +561,7 @@ export function Stage({
           Reconectando à sala…
         </div>
       )}
-      {!audioPlayback && focused && (
+      {audioBlocked && (
         <button
           type="button"
           className="stage__notice stage__notice--action"
@@ -280,113 +584,15 @@ export function Stage({
         </div>
       )}
 
-      {focused ? (
-        <div className="stage__focus">
-          <FocusedStreamTile
-            key={focused.participantId}
-            stream={focused}
-            viewers={viewers.get(focused.participantId) ?? NO_VIEWERS}
-            volume={audio.settingFor(focused.participantId)}
-            fullscreen={fullscreen}
-            onVolume={(volume) => audio.setVolume(focused.participantId, volume)}
-            onToggleMute={() => audio.toggleMute(focused.participantId)}
-            onToggleFullscreen={onToggleFullscreen}
-            onPopout={() => onPopout(focused.participantId)}
-            onStopWatching={() => onUnwatch(focused.participantId)}
-            onContextMenu={(event) =>
-              contextMenu.onContextMenu(event, watchTarget('focused', focused.participantId))
-            }
-            onKeyDown={(event) =>
-              contextMenu.onKeyDown(event, watchTarget('focused', focused.participantId))
-            }
-          />
-        </div>
-      ) : localOnStage && broadcast.status === 'live' ? (
-        <div className="stage__focus">
-          <LocalPreviewTile
-            track={broadcast.videoTrack}
-            sourceName={broadcast.sourceName}
-            quality={broadcast.quality}
-            hasAudio={broadcast.hasAudio}
-            viewers={localViewers}
-            focused
-            onStop={onStopBroadcast}
-            {...localMenu}
-          />
-        </div>
-      ) : cardsOnStage ? (
-        <section className="stage__cards" aria-labelledby="stage-cards-title">
-          <header className="stage__cards-header">
-            <h2 id="stage-cards-title">{liveCardsTitle(cards.length, currentRoom)}</h2>
-            <p>Nenhum vídeo é recebido até você clicar em Assistir.</p>
-          </header>
-          <ul className="stage__cards-grid">
-            {cards.map((stream) => (
-              <li key={stream.participantId}>
-                <LiveCard
-                  participantId={stream.participantId}
-                  name={stream.name}
-                  avatarUrl={stream.avatarUrl}
-                  size="stage"
-                  onWatch={() => onWatch(stream.participantId)}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : (
-        <EmptyState icon={<MonitorOffIcon size={64} />} title={titles.nobodyLive}>
-          <p>
-            Pressione <kbd>{shortcutLabel}</kbd> ou clique em <strong>Transmitir</strong> para
-            compartilhar sua tela.
-          </p>
-        </EmptyState>
-      )}
+      {main}
 
-      {hasStrip && !fullscreen && (
+      {layout.strip.length > 0 && (
         <ul className="stage__strip" aria-label="Outras transmissões">
-          {broadcast.status === 'live' && focused && (
-            <li key="local">
-              <LocalPreviewTile
-                track={broadcast.videoTrack}
-                sourceName={broadcast.sourceName}
-                quality={broadcast.quality}
-                hasAudio={broadcast.hasAudio}
-                viewers={localViewers}
-                focused={false}
-                onStop={onStopBroadcast}
-                {...localMenu}
-              />
-            </li>
-          )}
-          {minis.map((stream) => (
-            <li key={stream.participantId}>
-              <MiniStreamTile
-                stream={stream}
-                onSelect={() => onFocus(stream.participantId)}
-                onStopWatching={() => onUnwatch(stream.participantId)}
-                onContextMenu={(event) =>
-                  contextMenu.onContextMenu(event, watchTarget('mini', stream.participantId))
-                }
-                onKeyDown={(event) =>
-                  contextMenu.onKeyDown(event, watchTarget('mini', stream.participantId))
-                }
-              />
-            </li>
-          ))}
-          {stripCards.map((stream) => (
-            <li key={`card-${stream.participantId}`}>
-              <LiveCard
-                participantId={stream.participantId}
-                name={stream.name}
-                avatarUrl={stream.avatarUrl}
-                size="strip"
-                onWatch={() => onWatch(stream.participantId)}
-              />
-            </li>
-          ))}
+          {layout.strip.map(stripItem)}
         </ul>
       )}
+
+      {children}
 
       {menu && menuItems.length > 0 && (
         <ContextMenu

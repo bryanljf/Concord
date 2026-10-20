@@ -33,6 +33,15 @@ export function decodeWatching(value: string | undefined): string[] {
   return [...new Set(ids)].slice(0, MAX_WATCHED);
 }
 
+/**
+ * Whether an attribute update (`RoomEvent.ParticipantAttributesChanged`'s changed keys; a removed
+ * key arrives as '') touches who watches what. Other attributes, like the stats every live
+ * publishes every few seconds, must not rebuild the viewers.
+ */
+export function changesWatching(changedAttributes: Readonly<Record<string, string>>): boolean {
+  return Object.hasOwn(changedAttributes, WATCHING_ATTRIBUTE);
+}
+
 export interface WatchingParticipant {
   identity: string;
   attributes: Readonly<Record<string, string>>;

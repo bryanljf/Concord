@@ -141,6 +141,47 @@
   animation: fade-in var(--transition-slow) ease;
 }
 
+/* 2+ watched streams: 2 columns of equal 16:9 tiles (sizes set inline from fitGrid), centered. */
+.stage__grid {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+  animation: fade-in var(--transition-slow) ease;
+}
+
+.stage__grid-cells {
+  display: grid;
+  justify-content: center;
+  align-content: center;
+}
+
+.stage__grid-cells > li {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Free cell of an odd grid: same outline as the tiles, "Transmitir" / "Trocar fonte" inside. */
+.grid-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.grid-slot__hint {
+  font-size: 13px;
+}
+
 /* Lives nobody picked yet: cards without video (nothing is subscribed until "Assistir"). */
 .stage__cards {
   display: flex;
@@ -243,7 +284,8 @@
 }
 
 /* Watched lives: focusable so the context menu also opens from the keyboard. */
-.tile--focused:focus-visible {
+.tile--focused:focus-visible,
+.tile--elsewhere:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--accent);
 }
@@ -291,6 +333,93 @@
 
 .tile--mini.tile--local {
   cursor: default;
+}
+
+/* Grid tiles: equal, rounded, click to put in destaque. */
+.tile--grid {
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+
+.tile--grid:hover,
+.tile--grid:focus-visible {
+  outline: none;
+  border-color: var(--text-muted);
+}
+
+.tile--grid:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.tile-grid__close {
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+}
+
+/* Webcams fill the small tiles (grid, strip); in destaque the whole picture is shown. */
+.tile--grid.tile--camera .tile__video,
+.tile--mini.tile--camera .tile__video {
+  object-fit: cover;
+}
+
+/* A watched stream shown by another window (pop-out, picture-in-picture): notice, no video. */
+.tile--elsewhere {
+  border-color: var(--border);
+  background: var(--bg-secondary);
+}
+
+.tile--elsewhere-grid {
+  border-radius: var(--radius-lg);
+}
+
+.tile--elsewhere .tile__top {
+  opacity: 1;
+  background: none;
+}
+
+.elsewhere {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 44px 16px 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.elsewhere__message {
+  max-width: 420px;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.elsewhere__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tile--elsewhere-mini .elsewhere {
+  gap: 6px;
+  padding: 30px 8px 8px;
+}
+
+.tile--elsewhere-mini .elsewhere__message {
+  font-size: 12px;
+}
+
+.elsewhere__btn--mini {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 /* A watched mini tile plus its small "Parar de assistir" ×, shown on hover or keyboard focus. */
@@ -389,6 +518,7 @@
 
 .tile--controls .tile__top,
 .tile--mini .tile__top,
+.tile--grid .tile__top,
 .tile--local .tile__top,
 .tile__status ~ .tile__top {
   opacity: 1;
@@ -399,9 +529,34 @@
   font-size: 12px;
 }
 
+.tile__top--grid {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+/* The pop-out drags its frameless window from the top strip. */
+.tile__top--drag {
+  cursor: grab;
+}
+
+.tile__top--drag:active {
+  cursor: grabbing;
+}
+
 .tile__name {
   overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* After the name in the top strip (the pop-out shows the room). */
+.tile__subtitle {
+  flex: none;
+  max-width: 30%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -650,6 +805,7 @@
   .stage__empty,
   .stage__cards,
   .stage__focus,
+  .stage__grid,
   .stage__strip li,
   .stage__notice {
     animation: none;

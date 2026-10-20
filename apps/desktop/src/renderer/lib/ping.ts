@@ -1,4 +1,14 @@
 import type { ServerInfoResponse } from '@concord/shared';
+import {
+  niceMax,
+  seriesRange,
+  sparkline,
+  trimHistory,
+  type SeriesSample,
+  type SparklinePaths,
+} from './sparkline';
+
+export type { SparklinePaths };
 
 /** 0 = unknown or no answer; 1 (red) … 4 (green) lit bars. */
 export type PingLevel = 0 | 1 | 2 | 3 | 4;
@@ -60,24 +70,21 @@ export interface PingSample {
 
 /** Keeps the samples of the last `PING_HISTORY_MS` (plus one older one so the line reaches the left edge). */
 export function trimPingHistory(samples: readonly PingSample[], now: number): PingSample[] {
-  const from = now - PING_HISTORY_MS;
-  const firstInside = samples.findIndex((sample) => sample.at >= from);
-  if (firstInside === -1) return samples.length > 0 ? [samples.at(-1) as PingSample] : [];
-  return samples.slice(Math.max(0, firstInside - 1));
+  return trimHistory(samples, now, PING_HISTORY_MS);
 }
 
 /** Top of the chart: the highest ping rounded up to 25 ms, never under 50 ms (a flat line stays low). */
 export function pingScaleMax(samples: readonly PingSample[]): number {
-  let max = 0;
-  for (const sample of samples) if (sample.ms !== null && sample.ms > max) max = sample.ms;
-  return Math.max(50, Math.ceil(max / 25) * 25);
+  return niceMax(
+    samples.map((sample) => sample.ms),
+    50,
+    25,
+  );
 }
 
-export interface SparklinePaths {
-  /** Stroke path; one sub-path per run of answered pings. */
-  line: string;
-  /** The same runs closed down to the baseline, for the fill. */
-  area: string;
+/** The pings as a generic chart series (unanswered pings are gaps). */
+export function pingSeries(samples: readonly PingSample[]): SeriesSample[] {
+  return samples.map((sample) => ({ at: sample.at, value: sample.ms }));
 }
 
 /**
@@ -91,41 +98,10 @@ export function pingSparkline(
   height: number,
   max: number = pingScaleMax(samples),
 ): SparklinePaths {
-  const from = now - PING_HISTORY_MS;
-  const x = (at: number) => Math.min(width, Math.max(0, ((at - from) / PING_HISTORY_MS) * width));
-  const y = (ms: number) => height - (Math.min(ms, max) / max) * height;
-  const runs: { x: number; y: number }[][] = [];
-  let run: { x: number; y: number }[] = [];
-  for (const sample of samples) {
-    if (sample.ms === null) {
-      if (run.length > 0) runs.push(run);
-      run = [];
-    } else {
-      run.push({ x: x(sample.at), y: y(sample.ms) });
-    }
-  }
-  if (run.length > 0) runs.push(run);
-  const fmt = (value: number) => Number(value.toFixed(1));
-  const line = runs
-    .map((points) =>
-      points.map((p, i) => `${i === 0 ? 'M' : 'L'}${fmt(p.x)} ${fmt(p.y)}`).join(' '),
-    )
-    .join(' ');
-  const area = runs
-    .filter((points) => points.length > 1)
-    .map((points) => {
-      const first = points[0] as { x: number };
-      const last = points.at(-1) as { x: number };
-      const top = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${fmt(p.x)} ${fmt(p.y)}`).join(' ');
-      return `${top} L${fmt(last.x)} ${height} L${fmt(first.x)} ${height} Z`;
-    })
-    .join(' ');
-  return { line, area };
+  return sparkline(pingSeries(samples), { now, windowMs: PING_HISTORY_MS, width, height, max });
 }
 
 /** Lowest and highest answered ping in the window; null when nothing answered. */
 export function pingRange(samples: readonly PingSample[]): { min: number; max: number } | null {
-  const values = samples.flatMap((sample) => (sample.ms === null ? [] : [sample.ms]));
-  if (values.length === 0) return null;
-  return { min: Math.min(...values), max: Math.max(...values) };
+  return seriesRange(pingSeries(samples));
 }

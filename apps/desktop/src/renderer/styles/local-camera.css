@@ -1,0 +1,16 @@
+/* Your own webcam preview: mirrored, filling the tile (faces read better cropped than boxed). */
+.tile__video.local-camera__video {
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+/* Not "ao vivo": the camera badge is neutral, the screen preview keeps the red one. */
+.local-camera__badge {
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  white-space: nowrap;
+}
+
+.tile--local-camera .tile__top--mini .tile__name {
+  min-width: 0;
+}

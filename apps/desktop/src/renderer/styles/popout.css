@@ -1,82 +1,82 @@
-/* Frameless pop-out window: the title bar is the drag region */
+/*
+ * Frameless pop-out window: the live fills it like the stage's focused view (controls over the
+ * video, auto-hiding). No `-webkit-app-region`: the top strip drags the window through
+ * `startWindowDrag()`, so hover and clicks keep working everywhere.
+ */
 .popout {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100%;
+  overflow: hidden;
   background: #000;
   color: var(--text-normal);
 }
 
-.popout__bar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  height: 36px;
-  padding: 0 4px 0 10px;
-  background: var(--bg-tertiary);
-  -webkit-app-region: drag;
+/* The live: edge to edge, no border or rounded corners. */
+.popout .tile--focused {
+  border: none;
+  border-radius: 0;
+}
+
+/* The top strip is the window's drag handle (on the stage it ignores the pointer). */
+.popout .tile__top--drag {
+  pointer-events: auto;
   user-select: none;
 }
 
-.popout__title {
+/* Tooltips in the top strip open below it, right-aligned (above would leave the window). */
+.popout .tile__top [data-tooltip]::after {
+  top: calc(100% + 8px);
+  right: 0;
+  bottom: auto;
+  left: auto;
+  transform: translate(0, -4px);
+}
+
+.popout .tile__top [data-tooltip]:hover::after {
+  transform: translate(0, 0);
+}
+
+/* Full-window messages: loading, connection error, live ended. */
+.popout__screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.popout__strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+  height: 40px;
+  padding: 0 4px 0 12px;
+  color: var(--text-muted);
   font-size: 13px;
+  user-select: none;
 }
 
-.popout__name {
+.popout__heading {
+  min-width: 0;
   overflow: hidden;
-  color: var(--text-strong);
-  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.popout__room {
-  color: var(--text-muted);
 }
 
 .popout__actions {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 2px;
-  -webkit-app-region: no-drag;
 }
 
 .popout__actions .icon-btn {
   width: 28px;
   height: 28px;
-}
-
-.popout__actions .icon-btn--active {
-  color: var(--accent);
-}
-
-.popout__error {
-  flex: none;
-  padding: 6px 12px;
-  background: var(--live);
-  color: var(--text-on-accent);
-  font-size: 12px;
-}
-
-.popout__stage {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-}
-
-.popout__video {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #000;
 }
 
 .popout__state {
@@ -86,7 +86,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 24px;
+  padding: 48px 24px 24px;
   color: var(--text-muted);
   font-size: 14px;
   text-align: center;
@@ -100,25 +100,84 @@
   font-size: 12px;
 }
 
-.popout__notice {
+/* Notices over the live (reconnecting, audio blocked, errors), below the top strip. */
+.popout__notices {
   position: absolute;
-  top: 10px;
+  top: 56px;
   left: 50%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.popout__notice {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
   padding: 4px 12px;
   border: none;
   border-radius: 999px;
   background: var(--bg-elevated);
   color: var(--text-strong);
+  box-shadow: var(--shadow);
   font-size: 12px;
   font-weight: 600;
-  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.popout__notice--warning {
+  background: var(--warning);
+  color: var(--bg-tertiary);
+}
+
+.popout__notice--warning .spinner {
+  border-color: rgba(0, 0, 0, 0.2);
+  border-top-color: var(--bg-tertiary);
 }
 
 .popout__notice--action {
   background: var(--accent);
   color: var(--text-on-accent);
   cursor: pointer;
+}
+
+.popout__notice--action:hover {
+  background: var(--accent-hover);
+}
+
+.popout__notice--error {
+  padding-right: 4px;
+  border-radius: var(--radius-md);
+  background: var(--live);
+  color: var(--text-on-accent);
+}
+
+.popout__notice-dismiss {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.popout__notice-dismiss:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.popout__notice-dismiss:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }

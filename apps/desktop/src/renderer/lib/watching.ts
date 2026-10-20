@@ -1,14 +1,20 @@
 /**
- * Which remote lives the user chose to watch in the current room session, and which one of them
- * is on the stage. Entering a room watches nothing: every live is a card without video until the
+ * Which remote streams the user chose to watch in the current room session, and whether one of
+ * them is in "destaque" (big on the stage) or they share the grid. Streams are identified by
+ * their stream key (`lib/streamKey.ts`): the screen share is the participant id, the webcam is
+ * `<id>#camera`. Entering a room watches nothing: every stream is a card without video until the
  * user picks "Assistir". Pure so the transitions can be unit-tested; `hooks/useRoom.ts` owns the
  * state and `lib/subscriptions.ts` turns it into livekit subscriptions.
  */
+import { isCameraKey } from './streamKey';
 
 export interface WatchingState {
-  /** Watched participant ids, in the order the user picked them. */
+  /** Watched stream keys, in the order the user picked them. */
   watched: readonly string[];
-  /** The watched live on the stage (full quality + audio); null when nothing is watched. */
+  /**
+   * The watched stream in destaque; null = the grid (or, with a single watched stream, that one
+   * big on the stage without a "Voltar à grade" button).
+   */
   focused: string | null;
 }
 
@@ -19,61 +25,68 @@ export function resetWatching(): WatchingState {
   return EMPTY_WATCHING;
 }
 
-/**
- * Watches `id` and puts it on the stage. A previously focused live stays watched (it becomes a
- * mini tile); watching an already watched live only focuses it.
- */
-export function watch(state: WatchingState, id: string): WatchingState {
-  if (state.focused === id && state.watched.includes(id)) return state;
-  const watched = state.watched.includes(id) ? state.watched : [...state.watched, id];
-  return { watched, focused: id };
+function withWatched(state: WatchingState, key: string): readonly string[] {
+  return state.watched.includes(key) ? state.watched : [...state.watched, key];
 }
 
 /**
- * Focuses a live that is already watched (clicking a mini tile). Never watches anything new:
- * ids outside the watched list leave the state unchanged.
+ * "Assistir" on a card: adds the stream to the grid. In destaque the new stream also takes the
+ * stage, except a webcam, which never steals the focus (it joins the strip as a mini tile).
  */
-export function focusWatched(state: WatchingState, id: string): WatchingState {
-  if (state.focused === id || !state.watched.includes(id)) return state;
-  return { ...state, focused: id };
+export function watch(state: WatchingState, key: string): WatchingState {
+  const watched = withWatched(state, key);
+  const focused = state.focused !== null && !isCameraKey(key) ? key : state.focused;
+  if (watched === state.watched && focused === state.focused) return state;
+  return { watched, focused };
 }
 
 /**
- * The live that takes the stage when the focused one at `index` of `watched` goes away: the
- * next one in the list, otherwise the previous one, otherwise nothing.
+ * An explicit choice of one live (the sidebar "AO VIVO" badge, navigation from main): watches it
+ * and puts it in destaque, whatever the current mode.
  */
-function handoverFocus(remaining: readonly string[], index: number): string | null {
-  return remaining[index] ?? remaining[index - 1] ?? null;
+export function watchAndFocus(state: WatchingState, key: string): WatchingState {
+  const watched = withWatched(state, key);
+  if (watched === state.watched && state.focused === key) return state;
+  return { watched, focused: key };
 }
 
 /**
- * Removes several lives at once ("Parar de assistir", lives that ended). When the focused live
- * is removed the stage goes to the watched live that followed it (or preceded it, if it was the
- * last one); with nothing left the stage is empty.
+ * Puts a stream that is already watched in destaque (clicking a grid or mini tile). Never
+ * watches anything new: keys outside the watched list leave the state unchanged.
+ */
+export function focusWatched(state: WatchingState, key: string): WatchingState {
+  if (state.focused === key || !state.watched.includes(key)) return state;
+  return { ...state, focused: key };
+}
+
+/** "Voltar à grade": leaves destaque; every watched stream shares the grid again. */
+export function showGrid(state: WatchingState): WatchingState {
+  return state.focused === null ? state : { ...state, focused: null };
+}
+
+/**
+ * Removes several streams at once ("Parar de assistir", lives that ended). Removing the stream
+ * in destaque goes back to the grid: the stage never hands the focus to another stream.
  */
 function removeMany(state: WatchingState, removed: ReadonlySet<string>): WatchingState {
-  if (!state.watched.some((id) => removed.has(id))) return state;
-  const watched = state.watched.filter((id) => !removed.has(id));
-  const { focused } = state;
-  if (focused === null || !removed.has(focused)) return { watched, focused };
-  // Count the survivors before the focused one: that is where the next one now sits.
-  const focusedIndex = state.watched.indexOf(focused);
-  const before = state.watched.slice(0, focusedIndex).filter((id) => !removed.has(id)).length;
-  return { watched, focused: handoverFocus(watched, before) };
+  if (!state.watched.some((key) => removed.has(key))) return state;
+  const watched = state.watched.filter((key) => !removed.has(key));
+  const focused = state.focused !== null && removed.has(state.focused) ? null : state.focused;
+  return { watched, focused };
 }
 
-/** Stops watching `id` (video and audio are unsubscribed), handing the stage over if needed. */
-export function unwatch(state: WatchingState, id: string): WatchingState {
-  return removeMany(state, new Set([id]));
+/** Stops watching `key` (video and audio are unsubscribed). */
+export function unwatch(state: WatchingState, key: string): WatchingState {
+  return removeMany(state, new Set([key]));
 }
 
 /**
- * Drops every watched live that is no longer live (the person stopped streaming or left the
- * room), with the same focus handover as `unwatch`.
+ * Drops every watched stream that is no longer published (the person stopped streaming, turned
+ * the camera off or left the room), like `unwatch`.
  */
-export function pruneWatching(state: WatchingState, liveIds: Iterable<string>): WatchingState {
-  const live = new Set(liveIds);
-  return removeMany(state, new Set(state.watched.filter((id) => !live.has(id))));
+export function pruneWatching(state: WatchingState, liveKeys: Iterable<string>): WatchingState {
+  const live = new Set(liveKeys);
+  return removeMany(state, new Set(state.watched.filter((key) => !live.has(key))));
 }
 
 /**

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { isAuxiliaryIdentity } from '@concord/shared';
 import { ConnectionState, RoomEvent, type Room } from 'livekit-client';
 import {
+  changesWatching,
   collectViewers,
   encodeWatching,
   NO_VIEWERS,
@@ -17,7 +18,6 @@ const VIEWER_EVENTS = [
   RoomEvent.Disconnected,
   RoomEvent.ParticipantConnected,
   RoomEvent.ParticipantDisconnected,
-  RoomEvent.ParticipantAttributesChanged,
 ] as const;
 
 function snapshot(room: Room): ViewersByLive {
@@ -31,7 +31,8 @@ function snapshot(room: Room): ViewersByLive {
 
 /**
  * Who watches each live in `room`, from everyone's `WATCHING_ATTRIBUTE` (yours included).
- * Empty while disconnected.
+ * Empty while disconnected. Attribute updates that leave `WATCHING_ATTRIBUTE` alone (the stats
+ * every live publishes every 5 s) keep the same map, so nothing downstream re-renders.
  */
 export function useViewers(room: Room): ViewersByLive {
   const [viewers, setViewers] = useState<ViewersByLive>(NO_VIEWERS);
@@ -41,11 +42,16 @@ export function useViewers(room: Room): ViewersByLive {
       // Your own attribute outlives a disconnect on the local object; nobody watches then.
       setViewers(room.state === ConnectionState.Disconnected ? NO_VIEWERS : snapshot(room));
     };
+    const onAttributesChanged = (changedAttributes: Record<string, string>): void => {
+      if (changesWatching(changedAttributes)) refresh();
+    };
     for (const event of VIEWER_EVENTS) room.on(event, refresh);
+    room.on(RoomEvent.ParticipantAttributesChanged, onAttributesChanged);
     const catchUp = window.setTimeout(refresh, 0);
     return () => {
       window.clearTimeout(catchUp);
       for (const event of VIEWER_EVENTS) room.off(event, refresh);
+      room.off(RoomEvent.ParticipantAttributesChanged, onAttributesChanged);
     };
   }, [room]);
 

@@ -10,9 +10,16 @@ import {
   type RemoteVideoTrack,
   type Room,
 } from 'livekit-client';
+import { streamKey, type StreamKind } from '../lib/streamKey';
 
-/** One remote participant's screen share, as seen by livekit (the source of truth on stage). */
+/**
+ * One remote video (a screen share or a webcam), as seen by livekit (the source of truth on
+ * stage). A participant with both appears twice, with different `key`s.
+ */
 export interface RemoteStream {
+  /** `participantId` for the screen share, `participantId#camera` for the webcam. */
+  key: string;
+  kind: StreamKind;
   /** Participant identity (= user id from concord-api). */
   participantId: string;
   /** LiveKit name; Workspace/PopoutView replace it with the presence name when known. */
@@ -21,6 +28,7 @@ export interface RemoteStream {
   avatarUrl: string | null;
   participant: RemoteParticipant;
   video: RemoteTrackPublication | null;
+  /** Screen-share audio; always null for a webcam (voice stays on Discord). */
   audio: RemoteTrackPublication | null;
   /** Set once the publication is subscribed and the track arrived. */
   videoTrack: RemoteVideoTrack | null;
@@ -42,7 +50,7 @@ function audioTrackOf(publication: RemoteTrackPublication | null): RemoteAudioTr
   return track && track.kind === Track.Kind.Audio ? (track as RemoteAudioTrack) : null;
 }
 
-function screenPublication(
+function publicationOf(
   participant: RemoteParticipant,
   source: Track.Source,
   kind: Track.Kind,
@@ -53,34 +61,55 @@ function screenPublication(
   return null;
 }
 
-/** Snapshot of every visible participant that publishes a screen share (sorted by join time). */
+function toStream(
+  participant: RemoteParticipant,
+  kind: StreamKind,
+  video: RemoteTrackPublication,
+  audio: RemoteTrackPublication | null,
+): RemoteStream {
+  const videoTrack = videoTrackOf(video);
+  return {
+    key: streamKey(participant.identity, kind),
+    kind,
+    participantId: participant.identity,
+    name: participant.name || participant.identity,
+    avatarUrl: null,
+    participant,
+    video,
+    audio,
+    videoTrack,
+    audioTrack: audioTrackOf(audio),
+    quality: participant.connectionQuality,
+    streamState: videoTrack?.streamState ?? Track.StreamState.Unknown,
+    videoMuted: video.isMuted,
+  };
+}
+
+/**
+ * Snapshot of every visible participant's screen share and webcam, sorted by join time (a
+ * participant's screen share before their webcam).
+ */
 export function collectRemoteStreams(room: Room): RemoteStream[] {
-  const streams: RemoteStream[] = [];
-  for (const participant of room.remoteParticipants.values()) {
-    if (isAuxiliaryIdentity(participant.identity)) continue;
-    const video = screenPublication(participant, Track.Source.ScreenShare, Track.Kind.Video);
-    if (!video) continue;
-    const audio = screenPublication(participant, Track.Source.ScreenShareAudio, Track.Kind.Audio);
-    const videoTrack = videoTrackOf(video);
-    streams.push({
-      participantId: participant.identity,
-      name: participant.name || participant.identity,
-      avatarUrl: null,
-      participant,
-      video,
-      audio,
-      videoTrack,
-      audioTrack: audioTrackOf(audio),
-      quality: participant.connectionQuality,
-      streamState: videoTrack?.streamState ?? Track.StreamState.Unknown,
-      videoMuted: video.isMuted,
+  const participants = [...room.remoteParticipants.values()]
+    .filter((participant) => !isAuxiliaryIdentity(participant.identity))
+    .sort((a, b) => {
+      const joinedA = a.joinedAt?.getTime() ?? 0;
+      const joinedB = b.joinedAt?.getTime() ?? 0;
+      const nameA = a.name || a.identity;
+      const nameB = b.name || b.identity;
+      return joinedA - joinedB || nameA.localeCompare(nameB, 'pt-BR');
     });
+  const streams: RemoteStream[] = [];
+  for (const participant of participants) {
+    const screen = publicationOf(participant, Track.Source.ScreenShare, Track.Kind.Video);
+    if (screen) {
+      const audio = publicationOf(participant, Track.Source.ScreenShareAudio, Track.Kind.Audio);
+      streams.push(toStream(participant, 'screen', screen, audio));
+    }
+    const camera = publicationOf(participant, Track.Source.Camera, Track.Kind.Video);
+    if (camera) streams.push(toStream(participant, 'camera', camera, null));
   }
-  return streams.sort((a, b) => {
-    const joinedA = a.participant.joinedAt?.getTime() ?? 0;
-    const joinedB = b.participant.joinedAt?.getTime() ?? 0;
-    return joinedA - joinedB || a.name.localeCompare(b.name, 'pt-BR');
-  });
+  return streams;
 }
 
 const STREAM_EVENTS = [
@@ -102,7 +131,7 @@ const STREAM_EVENTS = [
   RoomEvent.ConnectionQualityChanged,
 ] as const;
 
-/** Live list of remote screen shares in `room`, refreshed on every relevant livekit event. */
+/** Live list of remote screen shares and webcams in `room`, refreshed on every livekit event. */
 export function useRemoteStreams(room: Room): RemoteStream[] {
   const [streams, setStreams] = useState<RemoteStream[]>(() => collectRemoteStreams(room));
 

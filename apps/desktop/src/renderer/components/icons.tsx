@@ -302,3 +302,76 @@ export function LeaveRoomIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** A video camera: the webcam. */
+export function CameraIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+    </Icon>
+  );
+}
+
+/** A crossed-out video camera: turn the webcam off / camera unavailable. */
+export function CameraOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M10.7 6H14a2 2 0 0 1 2 2v3.3l1 1 4.2-2.8a.5.5 0 0 1 .8.4v6.2" />
+      <path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2" />
+      <path d="m2 2 20 20" />
+    </Icon>
+  );
+}
+
+/** Four squares: the grid of watched lives. */
+export function GridIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+    </Icon>
+  );
+}
+
+/** A line chart: stream statistics. */
+export function ChartIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 3v18h18" />
+      <path d="m7 15 4-4 3 3 5-6" />
+    </Icon>
+  );
+}
+
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </Icon>
+  );
+}
+
+/** An arrow curving back into a window: bring a popped-out live back. */
+export function ReturnIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </Icon>
+  );
+}
+
+/** Arrows out to the corners: picture-in-picture fullscreen. */
+export function MaximizeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M15 3h6v6" />
+      <path d="M9 21H3v-6" />
+      <path d="M21 3l-7 7" />
+      <path d="M3 21l7-7" />
+    </Icon>
+  );
+}

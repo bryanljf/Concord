@@ -1,0 +1,198 @@
+/* "Estatísticas da transmissão": floating card in the top-left corner of the stage (or the
+   pop-out), in the ping panel's visual language. Above the tiles and their controls, below the
+   settings overlay, the source picker, toasts and context menus. */
+.stats-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  color: var(--text-normal);
+  font-size: 12px;
+  cursor: default;
+  animation: stats-panel-in var(--transition-slow) ease;
+}
+
+.stats-panel__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.stats-panel__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-panel__close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.stats-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 12px;
+}
+
+.stats-panel__section + .stats-panel__section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.stats-panel__heading {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Long labels wrap instead of squeezing the values. */
+.stats-panel__list {
+  display: grid;
+  grid-template-columns: fit-content(48%) 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.stats-panel__list dt {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.stats-panel__list dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.stats-panel__list dd.stats-panel__value--warn {
+  color: var(--warning);
+}
+
+.stats-panel__note {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.stats-panel__body > .stats-panel__note {
+  margin-bottom: 8px;
+}
+
+.stats-panel__ok {
+  margin: 0;
+  color: var(--online);
+  font-weight: 600;
+}
+
+/* Simulcast layers of your own video. */
+.stats-panel__layers {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-panel__layers th {
+  padding: 0 6px 4px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.stats-panel__layers td {
+  padding: 2px 6px 2px 0;
+  color: var(--text-strong);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stats-panel__layers tr.stats-panel__muted td {
+  color: var(--text-muted);
+}
+
+.stats-panel__chart {
+  margin-top: 10px;
+}
+
+/* Possible problems: a dot in the level's color before each line. */
+.stats-panel__issues {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stats-panel__issue {
+  position: relative;
+  padding-left: 14px;
+  color: var(--text-normal);
+  line-height: 1.35;
+}
+
+.stats-panel__issue::before {
+  content: '';
+  position: absolute;
+  top: 0.45em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.stats-panel__issue--warning::before {
+  background: var(--warning);
+}
+
+.stats-panel__issue--error {
+  color: var(--text-strong);
+}
+
+.stats-panel__issue--error::before {
+  background: var(--danger);
+}
+
+.stats-panel__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.stats-panel__error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+@keyframes stats-panel-in {
+  from {
+    opacity: 0;
+  }
+}

@@ -1,12 +1,24 @@
 /**
  * Pure helpers for the custom context menu (components/ContextMenu.tsx): the items offered on a
- * watched live, the keyboard shortcuts that open it, and keeping it inside the viewport.
+ * watched stream or on your own previews, the keyboard shortcuts that open it, and keeping it
+ * inside the viewport.
  */
+import type { StreamKind } from './streamKey';
 
-/** The live on the stage, or a watched live in the strip. */
-export type WatchedTileKind = 'focused' | 'mini';
+/** The stream in destaque, a watched stream in the strip, or a tile of the grid. */
+export type WatchedTileKind = 'focused' | 'mini' | 'grid';
 
-export type WatchMenuAction = 'focus' | 'popout' | 'mute' | 'unmute' | 'stop';
+export type WatchMenuAction =
+  | 'focus'
+  | 'grid'
+  | 'popout'
+  | 'return'
+  | 'pip-open'
+  | 'pip-close'
+  | 'mute'
+  | 'unmute'
+  | 'stats'
+  | 'stop';
 
 export interface WatchMenuItem {
   action: WatchMenuAction;
@@ -18,25 +30,62 @@ export interface WatchMenuItem {
   separatorBefore?: boolean;
 }
 
+export interface WatchMenuOptions {
+  tile: WatchedTileKind;
+  kind: StreamKind;
+  /** The screen share is muted in this window. */
+  muted: boolean;
+  /** The screen share carries audio. */
+  hasAudio: boolean;
+  /** 2+ watched streams: destaque can go back to the grid. */
+  canShowGrid: boolean;
+  /** The cameras' picture-in-picture window is open. */
+  pipOpen: boolean;
+  /** Shown by another window (the pop-out, the picture-in-picture) instead of this one. */
+  elsewhere: boolean;
+}
+
 /**
- * Items of the menu opened on a watched live. Only the focused live has audio, so mute is only
- * offered there; "Colocar em destaque" only makes sense for a mini tile. "Parar de assistir"
- * stays last, below a divider, like other destructive actions.
+ * Items of the menu opened on a watched stream. A tile of the grid or the strip can go in
+ * destaque; the destaque can go back to the grid. A screen share opens in the pop-out (or comes
+ * back from it), a webcam opens or closes the cameras' picture-in-picture. Mute and statistics
+ * only apply to what plays in this window. "Parar de assistir" stays last, below a divider,
+ * like other destructive actions.
  */
-export function watchMenuItems(kind: WatchedTileKind, muted: boolean): WatchMenuItem[] {
+export function watchMenuItems(options: WatchMenuOptions): WatchMenuItem[] {
+  const { tile, kind, muted, hasAudio, canShowGrid, pipOpen, elsewhere } = options;
   const items: WatchMenuItem[] = [];
-  if (kind === 'mini') items.push({ action: 'focus', label: 'Colocar em destaque' });
-  items.push({ action: 'popout', label: 'Abrir em pop-out' });
-  if (kind === 'focused') {
+  if (tile !== 'focused') items.push({ action: 'focus', label: 'Colocar em destaque' });
+  if (tile === 'focused' && canShowGrid) {
+    items.push({ action: 'grid', label: 'Voltar para a grade' });
+  }
+  if (kind === 'screen') {
     items.push(
-      muted ? { action: 'unmute', label: 'Ativar som' } : { action: 'mute', label: 'Silenciar' },
+      elsewhere
+        ? { action: 'return', label: 'Trazer para esta janela' }
+        : { action: 'popout', label: 'Abrir em pop-out' },
     );
+  } else {
+    items.push(
+      pipOpen
+        ? { action: 'pip-close', label: 'Fechar picture-in-picture' }
+        : { action: 'pip-open', label: 'Abrir câmeras em picture-in-picture' },
+    );
+  }
+  if (!elsewhere) {
+    if (kind === 'screen' && hasAudio) {
+      items.push(
+        muted ? { action: 'unmute', label: 'Ativar som' } : { action: 'mute', label: 'Silenciar' },
+      );
+    }
+    items.push({ action: 'stats', label: 'Estatísticas da transmissão' });
   }
   items.push({ action: 'stop', label: 'Parar de assistir', danger: true, separatorBefore: true });
   return items;
 }
 
-export type LocalPreviewMenuAction = 'switch' | 'stop-broadcast';
+export type LocalPreviewMenuAction =
+  'switch' | 'pick-camera' | 'stats' | 'stop-broadcast' | 'stop-camera';
 
 export interface LocalPreviewMenuItem {
   action: LocalPreviewMenuAction;
@@ -45,10 +94,19 @@ export interface LocalPreviewMenuItem {
   separatorBefore?: boolean;
 }
 
-/** Items of the menu opened on your own broadcast preview. */
-export function localPreviewMenuItems(): LocalPreviewMenuItem[] {
+/** Items of the menu opened on your own screen preview or camera preview. */
+export function localPreviewMenuItems(source: StreamKind): LocalPreviewMenuItem[] {
+  const stats: LocalPreviewMenuItem = { action: 'stats', label: 'Estatísticas da transmissão' };
+  if (source === 'camera') {
+    return [
+      { action: 'pick-camera', label: 'Escolher câmera…' },
+      stats,
+      { action: 'stop-camera', label: 'Desligar câmera', danger: true, separatorBefore: true },
+    ];
+  }
   return [
     { action: 'switch', label: 'Trocar fonte' },
+    stats,
     { action: 'stop-broadcast', label: 'Parar transmissão', danger: true, separatorBefore: true },
   ];
 }

@@ -13,8 +13,26 @@ describe('stageTitles', () => {
 });
 
 describe('liveCardsTitle', () => {
-  it('counts the lives in the room', () => {
-    expect(liveCardsTitle(1, 'sala-2')).toBe('1 pessoa ao vivo em Sala 2');
-    expect(liveCardsTitle(3, 'sala-3')).toBe('3 pessoas ao vivo em Sala 3');
+  it('counts the people live when there are only screen shares', () => {
+    expect(liveCardsTitle({ screens: 1, cameras: 0 }, 'sala-2')).toBe('1 pessoa ao vivo em Sala 2');
+    expect(liveCardsTitle({ screens: 3, cameras: 0 }, 'sala-3')).toBe(
+      '3 pessoas ao vivo em Sala 3',
+    );
+  });
+
+  it('counts the cameras when there are only webcams', () => {
+    expect(liveCardsTitle({ screens: 0, cameras: 1 }, 'sala-1')).toBe('1 câmera ligada em Sala 1');
+    expect(liveCardsTitle({ screens: 0, cameras: 2 }, 'sala-1')).toBe(
+      '2 câmeras ligadas em Sala 1',
+    );
+  });
+
+  it('counts screen shares and cameras separately when there are both', () => {
+    expect(liveCardsTitle({ screens: 2, cameras: 1 }, 'sala-1')).toBe(
+      '2 transmissões ao vivo e 1 câmera em Sala 1',
+    );
+    expect(liveCardsTitle({ screens: 1, cameras: 3 }, 'geral')).toBe(
+      '1 transmissão ao vivo e 3 câmeras em Geral',
+    );
   });
 });

@@ -1,0 +1,72 @@
+/* Small time-series chart (ping tooltip, stats panel): one series, so no legend; a 2px line over
+   a light fill of the same hue, an optional dashed reference line (e.g. the target fps). */
+/* Zero specificity: the owner's class (`.ping__chart`, …) sets the spacing. */
+:where(.sparkline) {
+  margin: 0;
+}
+
+.sparkline figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sparkline__plot {
+  position: relative;
+}
+
+.sparkline__plot svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.sparkline__grid {
+  stroke: var(--border);
+  stroke-dasharray: 2 3;
+  stroke-width: 1;
+}
+
+.sparkline__baseline {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.sparkline__area {
+  fill: var(--accent);
+  fill-opacity: 0.22;
+}
+
+.sparkline__line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline__reference {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-dasharray: 4 3;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline__scale {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  padding-left: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  transform: translateY(-50%);
+}

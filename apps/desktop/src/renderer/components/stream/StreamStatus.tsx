@@ -13,11 +13,16 @@ interface StreamStatusProps {
  * paused it, or the server stopped forwarding it (no bandwidth).
  */
 export function StreamStatus({ stream, compact = false }: StreamStatusProps) {
+  const what = stream.kind === 'camera' ? 'câmera' : 'transmissão';
   if (!stream.videoTrack) {
     return (
       <div className="tile__status" role="status">
         <Spinner size={compact ? 'sm' : 'md'} label="Conectando" />
-        {!compact && <span>Conectando à transmissão de {stream.name}…</span>}
+        {!compact && (
+          <span>
+            Conectando à {what} de {stream.name}…
+          </span>
+        )}
       </div>
     );
   }
@@ -25,7 +30,11 @@ export function StreamStatus({ stream, compact = false }: StreamStatusProps) {
     return (
       <div className="tile__status" role="status">
         <EyeOffIcon size={compact ? 18 : 28} />
-        {!compact && <span>{stream.name} pausou a transmissão.</span>}
+        {!compact && (
+          <span>
+            {stream.name} pausou a {what}.
+          </span>
+        )}
       </div>
     );
   }

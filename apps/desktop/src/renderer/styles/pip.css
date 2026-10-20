@@ -1,0 +1,296 @@
+/*
+ * Cameras' picture-in-picture window. The BrowserWindow is transparent (main/pip.ts) and `.pip`
+ * paints the rounded #111214 box, so the corners look the same on Windows 10 and 11.
+ */
+html.pip-window,
+html.pip-window body,
+html.pip-window #root {
+  background: transparent;
+  color-scheme: normal;
+}
+
+.pip {
+  position: relative;
+  display: flex;
+  height: 100%;
+  border-radius: 8px;
+  background: #111214;
+  color: var(--text-strong);
+  overflow: hidden;
+  cursor: default;
+  touch-action: none;
+}
+
+.pip--fullscreen {
+  border-radius: 0;
+}
+
+/* Tiles: stacked like the setting says, 6 px around and between them */
+.pip__tiles {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 6px;
+}
+
+.pip--vertical .pip__tiles {
+  flex-direction: column;
+}
+
+.pip--horizontal .pip__tiles {
+  flex-direction: row;
+}
+
+.pip--fullscreen .pip__tiles {
+  display: grid;
+  grid-template-columns: repeat(var(--pip-columns, 1), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--pip-rows, 1), minmax(0, 1fr));
+}
+
+.pip__cell {
+  display: grid;
+  flex: 1 1 0;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+/* Main sizes the window to the tiles, so they fill their cell; fullscreen keeps them 16:9. */
+.pip__tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background: #000;
+  overflow: hidden;
+}
+
+.pip--fullscreen .pip__tile {
+  width: min(100cqw, 100cqh * 16 / 9);
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
+/* 1 px inner border, drawn over the video */
+.pip__tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.pip__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.pip__status {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: #1e1f22;
+}
+
+.pip__status--translucent {
+  background: rgba(17, 18, 20, 0.55);
+}
+
+.pip__loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+
+/* Hover: names, the buttons and the resize grips */
+.pip__name {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: calc(100% - 12px);
+  padding: 2px 8px 2px 3px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
+
+.pip__name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pip__actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.pip__btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.66);
+  color: var(--text-strong);
+  cursor: pointer;
+  transition: background-color var(--transition);
+}
+
+.pip__btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.pip__btn--close:hover {
+  background: var(--danger);
+}
+
+.pip__grip {
+  position: absolute;
+  z-index: 6;
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.pip__grip::before {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 0 solid rgba(255, 255, 255, 0.8);
+}
+
+.pip__grip--nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.pip__grip--nw::before {
+  top: 3px;
+  left: 3px;
+  border-top-width: 2px;
+  border-left-width: 2px;
+  border-top-left-radius: 3px;
+}
+
+.pip__grip--ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.pip__grip--ne::before {
+  top: 3px;
+  right: 3px;
+  border-top-width: 2px;
+  border-right-width: 2px;
+  border-top-right-radius: 3px;
+}
+
+.pip__grip--sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.pip__grip--sw::before {
+  bottom: 3px;
+  left: 3px;
+  border-bottom-width: 2px;
+  border-left-width: 2px;
+  border-bottom-left-radius: 3px;
+}
+
+.pip__grip--se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.pip__grip--se::before {
+  right: 3px;
+  bottom: 3px;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+  border-bottom-right-radius: 3px;
+}
+
+.pip:hover .pip__name,
+.pip:hover .pip__actions,
+.pip:hover .pip__grip {
+  opacity: 1;
+}
+
+/* Connection problems: a small pill at the bottom */
+.pip__notice {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 20px);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.78);
+  font-size: 12px;
+  transform: translateX(-50%);
+}
+
+.pip__notice--error svg {
+  flex: none;
+  color: var(--danger);
+}
+
+.pip__notice-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pip__retry {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pip__retry:hover {
+  text-decoration: underline;
+}

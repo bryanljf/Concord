@@ -1,6 +1,7 @@
 import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
 import { formatJoinedAgo } from '../lib/format';
 import { Avatar } from './Avatar';
+import { CameraIcon } from './icons';
 
 interface ParticipantRowProps {
   room: RoomId;
@@ -20,6 +21,16 @@ export function ParticipantRow({ room, participant, watching, now, onWatch }: Pa
     >
       <Avatar id={participant.id} name={participant.name} src={participant.avatarUrl} size="sm" />
       <span className="participant__name">{participant.name}</span>
+      {participant.camera && (
+        <span
+          className="participant__camera"
+          role="img"
+          aria-label="Câmera ligada"
+          data-tooltip="Câmera ligada"
+        >
+          <CameraIcon size={16} />
+        </span>
+      )}
       {participant.streaming && (
         <button
           type="button"

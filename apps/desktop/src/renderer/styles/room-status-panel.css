@@ -199,66 +199,9 @@
   color: var(--online);
 }
 
-/* Last 30 s of pings: one series, so no legend; a 2px line over a light fill of the same hue. */
+/* Last 30 s of pings (the chart itself is the shared `.sparkline`, styles/sparkline.css). */
 .ping__chart {
   margin: 10px 0 0;
   padding-top: 8px;
   border-top: 1px solid var(--border);
-}
-
-.ping__chart figcaption {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 6px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.ping__plot {
-  position: relative;
-}
-
-.ping__plot svg {
-  display: block;
-  overflow: visible;
-}
-
-.ping__grid {
-  stroke: var(--border);
-  stroke-dasharray: 2 3;
-  stroke-width: 1;
-}
-
-.ping__baseline {
-  stroke: var(--border-strong);
-  stroke-width: 1;
-}
-
-.ping__area {
-  fill: var(--accent);
-  fill-opacity: 0.22;
-}
-
-.ping__line {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.ping__scale {
-  position: absolute;
-  top: -1px;
-  right: 0;
-  padding-left: 4px;
-  background: var(--bg-elevated);
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1;
-  transform: translateY(-50%);
 }

@@ -1,13 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ServerPing } from '../hooks/useServerPing';
 import {
+  PING_HISTORY_MS,
   pingLabel,
   pingLevel,
   pingRange,
   pingScaleMax,
-  pingSparkline,
+  pingSeries,
   regionLabel,
 } from '../lib/ping';
+import { Sparkline } from './Sparkline';
 
 interface PingIndicatorProps {
   ping: ServerPing;
@@ -22,36 +24,20 @@ function PingChart({ history }: Pick<ServerPing, 'history'>) {
   const last = history.at(-1);
   if (!last) return null;
   const max = pingScaleMax(history);
-  const { line, area } = pingSparkline(history, last.at, CHART_WIDTH, CHART_HEIGHT, max);
   const range = pingRange(history);
   return (
-    <figure className="ping__chart">
-      <figcaption>
-        <span>Últimos 30 s</span>
-        <span>{range ? `mín ${range.min} · máx ${range.max} ms` : 'sem resposta'}</span>
-      </figcaption>
-      <div className="ping__plot">
-        <svg
-          viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-          width={CHART_WIDTH}
-          height={CHART_HEIGHT}
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <line className="ping__grid" x1="0" x2={CHART_WIDTH} y1="0.5" y2="0.5" />
-          <line
-            className="ping__baseline"
-            x1="0"
-            x2={CHART_WIDTH}
-            y1={CHART_HEIGHT - 0.5}
-            y2={CHART_HEIGHT - 0.5}
-          />
-          <path className="ping__area" d={area} />
-          <path className="ping__line" d={line} />
-        </svg>
-        <span className="ping__scale">{max} ms</span>
-      </div>
-    </figure>
+    <Sparkline
+      className="ping__chart"
+      samples={pingSeries(history)}
+      now={last.at}
+      windowMs={PING_HISTORY_MS}
+      max={max}
+      width={CHART_WIDTH}
+      height={CHART_HEIGHT}
+      caption="Últimos 30 s"
+      summary={range ? `mín ${range.min} · máx ${range.max} ms` : 'sem resposta'}
+      scaleLabel={`${max} ms`}
+    />
   );
 }
 

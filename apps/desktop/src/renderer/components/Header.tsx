@@ -4,7 +4,7 @@ import '../styles/header.css';
 
 interface HeaderProps {
   currentRoom: RoomId | null;
-  /** A remote stream is on the stage (pop-out and fullscreen act on it). */
+  /** A remote screen share plays big on the stage (the pop-out button acts on it). */
   hasFocusedStream: boolean;
   fullscreen: boolean;
   onToggleFullscreen(): void;

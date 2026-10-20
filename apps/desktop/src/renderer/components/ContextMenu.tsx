@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { clampMenuPosition, nextMenuIndex, type Point } from '../lib/contextMenu';
+import { CheckIcon } from './icons';
 import '../styles/context-menu.css';
 
 export interface ContextMenuItem {
@@ -19,6 +20,8 @@ export interface ContextMenuItem {
   danger?: boolean;
   /** Draws a divider above the item. */
   separatorBefore?: boolean;
+  /** Radio-style item (e.g. the chosen camera): shows a check mark when true. */
+  checked?: boolean;
   onSelect(): void;
 }
 
@@ -38,6 +41,8 @@ interface ContextMenuProps {
  * Enter/Space activate, Esc/Tab/outside click close. Focus return is up to the owner
  * (`useContextMenu` gives it back to the element that opened the menu).
  */
+const MENU_ITEMS = '[role="menuitem"], [role="menuitemradio"]';
+
 export function ContextMenu({ point, label, items, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<Point | null>(null);
@@ -64,7 +69,7 @@ export function ContextMenu({ point, label, items, onClose }: ContextMenuProps) 
   const placed = position !== null;
   useEffect(() => {
     if (!placed) return;
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true });
+    ref.current?.querySelector<HTMLElement>(MENU_ITEMS)?.focus({ preventScroll: true });
   }, [placed]);
 
   useEffect(() => {
@@ -91,9 +96,7 @@ export function ContextMenu({ point, label, items, onClose }: ContextMenuProps) 
       onClose();
       return;
     }
-    const menuItems = Array.from(
-      ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
-    );
+    const menuItems = Array.from(ref.current?.querySelectorAll<HTMLElement>(MENU_ITEMS) ?? []);
     const current = menuItems.findIndex((item) => item === document.activeElement);
     if (event.key === 'Enter' || event.key === ' ') {
       // Activate here rather than relying on the button's native keyboard click.
@@ -128,7 +131,8 @@ export function ContextMenu({ point, label, items, onClose }: ContextMenuProps) 
           {item.separatorBefore && <div className="context-menu__separator" role="separator" />}
           <button
             type="button"
-            role="menuitem"
+            role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+            aria-checked={item.checked}
             tabIndex={-1}
             className={
               item.danger ? 'context-menu__item context-menu__item--danger' : 'context-menu__item'
@@ -139,10 +143,16 @@ export function ContextMenu({ point, label, items, onClose }: ContextMenuProps) 
             }}
           >
             <span className="context-menu__label">{item.label}</span>
-            {item.icon && (
+            {item.checked ? (
               <span className="context-menu__icon" aria-hidden="true">
-                {item.icon}
+                <CheckIcon size={16} />
               </span>
+            ) : (
+              item.icon && (
+                <span className="context-menu__icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+              )
             )}
           </button>
         </Fragment>

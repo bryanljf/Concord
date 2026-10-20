@@ -5,6 +5,7 @@ import { CloseIcon } from '../icons';
 import { AboutSection } from './AboutSection';
 import { AccountSection } from './AccountSection';
 import { AudioSection } from './AudioSection';
+import { CameraSection } from './CameraSection';
 import { NotificationsSection } from './NotificationsSection';
 import { ShortcutSection } from './ShortcutSection';
 import { StartupSection } from './StartupSection';
@@ -18,6 +19,7 @@ const SECTIONS = [
   { id: 'transmissao', label: 'Transmissão' },
   { id: 'notificacoes', label: 'Sons' },
   { id: 'audio', label: 'Áudio' },
+  { id: 'camera', label: 'Câmera' },
   { id: 'sobre', label: 'Sobre' },
 ] as const;
 
@@ -120,6 +122,7 @@ export function SettingsView({
           onUpdate={onUpdate}
         />
         <AudioSection settings={settings} onUpdate={onUpdate} />
+        <CameraSection settings={settings} onUpdate={onUpdate} />
         <AboutSection version={version} platform={platform} />
       </div>
       <div className="settings__close">

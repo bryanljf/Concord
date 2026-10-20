@@ -138,3 +138,25 @@
     0 0 0 2px var(--bg-secondary),
     0 0 0 3px var(--live);
 }
+
+/* Webcam on: an indicator only (a camera never counts as "AO VIVO"). */
+.participant__camera {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.participant:hover .participant__camera {
+  color: var(--text-normal);
+}
+
+/* Right-aligned so the tooltip never runs past the scrolling sidebar's edge. */
+.participant__camera[data-tooltip]::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, 4px);
+}
+
+.participant__camera[data-tooltip]:hover::after {
+  transform: translate(0, 0);
+}

@@ -50,3 +50,41 @@
   color: var(--text-normal);
   font-weight: 600;
 }
+
+/* Webcam: "Câmera" toggle + chevron with the device list, joined like a split button */
+.camera-split {
+  display: inline-flex;
+  flex: none;
+  align-items: stretch;
+}
+
+.camera-split__toggle {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.camera-split__menu {
+  width: 30px;
+  padding: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.28);
+}
+
+.camera-split__menu[aria-expanded='true'] {
+  background: var(--bg-selected);
+}
+
+/* On: green tint, like a lit camera light */
+.camera-split--on .btn {
+  background: rgba(35, 165, 89, 0.22);
+}
+
+.camera-split--on .btn:hover:not(:disabled),
+.camera-split--on .camera-split__menu[aria-expanded='true'] {
+  background: rgba(35, 165, 89, 0.34);
+}
+
+.camera-split--on .camera-split__toggle svg {
+  color: var(--online);
+}

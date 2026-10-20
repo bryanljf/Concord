@@ -5,55 +5,114 @@ import {
   localPreviewMenuItems,
   nextMenuIndex,
   watchMenuItems,
+  type WatchMenuOptions,
 } from './contextMenu';
 
 const keys = { shiftKey: false, ctrlKey: false, altKey: false, metaKey: false };
 
+const screen: WatchMenuOptions = {
+  tile: 'focused',
+  kind: 'screen',
+  muted: false,
+  hasAudio: true,
+  canShowGrid: false,
+  pipOpen: false,
+  elsewhere: false,
+};
+
+const actions = (options: Partial<WatchMenuOptions>) =>
+  watchMenuItems({ ...screen, ...options }).map((item) => item.action);
+
 describe('watchMenuItems', () => {
-  it('offers pop-out, mute and stop on the focused live', () => {
-    const items = watchMenuItems('focused', false);
+  it('offers pop-out, mute, statistics and stop on a screen share in destaque', () => {
+    const items = watchMenuItems(screen);
     expect(items.map((item) => item.label)).toEqual([
       'Abrir em pop-out',
       'Silenciar',
+      'Estatísticas da transmissão',
       'Parar de assistir',
     ]);
-    expect(items.map((item) => item.action)).toEqual(['popout', 'mute', 'stop']);
+    expect(items.map((item) => item.action)).toEqual(['popout', 'mute', 'stats', 'stop']);
   });
 
-  it('offers "Ativar som" instead when the focused live is muted', () => {
-    const items = watchMenuItems('focused', true);
-    expect(items[1]).toEqual({ action: 'unmute', label: 'Ativar som' });
+  it('offers "Voltar para a grade" in destaque when 2+ streams are watched', () => {
+    const items = watchMenuItems({ ...screen, canShowGrid: true });
+    expect(items[0]).toEqual({ action: 'grid', label: 'Voltar para a grade' });
+    expect(actions({ tile: 'grid', canShowGrid: true })).not.toContain('grid');
   });
 
-  it('offers focus, pop-out and stop on a mini tile (no audio there)', () => {
-    const items = watchMenuItems('mini', false);
-    expect(items.map((item) => item.action)).toEqual(['focus', 'popout', 'stop']);
-    expect(items[0]?.label).toBe('Colocar em destaque');
-    expect(watchMenuItems('mini', true).map((item) => item.action)).toEqual([
-      'focus',
-      'popout',
+  it('offers "Colocar em destaque" on grid and mini tiles', () => {
+    for (const tile of ['grid', 'mini'] as const) {
+      const items = watchMenuItems({ ...screen, tile });
+      expect(items[0]).toEqual({ action: 'focus', label: 'Colocar em destaque' });
+    }
+    expect(actions({ tile: 'focused' })).not.toContain('focus');
+  });
+
+  it('offers "Ativar som" when muted, and no mute at all without audio', () => {
+    expect(watchMenuItems({ ...screen, muted: true })[1]).toEqual({
+      action: 'unmute',
+      label: 'Ativar som',
+    });
+    expect(actions({ hasAudio: false })).toEqual(['popout', 'stats', 'stop']);
+  });
+
+  it('opens or closes the picture-in-picture on a camera (no pop-out, no audio)', () => {
+    const closed = watchMenuItems({ ...screen, tile: 'mini', kind: 'camera', hasAudio: false });
+    expect(closed.map((item) => item.label)).toEqual([
+      'Colocar em destaque',
+      'Abrir câmeras em picture-in-picture',
+      'Estatísticas da transmissão',
+      'Parar de assistir',
+    ]);
+    expect(actions({ kind: 'camera', pipOpen: true })).toEqual(['pip-close', 'stats', 'stop']);
+    expect(watchMenuItems({ ...screen, kind: 'camera', pipOpen: true })[0]?.label).toBe(
+      'Fechar picture-in-picture',
+    );
+  });
+
+  it('brings back a stream shown by another window, without mute or statistics', () => {
+    const items = watchMenuItems({ ...screen, tile: 'grid', elsewhere: true });
+    expect(items.map((item) => item.label)).toEqual([
+      'Colocar em destaque',
+      'Trazer para esta janela',
+      'Parar de assistir',
+    ]);
+    expect(actions({ kind: 'camera', pipOpen: true, elsewhere: true })).toEqual([
+      'pip-close',
       'stop',
     ]);
   });
 
   it('keeps "Parar de assistir" last, destructive and below a divider', () => {
-    for (const kind of ['focused', 'mini'] as const) {
-      const last = watchMenuItems(kind, false).at(-1);
-      expect(last).toEqual({
-        action: 'stop',
-        label: 'Parar de assistir',
-        danger: true,
-        separatorBefore: true,
-      });
+    for (const tile of ['focused', 'mini', 'grid'] as const) {
+      for (const kind of ['screen', 'camera'] as const) {
+        const last = watchMenuItems({ ...screen, tile, kind }).at(-1);
+        expect(last).toEqual({
+          action: 'stop',
+          label: 'Parar de assistir',
+          danger: true,
+          separatorBefore: true,
+        });
+      }
     }
   });
 });
 
 describe('localPreviewMenuItems', () => {
-  it('offers switching the source and stopping the broadcast (destructive, last)', () => {
-    expect(localPreviewMenuItems()).toEqual([
+  it('offers switching the source, statistics and stopping the broadcast (last)', () => {
+    expect(localPreviewMenuItems('screen')).toEqual([
       { action: 'switch', label: 'Trocar fonte' },
+      { action: 'stats', label: 'Estatísticas da transmissão' },
       { action: 'stop-broadcast', label: 'Parar transmissão', danger: true, separatorBefore: true },
+    ]);
+  });
+
+  it('offers picking a camera, statistics and turning the camera off (last)', () => {
+    expect(localPreviewMenuItems('camera')).toEqual([
+      { action: 'pick-camera', label: 'Escolher câmera…' },
+      { action: 'stats', label: 'Estatísticas da transmissão' },
+      { action: 'stop-camera', label: 'Desligar câmera', danger: true, separatorBefore: true },
     ]);
   });
 });

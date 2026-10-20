@@ -20,32 +20,36 @@ function applyAudio(publication: RemoteTrackPublication, plan: SubscriptionPlan)
 }
 
 /**
- * Keeps livekit subscriptions in sync with what the user chose to watch: the focused
- * live at full quality with audio, the other watched lives (mini tiles) at the lowest simulcast
- * layer without audio, nothing else. `watchedIds` defaults to none, so a caller that only knows
- * one target (the pop-out window) subscribes to just that one.
+ * Keeps livekit subscriptions in sync with what the user chose to watch (by stream key, see
+ * `lib/subscriptions.ts`): a screen share in destaque at full quality with audio and the other
+ * watched streams at the lowest layer; on the grid (or with a webcam in destaque) every watched
+ * stream at full quality with the audio of every screen share; nothing else. `watchedKeys`
+ * defaults to none, so a caller that only knows one target (the pop-out window) subscribes to
+ * just that one; `elsewhereKeys` are shown by another window and never subscribed here.
  */
 export function useSubscriptions(
   streams: readonly RemoteStream[],
-  focusedId: string | null,
+  focusedKey: string | null,
   enabled = true,
-  watchedIds: readonly string[] = NONE,
+  watchedKeys: readonly string[] = NONE,
+  elsewhereKeys: readonly string[] = NONE,
 ): void {
   useEffect(() => {
     if (!enabled) return;
     const plan = planSubscriptions(
       streams.map((stream) => ({
-        participantId: stream.participantId,
+        key: stream.key,
         hasVideo: stream.video !== null,
         hasAudio: stream.audio !== null,
       })),
-      focusedId,
-      watchedIds,
+      focusedKey,
+      watchedKeys,
+      elsewhereKeys,
     );
     for (const stream of streams) {
-      const wanted = plan.get(stream.participantId) ?? { video: null, audio: false };
+      const wanted = plan.get(stream.key) ?? { video: null, audio: false };
       if (stream.video) applyVideo(stream.video, wanted);
       if (stream.audio) applyAudio(stream.audio, wanted);
     }
-  }, [streams, focusedId, watchedIds, enabled]);
+  }, [streams, focusedKey, watchedKeys, elsewhereKeys, enabled]);
 }

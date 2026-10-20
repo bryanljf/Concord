@@ -6,8 +6,10 @@ import {
   EMPTY_WATCHING,
   focusWatched,
   pruneWatching,
-  unwatch as unwatchLive,
-  watch as watchLive,
+  showGrid as showWatchedGrid,
+  unwatch as unwatchStream,
+  watch as watchStream,
+  watchAndFocus as watchAndFocusStream,
   type WatchingState,
 } from '../lib/watching';
 
@@ -21,34 +23,42 @@ export interface UseRoom {
   connectionState: RoomConnectionState;
   error: string | null;
   /**
-   * The watched live on the stage (full quality + audio). Null when nothing is watched: entering
-   * a room subscribes to nothing until the user picks "Assistir".
+   * Stream key (`lib/streamKey.ts`) of the watched stream in destaque; null = the grid (or
+   * nothing watched: entering a room subscribes to nothing until the user picks "Assistir").
    */
-  focusedParticipantId: string | null;
-  /** Every live the user chose to watch in this room session, in the order they were picked. */
-  watchedParticipantIds: readonly string[];
+  focusedKey: string | null;
+  /** Every stream the user chose to watch in this room session, in the order they were picked. */
+  watchedKeys: readonly string[];
   /** False when the browser blocked audio playback: call `startAudio()` from a user gesture. */
   audioPlayback: boolean;
   /**
    * Leaves the previous room (if any), requests a token and connects. Resolves true when
-   * connected. `watchParticipantId` is an explicit choice (sidebar badge, navigation from main):
-   * that live is watched and focused. Switching rooms starts a new session with nothing watched.
+   * connected. `watchKey` is an explicit choice (sidebar badge, navigation from main): that
+   * stream is watched and put in destaque, also when already in the room. Switching rooms starts
+   * a new session with nothing watched.
    */
-  join(roomId: RoomId, watchParticipantId?: string | null): Promise<boolean>;
+  join(roomId: RoomId, watchKey?: string | null): Promise<boolean>;
   leave(): Promise<void>;
-  /** Watches a live (subscribes it) and puts it on the stage; the previous one becomes a mini tile. */
-  watch(participantId: string): void;
-  /** Stops watching (unsubscribes video and audio); the next watched live takes the stage. */
-  unwatch(participantId: string): void;
-  /** Switches the stage to an already watched live; never subscribes anything new. */
-  focus(participantId: string): void;
-  /** Drops watched lives that are no longer live; call with the current remote streams. */
-  syncLive(liveParticipantIds: readonly string[]): void;
+  /**
+   * "Assistir" on a card: subscribes the stream and adds it to the grid; in destaque a screen
+   * share also takes the stage (a webcam never does).
+   */
+  watch(key: string): void;
+  /** Watches a stream and puts it in destaque whatever the current mode. */
+  watchAndFocus(key: string): void;
+  /** Stops watching (unsubscribes video and audio); removing the destaque goes back to the grid. */
+  unwatch(key: string): void;
+  /** Puts an already watched stream in destaque; never subscribes anything new. */
+  focus(key: string): void;
+  /** "Voltar à grade": leaves destaque. */
+  showGrid(): void;
+  /** Drops watched streams that are no longer published; call with the current remote streams. */
+  syncLive(liveKeys: readonly string[]): void;
   startAudio(): Promise<void>;
 }
 
 export interface UseRoomOptions {
-  /** `popout` asks concord-api for the hidden, subscribe-only identity. */
+  /** `popout` / `pip` ask concord-api for a hidden, subscribe-only identity. */
   purpose?: TokenPurpose;
 }
 
@@ -140,18 +150,17 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
   );
 
   const join = useCallback(
-    async (roomId: RoomId, watchParticipantId: string | null = null): Promise<boolean> => {
+    async (roomId: RoomId, watchKey: string | null = null): Promise<boolean> => {
       const alreadyThere =
         currentRoomRef.current === roomId && room.state !== ConnectionState.Disconnected;
       if (alreadyThere) {
-        // Re-clicking the current room keeps what is watched; a badge click watches that live.
-        if (watchParticipantId) setWatching((prev) => watchLive(prev, watchParticipantId));
+        // Re-clicking the current room keeps what is watched; a badge click puts that live in
+        // destaque.
+        if (watchKey) setWatching((prev) => watchAndFocusStream(prev, watchKey));
         return room.state === ConnectionState.Connected;
       }
-      // A new room session: only the explicitly chosen live (if any) is watched.
-      setWatching(
-        watchParticipantId ? watchLive(EMPTY_WATCHING, watchParticipantId) : EMPTY_WATCHING,
-      );
+      // A new room session: only the explicitly chosen stream (if any) is watched.
+      setWatching(watchKey ? watchAndFocusStream(EMPTY_WATCHING, watchKey) : EMPTY_WATCHING);
       // Not "connected" from here on, so the previous room's streams never prune the new
       // session's choice (the owner only calls syncLive while connected).
       setConnectionState('connecting');
@@ -199,20 +208,28 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
     if (room.state !== ConnectionState.Disconnected) await room.disconnect();
   }, [room]);
 
-  const watch = useCallback((participantId: string) => {
-    setWatching((prev) => watchLive(prev, participantId));
+  const watch = useCallback((key: string) => {
+    setWatching((prev) => watchStream(prev, key));
   }, []);
 
-  const unwatch = useCallback((participantId: string) => {
-    setWatching((prev) => unwatchLive(prev, participantId));
+  const watchAndFocus = useCallback((key: string) => {
+    setWatching((prev) => watchAndFocusStream(prev, key));
   }, []);
 
-  const focus = useCallback((participantId: string) => {
-    setWatching((prev) => focusWatched(prev, participantId));
+  const unwatch = useCallback((key: string) => {
+    setWatching((prev) => unwatchStream(prev, key));
   }, []);
 
-  const syncLive = useCallback((liveParticipantIds: readonly string[]) => {
-    setWatching((prev) => pruneWatching(prev, liveParticipantIds));
+  const focus = useCallback((key: string) => {
+    setWatching((prev) => focusWatched(prev, key));
+  }, []);
+
+  const showGrid = useCallback(() => {
+    setWatching(showWatchedGrid);
+  }, []);
+
+  const syncLive = useCallback((liveKeys: readonly string[]) => {
+    setWatching((prev) => pruneWatching(prev, liveKeys));
   }, []);
 
   const startAudio = useCallback(async () => {
@@ -224,14 +241,16 @@ export function useRoom(options: UseRoomOptions = {}): UseRoom {
     currentRoom,
     connectionState,
     error,
-    focusedParticipantId: watching.focused,
-    watchedParticipantIds: watching.watched,
+    focusedKey: watching.focused,
+    watchedKeys: watching.watched,
     audioPlayback,
     join,
     leave,
     watch,
+    watchAndFocus,
     unwatch,
     focus,
+    showGrid,
     syncLive,
     startAudio,
   };

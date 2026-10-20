@@ -9,7 +9,10 @@ interface SidebarProps {
   rooms: RoomId[];
   snapshot: PresenceSnapshot;
   currentRoom: RoomId | null;
-  /** Lives watched in the current room (their badge reads "assistindo"). */
+  /**
+   * Stream keys watched in the current room; a screen share's key is the participant id, so its
+   * badge reads "assistindo" (camera keys never match a participant).
+   */
   watchedIds: readonly string[];
   onJoin(room: RoomId): void;
   onWatch(room: RoomId, participantId: string): void;
