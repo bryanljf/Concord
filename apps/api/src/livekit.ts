@@ -26,15 +26,22 @@ export interface RoomToken {
 }
 
 /**
- * The regular participant: publishes screen-share video/audio and a webcam (never a mic: voice
- * stays on Discord), and sets its own attributes (the lives it watches, so the others can list
- * their viewers).
+ * The regular participant: publishes screen-share video/audio, a webcam and an app's music, and
+ * sets its own attributes (the lives it watches, so the others can list their viewers).
+ * The Microphone source carries the music of an app (Spotify…), named `concord:music:<app>`: the
+ * app never captures a microphone (voice stays on Discord); the source only keeps the music's
+ * volume apart from the screen share's audio.
  */
 const MAIN_GRANT: Omit<VideoGrant, 'room'> = {
   roomJoin: true,
   canSubscribe: true,
   canPublish: true,
-  canPublishSources: [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO, TrackSource.CAMERA],
+  canPublishSources: [
+    TrackSource.SCREEN_SHARE,
+    TrackSource.SCREEN_SHARE_AUDIO,
+    TrackSource.CAMERA,
+    TrackSource.MICROPHONE,
+  ],
   canPublishData: true,
   canUpdateOwnMetadata: true,
 };
@@ -52,9 +59,9 @@ const POPOUT_GRANT: Omit<VideoGrant, 'room'> = {
 };
 
 /**
- * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share and
- * camera publish grants; `popout` / `pip` join as the auxiliary identity `<id>~<purpose>`, hidden
- * and subscribe-only.
+ * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share, camera
+ * and music publish grants; `popout` / `pip` join as the auxiliary identity `<id>~<purpose>`,
+ * hidden and subscribe-only.
  * `name` is the display name LiveKit shows (the resolved profile name; defaults to users.json).
  */
 export async function createRoomToken(
@@ -94,6 +101,24 @@ export function isCameraVideo(track: Pick<TrackInfo, 'source' | 'type'>): boolea
   return track.source === TrackSource.CAMERA && track.type === TrackType.VIDEO;
 }
 
+/** Name of an app's music track: `concord:music:<app>` (e.g. `concord:music:spotify`). */
+const MUSIC_TRACK_NAME_PREFIX = 'concord:music:';
+
+/**
+ * An app's music, published under the Microphone source (never a real microphone). A track with
+ * another name is not Concord's music; an unnamed one is still accepted, since only Concord
+ * clients publish here.
+ */
+export function isMusicAudio(
+  track: Pick<TrackInfo, 'source' | 'type'> & Partial<Pick<TrackInfo, 'name'>>,
+): boolean {
+  return (
+    track.source === TrackSource.MICROPHONE &&
+    track.type === TrackType.AUDIO &&
+    (!track.name || track.name.startsWith(MUSIC_TRACK_NAME_PREFIX))
+  );
+}
+
 /** Auxiliary identities (pop-out/PiP windows) are extra connections of a person, not presence. */
 export function isAuxiliaryParticipant(participant: Pick<ParticipantInfo, 'identity'>): boolean {
   return isAuxiliaryIdentity(participant.identity);
@@ -112,6 +137,7 @@ function toParticipantState(participant: ParticipantInfo): ParticipantState {
     ...toParticipantIdentity(participant),
     screenTracks: participant.tracks.filter(isScreenShareVideo).map((track) => track.sid),
     cameraTracks: participant.tracks.filter(isCameraVideo).map((track) => track.sid),
+    musicTracks: participant.tracks.filter(isMusicAudio).map((track) => track.sid),
   };
 }
 

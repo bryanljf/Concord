@@ -13,12 +13,13 @@ import {
   fetchRoomState,
   isAuxiliaryParticipant,
   isCameraVideo,
+  isMusicAudio,
   isScreenShareVideo,
 } from '../src/livekit';
 import { ALICE, API_KEY, API_SECRET, testConfig } from './helpers';
 
 describe('createRoomToken', () => {
-  it('issues a 6 h token with screen-share and camera publish grants', async () => {
+  it('issues a 6 h token with screen-share, camera and music publish grants', async () => {
     const before = Math.floor(Date.now() / 1000);
     const { token, expiresAt } = await createRoomToken(testConfig().livekit, ALICE, 'geral');
     const claims = await new TokenVerifier(API_KEY, API_SECRET).verify(token);
@@ -29,7 +30,7 @@ describe('createRoomToken', () => {
       room: 'geral',
       canSubscribe: true,
       canPublish: true,
-      canPublishSources: ['screen_share', 'screen_share_audio', 'camera'],
+      canPublishSources: ['screen_share', 'screen_share_audio', 'camera', 'microphone'],
       canPublishData: true,
       canUpdateOwnMetadata: true,
     });
@@ -100,8 +101,32 @@ describe('isCameraVideo', () => {
   });
 });
 
+describe('isMusicAudio', () => {
+  it.each<[TrackSource, TrackType, string | undefined, boolean]>([
+    [TrackSource.MICROPHONE, TrackType.AUDIO, 'concord:music:spotify', true],
+    [TrackSource.MICROPHONE, TrackType.AUDIO, undefined, true],
+    [TrackSource.MICROPHONE, TrackType.AUDIO, '', true],
+    [TrackSource.MICROPHONE, TrackType.AUDIO, 'microphone', false],
+    [TrackSource.MICROPHONE, TrackType.VIDEO, 'concord:music:spotify', false],
+    [TrackSource.SCREEN_SHARE_AUDIO, TrackType.AUDIO, 'concord:music:spotify', false],
+    [TrackSource.CAMERA, TrackType.VIDEO, undefined, false],
+  ])('source %i, type %i, name %s -> %s', (source, type, name, expected) => {
+    expect(isMusicAudio({ source, type, name })).toBe(expected);
+  });
+
+  it('accepts a TrackInfo from the server', () => {
+    const track = new TrackInfo({
+      sid: 'TR_music',
+      type: TrackType.AUDIO,
+      source: TrackSource.MICROPHONE,
+      name: 'concord:music:spotify',
+    });
+    expect(isMusicAudio(track)).toBe(true);
+  });
+});
+
 describe('fetchRoomState', () => {
-  it('maps rooms, participants and their screen-share and camera video tracks', async () => {
+  it('maps rooms, participants and their screen-share, camera and music tracks', async () => {
     const participants: Record<string, ParticipantInfo[]> = {
       geral: [
         new ParticipantInfo({
@@ -120,6 +145,18 @@ describe('fetchRoomState', () => {
               source: TrackSource.SCREEN_SHARE_AUDIO,
             }),
             new TrackInfo({ sid: 'TR_cam', type: TrackType.VIDEO, source: TrackSource.CAMERA }),
+            new TrackInfo({
+              sid: 'TR_music',
+              type: TrackType.AUDIO,
+              source: TrackSource.MICROPHONE,
+              name: 'concord:music:spotify',
+            }),
+            new TrackInfo({
+              sid: 'TR_mic',
+              type: TrackType.AUDIO,
+              source: TrackSource.MICROPHONE,
+              name: 'microphone',
+            }),
           ],
         }),
         new ParticipantInfo({ identity: 'bob', name: '', joinedAt: 1_700_000_010n }),
@@ -142,6 +179,7 @@ describe('fetchRoomState', () => {
           joinedAt: 1_700_000_000_000,
           screenTracks: ['TR_screen'],
           cameraTracks: ['TR_cam'],
+          musicTracks: ['TR_music'],
         },
         {
           id: 'bob',
@@ -149,6 +187,7 @@ describe('fetchRoomState', () => {
           joinedAt: 1_700_000_010_000,
           screenTracks: [],
           cameraTracks: [],
+          musicTracks: [],
         },
       ],
       jogos: [],
@@ -175,6 +214,7 @@ describe('fetchRoomState', () => {
           joinedAt: 1_700_000_006n,
           tracks: [
             new TrackInfo({ sid: 'TR_y', type: TrackType.VIDEO, source: TrackSource.CAMERA }),
+            new TrackInfo({ sid: 'TR_z', type: TrackType.AUDIO, source: TrackSource.MICROPHONE }),
           ],
         }),
       ]),
@@ -182,7 +222,14 @@ describe('fetchRoomState', () => {
 
     await expect(fetchRoomState(roomService)).resolves.toEqual({
       geral: [
-        { id: 'ana', name: 'Ana', joinedAt: 1_700_000_000_000, screenTracks: [], cameraTracks: [] },
+        {
+          id: 'ana',
+          name: 'Ana',
+          joinedAt: 1_700_000_000_000,
+          screenTracks: [],
+          cameraTracks: [],
+          musicTracks: [],
+        },
       ],
     });
   });

@@ -4,6 +4,7 @@ import type { ApiErrorResponse, HealthResponse } from '@concord/shared';
 import {
   isAuxiliaryParticipant,
   isCameraVideo,
+  isMusicAudio,
   isScreenShareVideo,
   toParticipantIdentity,
 } from '../livekit';
@@ -46,6 +47,8 @@ export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, 
         presence.screenTrackPublished(room, toParticipantIdentity(participant), track.sid);
       } else if (participant && track && isCameraVideo(track)) {
         presence.cameraTrackPublished(room, toParticipantIdentity(participant), track.sid);
+      } else if (participant && track && isMusicAudio(track)) {
+        presence.musicTrackPublished(room, toParticipantIdentity(participant), track.sid);
       }
       break;
     case 'track_unpublished':
@@ -53,6 +56,8 @@ export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, 
         presence.screenTrackUnpublished(room, participant.identity, track.sid);
       } else if (participant && track && isCameraVideo(track)) {
         presence.cameraTrackUnpublished(room, participant.identity, track.sid);
+      } else if (participant && track && isMusicAudio(track)) {
+        presence.musicTrackUnpublished(room, participant.identity, track.sid);
       }
       break;
     case 'room_finished':

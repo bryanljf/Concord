@@ -14,6 +14,8 @@ export interface ParticipantState extends ParticipantIdentity {
   screenTracks: string[];
   /** SIDs of the camera video tracks currently published. */
   cameraTracks: string[];
+  /** SIDs of the app music tracks (Microphone source) currently published. */
+  musicTracks: string[];
 }
 
 export type RoomState = Record<RoomId, ParticipantState[]>;
@@ -27,6 +29,7 @@ interface Entry {
   joinedAt: number;
   screenTracks: Set<string>;
   cameraTracks: Set<string>;
+  musicTracks: Set<string>;
   /** Resolved name and avatar, as last emitted to listeners. */
   name: string;
   avatarUrl: string | null;
@@ -40,12 +43,14 @@ function toParticipant(entry: Entry): PresenceParticipant {
     joinedAt: entry.joinedAt,
     avatarUrl: entry.avatarUrl,
     camera: entry.cameraTracks.size > 0,
+    music: entry.musicTracks.size > 0,
   };
 }
 
 /**
- * In-memory presence: who is in which room, who is screen-sharing and who has a camera on. Fed
- * by LiveKit webhooks and periodic resyncs; emits granular events only when something changes.
+ * In-memory presence: who is in which room, who is screen-sharing, who has a camera on and who
+ * is broadcasting an app's music. Fed by LiveKit webhooks and periodic resyncs; emits granular
+ * events only when something changes.
  */
 export class PresenceStore {
   private readonly rooms = new Map<RoomId, Map<string, Entry>>();
@@ -120,13 +125,28 @@ export class PresenceStore {
    */
   cameraTrackPublished(room: RoomId, participant: ParticipantIdentity, trackSid: string): void {
     const entry = this.ensure(room, participant);
-    this.updateCamera(room, entry, () => entry.cameraTracks.add(trackSid));
+    this.updateFlags(room, entry, () => entry.cameraTracks.add(trackSid));
   }
 
   cameraTrackUnpublished(room: RoomId, participantId: string, trackSid: string): void {
     const entry = this.rooms.get(room)?.get(participantId);
     if (!entry) return;
-    this.updateCamera(room, entry, () => entry.cameraTracks.delete(trackSid));
+    this.updateFlags(room, entry, () => entry.cameraTracks.delete(trackSid));
+  }
+
+  /**
+   * Registers a published music track (an app's music); creates the participant if unknown.
+   * Music is never a stream: it only flips `music`, announced with `participant_updated`.
+   */
+  musicTrackPublished(room: RoomId, participant: ParticipantIdentity, trackSid: string): void {
+    const entry = this.ensure(room, participant);
+    this.updateFlags(room, entry, () => entry.musicTracks.add(trackSid));
+  }
+
+  musicTrackUnpublished(room: RoomId, participantId: string, trackSid: string): void {
+    const entry = this.rooms.get(room)?.get(participantId);
+    if (!entry) return;
+    this.updateFlags(room, entry, () => entry.musicTracks.delete(trackSid));
   }
 
   /**
@@ -185,8 +205,9 @@ export class PresenceStore {
         for (const sid of wantedTracks) {
           if (!entry.screenTracks.has(sid)) this.screenTrackPublished(room, participant, sid);
         }
-        this.updateCamera(room, entry, () => {
+        this.updateFlags(room, entry, () => {
           entry.cameraTracks = new Set(participant.cameraTracks);
+          entry.musicTracks = new Set(participant.musicTracks);
         });
       }
     }
@@ -211,6 +232,7 @@ export class PresenceStore {
       joinedAt: participant.joinedAt,
       screenTracks: new Set(),
       cameraTracks: new Set(),
+      musicTracks: new Set(),
       ...this.resolve(participant.id, participant.name),
     };
     entries.set(participant.id, entry);
@@ -218,12 +240,17 @@ export class PresenceStore {
     return entry;
   }
 
-  /** Applies `change` to the entry's camera tracks; announces it only when `camera` flips. */
-  private updateCamera(room: RoomId, entry: Entry, change: () => void): void {
+  /**
+   * Applies `change` to the entry's camera and/or music tracks; announces it (once) only when
+   * `camera` or `music` flips.
+   */
+  private updateFlags(room: RoomId, entry: Entry, change: () => void): void {
     const hadCamera = entry.cameraTracks.size > 0;
+    const hadMusic = entry.musicTracks.size > 0;
     change();
     const hasCamera = entry.cameraTracks.size > 0;
-    if (hasCamera !== hadCamera) {
+    const hasMusic = entry.musicTracks.size > 0;
+    if (hasCamera !== hadCamera || hasMusic !== hadMusic) {
       this.emit({ type: 'participant_updated', room, participant: toParticipant(entry) });
     }
   }

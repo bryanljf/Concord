@@ -12,6 +12,7 @@ const alicePresence = {
   joinedAt: 10_000,
   avatarUrl: null,
   camera: false,
+  music: false,
 };
 
 function fakeRoomService(listRooms: () => Promise<Room[]>) {
@@ -98,6 +99,48 @@ describe('startResync', () => {
 
     events.length = 0;
     await vi.advanceTimersByTimeAsync(1000); // same camera: nothing to announce
+    expect(events).toEqual([]);
+
+    tracks = [];
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(events).toEqual([
+      { type: 'participant_updated', room: 'geral', participant: alicePresence },
+    ]);
+    resync.stop();
+  });
+
+  it('reconciles music, announcing each flip with participant_updated and never a stream', async () => {
+    const presence = new PresenceStore(['geral']);
+    const music = new TrackInfo({
+      sid: 'TR_music',
+      type: TrackType.AUDIO,
+      source: TrackSource.MICROPHONE,
+      name: 'concord:music:spotify',
+    });
+    let tracks = [music];
+    const roomService = {
+      listRooms: vi.fn(async () => [new Room({ name: 'geral' })]),
+      listParticipants: vi.fn(async () => [
+        new ParticipantInfo({ identity: 'alice', name: 'Alice', joinedAt: 10n, tracks }),
+      ]),
+    };
+    const events: PresenceEvent[] = [];
+    presence.subscribe((event) => events.push(event));
+    const resync = startResync({ presence, roomService, log: fakeLogger(), intervalMs: 1000 });
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(presence.snapshot().rooms.geral).toEqual([{ ...alicePresence, music: true }]);
+    expect(events).toEqual([
+      { type: 'participant_joined', room: 'geral', participant: alicePresence },
+      {
+        type: 'participant_updated',
+        room: 'geral',
+        participant: { ...alicePresence, music: true },
+      },
+    ]);
+
+    events.length = 0;
+    await vi.advanceTimersByTimeAsync(1000); // same music: nothing to announce
     expect(events).toEqual([]);
 
     tracks = [];
