@@ -54,10 +54,10 @@ export function screenShareEncoding(preset: QualityPreset): ScreenShareEncoding 
  * CPU overuse lower the resolution instead of the frame rate. That is all they do: with two
  * active simulcast layers WebRTC never downscales for bandwidth (quality scaling needs a single
  * active stream), so a frame that does not fit the bitrate is dropped by the encoder's rate
- * control (OpenH264 frame skip) or by WebRTC's FrameDropper. Since `motion` re-enabled the
- * latter (it is only forced off for multi-layer screen content), main disables it with the
- * `WebRTC-FrameDropper/Disabled/` field trial. The broadcaster's stats panel shows which stage
- * (capture, encode, send) loses frames.
+ * control (OpenH264 frame skip) or by WebRTC's FrameDropper. Keep the FrameDropper: v0.2.0
+ * disabled it (`WebRTC-FrameDropper/Disabled/` field trial) and real lives got worse, with
+ * overshooting frames queueing on slow uplinks (RTT ~500 ms, freezes) and capture starved of CPU.
+ * The broadcaster's stats panel shows which stage (capture, encode, send) loses frames.
  */
 export const SCREEN_SHARE_CONTENT_HINT = 'motion';
 export const DEGRADATION_PREFERENCE: DegradationPreference = 'maintain-framerate';

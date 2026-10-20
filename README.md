@@ -21,9 +21,8 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
   ícones (o logo do Concord no topo): ponto verde se há gente (quem está aparece ao passar o
   mouse), ponto vermelho piscando se há live, fone se há música.
 - **Transmitir** uma janela ou uma tela inteira em Leve (720p30), Padrão (1080p30) ou Jogo
-  (1080p60), H.264 com simulcast; quando falta CPU a resolução cai antes da taxa de quadros, e o
-  FrameDropper do WebRTC fica desligado (field trial) para não descartar quadros em cenas com
-  muito movimento. **Áudio por processo**: só o som do aplicativo, sem a call do Discord
+  (1080p60), H.264 com simulcast; quando falta CPU a resolução cai antes da taxa de quadros.
+  **Áudio por processo**: só o som do aplicativo, sem a call do Discord
   (WASAPI Process Loopback). **Trocar fonte** durante a live sem derrubar quem assiste.
 - **Webcam** com escolha de dispositivo (botão **Câmera** na barra de baixo e Configurações →
   Câmera), publicada à parte da tela: quem assiste escolhe ver a tela, a câmera ou as duas.

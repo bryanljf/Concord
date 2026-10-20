@@ -27,12 +27,6 @@ import { createMainWindow } from './window';
 import { createWindowDrag } from './window-drag';
 import { createWindowRegistry } from './windows';
 
-// With contentHint 'motion', WebRTC's FrameDropper drops frames whenever high-motion content
-// overshoots the bitrate cap (it is only forced off for multi-layer screen content). Electron
-// passes --force-fieldtrials on to WebRTC in the renderers; any future trial goes in this same
-// string. Must run before `ready`, hence at the top of the module.
-app.commandLine.appendSwitch('force-fieldtrials', 'WebRTC-FrameDropper/Disabled/');
-
 const logger = log('app');
 
 /**
