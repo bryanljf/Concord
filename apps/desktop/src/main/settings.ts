@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { QUALITY_PRESETS, type UserInfo } from '@concord/shared';
+import { DEFAULT_STREAM_QUALITY, parseStreamQualityId, type UserInfo } from '@concord/shared';
 import type { Settings } from '../preload/api';
 import { parseUserInfo } from './api-client';
 import { log } from './log';
@@ -20,7 +20,7 @@ export function defaultSettings(): Settings {
     launchAtLogin: true,
     followDiscord: true,
     shortcut: 'CommandOrControl+Shift+L',
-    defaultQuality: 'standard',
+    defaultQuality: DEFAULT_STREAM_QUALITY,
     codec: 'h264',
     mutedRooms: [],
     mutedUsers: [],
@@ -95,10 +95,8 @@ const validators: { [K in keyof Settings]: Validator<K> } = {
   launchAtLogin: boolean,
   followDiscord: boolean,
   shortcut: (value) => (typeof value === 'string' && value.length <= 64 ? value : undefined),
-  defaultQuality: (value) =>
-    typeof value === 'string' && Object.hasOwn(QUALITY_PRESETS, value)
-      ? (value as Settings['defaultQuality'])
-      : undefined,
+  // Settings saved before v0.2.1 hold a preset name ("standard"): read as its resolution × fps.
+  defaultQuality: (value) => parseStreamQualityId(value) ?? undefined,
   codec: (value) =>
     value === 'h264' || value === 'vp9' || value === 'av1'
       ? (value as Settings['codec'])

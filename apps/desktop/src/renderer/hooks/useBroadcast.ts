@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { QualityPresetId, RoomId } from '@concord/shared';
+import { streamQualityOf, type RoomId, type StreamQualityId } from '@concord/shared';
 import {
   ConnectionState,
   RoomEvent,
@@ -13,7 +13,7 @@ import type { StreamingState } from '../../preload/api';
 import { createProcessAudioTrack, type ProcessAudioTrack } from '../audio/processAudioTrack';
 import { displayMediaErrorMessage } from '../lib/capture';
 import { concord, errorCode, toErrorMessage, type Settings } from '../lib/concord';
-import { displayMediaConstraints, encodingParams, presetOf } from '../lib/encoding';
+import { displayMediaConstraints, encodingParams } from '../lib/encoding';
 import { audioSwitchAction, planSourceSwitch } from '../lib/sourceSwitch';
 
 /** How the broadcast carries audio. */
@@ -23,7 +23,7 @@ export interface BroadcastRequest {
   room: RoomId;
   sourceId: string;
   sourceName: string;
-  quality: QualityPresetId;
+  quality: StreamQualityId;
   audio: BroadcastAudioMode;
 }
 
@@ -39,7 +39,7 @@ export type BroadcastState =
       /** desktopCapturer id of what is being shared (the picker marks it). */
       sourceId: string;
       sourceName: string;
-      quality: QualityPresetId;
+      quality: StreamQualityId;
       /** Audio mode actually in use (after the process → loopback fallback). */
       audio: BroadcastAudioMode;
       /** Raw capture track, for the local preview tile. */
@@ -89,7 +89,7 @@ interface Published {
   processAudio: ProcessAudioTrack | null;
   roomId: RoomId;
   sourceId: string;
-  quality: QualityPresetId;
+  quality: StreamQualityId;
   /** Detaches our 'ended' listener from `video` (the old track after a switch). */
   endedListener: AbortController;
 }
@@ -116,7 +116,7 @@ function stopTrack(track: MediaStreamTrack | null): void {
 }
 
 /**
- * After a preset change, livekit recomputes the track's encodings on `replaceTrack` but skips
+ * After a quality change, livekit recomputes the track's encodings on `replaceTrack` but skips
  * the simulcast layers that dynacast has paused (nobody watching that layer right now), and
  * re-enabling a layer later only flips `active`. So the new bitrate/fps caps are written to
  * every layer of the sender here. `encodings` is not part of livekit's public typings (it is
@@ -148,7 +148,7 @@ function reportStreamingState(state: StreamingState): void {
 /**
  * Publishes a window/screen capture: the main process answers `getDisplayMedia`
  * with the source chosen in the picker, the video goes out as `Track.Source.ScreenShare` with
- * simulcast and the preset's encoding, and the audio (system loopback or per-process capture)
+ * simulcast and the quality's encoding, and the audio (system loopback or per-process capture)
  * as `Track.Source.ScreenShareAudio` at 128 kbps without DTX/RED.
  */
 export function useBroadcast(options: UseBroadcastOptions): Broadcast {
@@ -281,7 +281,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
     async (request: BroadcastRequest) => {
       if (published.current) throw new Error('Já existe uma transmissão em andamento.');
       setState({ status: 'starting', room: request.room, sourceName: request.sourceName });
-      const preset = presetOf(request.quality);
+      const quality = streamQualityOf(request.quality);
       const params = encodingParams(request.quality);
       let stream: MediaStream | null = null;
       let processAudio: ProcessAudioTrack | null = null;
@@ -305,7 +305,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         });
         try {
           stream = await navigator.mediaDevices.getDisplayMedia(
-            displayMediaConstraints(preset, audioMode === 'system'),
+            displayMediaConstraints(quality, audioMode === 'system'),
           );
         } catch (err) {
           throw new Error(displayMediaErrorMessage(err), { cause: err });
@@ -437,7 +437,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         { quality: current.quality, processAudio: current.processAudio !== null },
         { quality: request.quality, audio: request.audio },
       );
-      const preset = presetOf(request.quality);
+      const quality = streamQualityOf(request.quality);
       const params = encodingParams(request.quality);
       let stream: MediaStream | null = null;
       let processAudio: ProcessAudioTrack | null = null;
@@ -459,7 +459,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         });
         try {
           stream = await navigator.mediaDevices.getDisplayMedia(
-            displayMediaConstraints(preset, audioMode === 'system'),
+            displayMediaConstraints(quality, audioMode === 'system'),
           );
         } catch (err) {
           throw new Error(displayMediaErrorMessage(err), { cause: err });
@@ -487,7 +487,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         if (!localVideo) throw new Error('A transmissão atual não foi encontrada.');
         if (plan.reencode) {
           // replaceTrack recomputes the sender encodings from publishOptions, but only when the
-          // dimensions changed (hence the reset): the new preset's bitrate/fps apply in place.
+          // dimensions changed (hence the reset): the new quality's bitrate/fps apply in place.
           localVideo.publishOptions = {
             ...localVideo.publishOptions,
             screenShareEncoding: params.screenShareEncoding,

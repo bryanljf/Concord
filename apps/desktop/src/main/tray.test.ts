@@ -17,7 +17,7 @@ describe('resolveTrayStatus', () => {
     active: true,
     room: 'jogos',
     sourceName: 'Elden Ring',
-    quality: 'game',
+    quality: '1080p60',
   } as const;
 
   it('keeps the presence-derived status while not streaming', () => {

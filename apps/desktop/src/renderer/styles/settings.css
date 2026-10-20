@@ -271,3 +271,7 @@
   object-fit: cover;
   transform: scaleX(-1);
 }
+
+.settings__quality-hint {
+  margin-top: 8px;
+}

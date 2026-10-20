@@ -20,8 +20,10 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
   está **AO VIVO**, mesmo para quem está fora da sala. A barra lateral recolhe numa coluna de
   ícones (o logo do Concord no topo): ponto verde se há gente (quem está aparece ao passar o
   mouse), ponto vermelho piscando se há live, fone se há música.
-- **Transmitir** uma janela ou uma tela inteira em Leve (720p30), Padrão (1080p30) ou Jogo
-  (1080p60), H.264 com simulcast; quando falta CPU a resolução cai antes da taxa de quadros.
+- **Transmitir** uma janela ou uma tela inteira na resolução (480p, 720p, 1080p ou 1440p) e nos
+  quadros por segundo (15, 30 ou 60) que a pessoa escolher, H.264 com simulcast (teto de 0,8 a
+  9,5 Mbps conforme a combinação); em todas, quando falta CPU a resolução cai antes da taxa de
+  quadros.
   **Áudio por processo**: só o som do aplicativo, sem a call do Discord
   (WASAPI Process Loopback). **Trocar fonte** durante a live sem derrubar quem assiste.
 - **Webcam** com escolha de dispositivo (botão **Câmera** na barra de baixo e Configurações →

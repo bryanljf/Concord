@@ -7,9 +7,9 @@
 import type {
   PresenceEvent,
   PresenceSnapshot,
-  QualityPresetId,
   RoomId,
   ServerInfoResponse,
+  StreamQualityId,
   TokenPurpose,
   TokenResponse,
   UserInfo,
@@ -24,7 +24,8 @@ export interface Settings {
   followDiscord: boolean;
   /** Electron accelerator that starts/stops streaming (default "CommandOrControl+Shift+L"). */
   shortcut: string;
-  defaultQuality: QualityPresetId;
+  /** Resolution × frame rate the picker starts with, e.g. "1080p30". */
+  defaultQuality: StreamQualityId;
   codec: 'h264' | 'vp9' | 'av1';
   /** Rooms and users whose "ao vivo" notifications are silenced. */
   mutedRooms: RoomId[];
@@ -101,7 +102,7 @@ export interface StreamingState {
   active: boolean;
   room: RoomId | null;
   sourceName: string | null;
-  quality: QualityPresetId | null;
+  quality: StreamQualityId | null;
 }
 
 export interface PopoutTarget {

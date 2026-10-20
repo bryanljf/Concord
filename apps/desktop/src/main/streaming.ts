@@ -4,7 +4,7 @@ import { log } from './log';
 import {
   expectBoolean,
   expectNullableString,
-  expectQualityPresetId,
+  expectStreamQualityId,
   expectRoomId,
   IpcValidationError,
   isRecord,
@@ -31,7 +31,7 @@ export function parseStreamingState(raw: unknown): StreamingState {
     active: true,
     room: raw.room === null ? null : expectRoomId(raw.room),
     sourceName: expectNullableString(raw.sourceName, 'sourceName', MAX_SOURCE_NAME_LENGTH),
-    quality: raw.quality === null ? null : expectQualityPresetId(raw.quality),
+    quality: raw.quality === null ? null : expectStreamQualityId(raw.quality),
   };
 }
 

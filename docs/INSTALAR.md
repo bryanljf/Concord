@@ -79,8 +79,10 @@ original).
   ao usar as teclas de mídia**. Transmitindo a **tela inteira** com áudio, o Spotify também vai no
   áudio da tela; quem ouve pode silenciar um dos dois.
 - **Transmitir**: botão **Transmitir**, item **Transmitir…** da bandeja ou o atalho. Escolha uma
-  janela (só aquele programa) ou uma tela inteira e a qualidade (Leve 720p30, Padrão 1080p30 ou
-  Jogo 1080p60). O **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o
+  janela (só aquele programa) ou uma tela inteira, a **resolução** (480p, 720p, 1080p ou 1440p) e
+  os **quadros por segundo** (15, 30 ou 60); o padrão fica em **Configurações → Transmissão**.
+  Em qualquer combinação o fps vem primeiro: se o PC não der conta, cai a resolução. Se travar,
+  baixe a resolução. O **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o
   mesmo botão vira **Trocar fonte**: troca a janela ou a tela sem derrubar quem está assistindo.
 - **Som de aviso**: quando alguém entra ao vivo **na sala em que você está**, toca um som curto.
   Em **Configurações → Sons** dá para silenciar salas ou pessoas.

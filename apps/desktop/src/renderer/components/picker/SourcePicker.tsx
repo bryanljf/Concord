@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { QUALITY_PRESETS, roomLabel, type QualityPresetId, type RoomId } from '@concord/shared';
+import { roomLabel, type RoomId, type StreamQualityId } from '@concord/shared';
 import type { CaptureSource, MusicAppId, ProcessAudioSupport } from '../../../preload/api';
 import type { BroadcastAudioMode, BroadcastRequest } from '../../hooks/useBroadcast';
 import type { MusicBroadcastState } from '../../hooks/useMusicBroadcast';
@@ -7,9 +7,10 @@ import { useCaptureSources } from '../../hooks/useCaptureSources';
 import { useMusicAppStatus } from '../../hooks/useMusicAppStatus';
 import { useProcessAudioSupport } from '../../hooks/useProcessAudioSupport';
 import type { Settings } from '../../lib/concord';
-import { presetDescription } from '../../lib/encoding';
+import { isHeavyStreamQuality, streamUploadHint } from '../../lib/encoding';
 import { musicDuplicationWarning, screenAudioIncludesMusic } from '../../lib/musicWarnings';
 import { sourceKindOf } from '../../lib/sourceSwitch';
+import { QualityFields } from '../QualityFields';
 import { Spinner } from '../Spinner';
 import {
   CloseIcon,
@@ -25,8 +26,6 @@ import {
 import { MusicTab } from './MusicTab';
 import { SourceCard } from './SourceCard';
 import '../../styles/source-picker.css';
-
-const PRESET_IDS: QualityPresetId[] = ['light', 'standard', 'game'];
 
 const CODEC_LABELS: Record<Settings['codec'], string> = {
   h264: 'H.264',
@@ -45,7 +44,7 @@ interface SourcePickerProps {
    * Switch mode (while live): the room is fixed, the shared source is marked "Transmitindo
    * agora", the current quality/audio are preselected and the button reads "Trocar".
    */
-  live?: { sourceId: string; quality: QualityPresetId; audio: BroadcastAudioMode } | null;
+  live?: { sourceId: string; quality: StreamQualityId; audio: BroadcastAudioMode } | null;
   onCancel(): void;
   onStart(request: BroadcastRequest): void;
   /** "Música" tab: the music broadcast (independent of the screen share), started from here. */
@@ -79,7 +78,7 @@ export function SourcePicker({
   );
   const [tab, setTab] = useState<Tab>(live ? sourceKindOf(live.sourceId) : 'window');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [quality, setQuality] = useState<QualityPresetId>(live?.quality ?? settings.defaultQuality);
+  const [quality, setQuality] = useState<StreamQualityId>(live?.quality ?? settings.defaultQuality);
   const [audioChoice, setAudioChoice] = useState<boolean | null>(
     live ? live.audio !== 'none' : null,
   );
@@ -350,13 +349,13 @@ export function SourcePicker({
 }
 
 interface ScreenOptionsProps {
-  quality: QualityPresetId;
+  quality: StreamQualityId;
   codec: Settings['codec'];
   support: ProcessAudioSupport | null;
   audioOn: boolean;
   /** The music is being broadcast and the selected source's audio also carries it. */
   duplicatesMusic: boolean;
-  onQuality(quality: QualityPresetId): void;
+  onQuality(quality: StreamQualityId): void;
   onAudio(enabled: boolean): void;
 }
 
@@ -375,24 +374,16 @@ function ScreenOptions({
     <>
       <div className="picker__options">
         <div className="field picker__quality">
-          <label className="field__label" htmlFor="picker-quality">
-            Qualidade
-          </label>
-          <select
-            id="picker-quality"
-            className="select"
-            value={quality}
-            onChange={(event) => onQuality(event.target.value as QualityPresetId)}
-          >
-            {PRESET_IDS.map((id) => (
-              <option key={id} value={id}>
-                {QUALITY_PRESETS[id].label} — {presetDescription(id)}
-              </option>
-            ))}
-          </select>
+          <QualityFields idPrefix="picker" value={quality} onChange={onQuality} />
           <p className="field__hint">
-            Codec {CODEC_LABELS[codec]} · mude o padrão nas configurações.
+            {streamUploadHint(quality)} · codec {CODEC_LABELS[codec]} · mude o padrão nas
+            configurações.
           </p>
+          {isHeavyStreamQuality(quality) && (
+            <p className="field__hint picker__heavy" role="note">
+              1440p pesa no PC e na internet. Se travar, baixe a resolução: os quadros vêm primeiro.
+            </p>
+          )}
         </div>
 
         <label className="switch picker__audio">

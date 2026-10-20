@@ -282,7 +282,7 @@ export function senderIssues(
       level: 'warning',
       text: remote
         ? `O transmissor está limitado por CPU${share}: o computador dele não dá conta de codificar.`
-        : `Codificação limitada por CPU${share}: seu computador não dá conta. A qualidade Leve alivia.`,
+        : `Codificação limitada por CPU${share}: seu computador não dá conta. Baixar a resolução alivia (o fps fica).`,
     });
   }
 

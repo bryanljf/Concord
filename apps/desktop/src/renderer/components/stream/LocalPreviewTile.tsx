@@ -1,6 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { QUALITY_PRESETS, type QualityPresetId } from '@concord/shared';
-import { presetShortLabel } from '../../lib/encoding';
+import type { StreamQualityId } from '@concord/shared';
+import { streamQualityLabel } from '../../lib/encoding';
 import type { Viewer } from '../../lib/viewers';
 import { AudioWaveIcon, StopIcon } from '../icons';
 import { LocalPreview } from './LocalPreview';
@@ -9,7 +9,7 @@ import { ViewerList } from './ViewerList';
 interface LocalPreviewTileProps {
   track: MediaStreamTrack;
   sourceName: string;
-  quality: QualityPresetId;
+  quality: StreamQualityId;
   hasAudio: boolean;
   /** Who is watching your live. */
   viewers: readonly Viewer[];
@@ -33,7 +33,6 @@ export function LocalPreviewTile({
   onContextMenu,
   onKeyDown,
 }: LocalPreviewTileProps) {
-  const preset = QUALITY_PRESETS[quality];
   return (
     <div
       className={focused ? 'tile tile--focused tile--local' : 'tile tile--mini tile--local'}
@@ -51,7 +50,7 @@ export function LocalPreviewTile({
         <span className="tile__name">{sourceName}</span>
         {focused && (
           <span className="tile__stats">
-            {preset.label} · {presetShortLabel(quality)}
+            {streamQualityLabel(quality)}
             {hasAudio ? ' · com áudio' : ' · sem áudio'}
           </span>
         )}

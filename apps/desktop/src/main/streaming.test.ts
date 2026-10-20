@@ -9,7 +9,7 @@ import {
 } from './streaming';
 import { IpcValidationError } from './validation';
 
-const live = { active: true, room: 'jogos', sourceName: 'Elden Ring', quality: 'game' } as const;
+const live = { active: true, room: 'jogos', sourceName: 'Elden Ring', quality: '1080p60' } as const;
 
 describe('parseStreamingState', () => {
   it('accepts an active state and trims the source name', () => {
@@ -24,7 +24,7 @@ describe('parseStreamingState', () => {
 
   it('normalises an inactive state to all-null', () => {
     expect(
-      parseStreamingState({ active: false, room: 'jogos', sourceName: 'x', quality: 'game' }),
+      parseStreamingState({ active: false, room: 'jogos', sourceName: 'x', quality: '1080p60' }),
     ).toBe(INACTIVE_STREAMING_STATE);
   });
 
@@ -35,6 +35,8 @@ describe('parseStreamingState', () => {
       IpcValidationError,
     );
     expect(() => parseStreamingState({ ...live, quality: 'ultra' })).toThrow(IpcValidationError);
+    expect(() => parseStreamingState({ ...live, quality: '1080p45' })).toThrow(IpcValidationError);
+    expect(parseStreamingState({ ...live, quality: '480p15' }).quality).toBe('480p15');
     expect(() => parseStreamingState({ ...live, sourceName: 42 })).toThrow(IpcValidationError);
     expect(() =>
       parseStreamingState({ ...live, sourceName: 'x'.repeat(MAX_SOURCE_NAME_LENGTH + 1) }),
@@ -87,6 +89,6 @@ describe('createStreamingStore', () => {
 describe('isSameStreamingState', () => {
   it('compares field by field', () => {
     expect(isSameStreamingState(live, { ...live })).toBe(true);
-    expect(isSameStreamingState(live, { ...live, quality: 'light' })).toBe(false);
+    expect(isSameStreamingState(live, { ...live, quality: '720p30' })).toBe(false);
   });
 });

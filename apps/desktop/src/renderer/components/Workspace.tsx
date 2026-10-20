@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { QUALITY_PRESETS, roomLabel, type RoomId, type UserInfo } from '@concord/shared';
+import {
+  DEFAULT_STREAM_QUALITY,
+  roomLabel,
+  streamQualityOf,
+  type RoomId,
+  type UserInfo,
+} from '@concord/shared';
 import {
   ParticipantEvent,
   Track,
@@ -89,7 +95,7 @@ const MUSIC_END_MESSAGES: Record<MusicEndReason, string> = {
 };
 
 const CPU_MESSAGE =
-  'Seu PC está sem CPU para codificar a transmissão. Se travar, experimente a qualidade Leve.';
+  'Seu PC está sem CPU para codificar a transmissão. Se travar, baixe a resolução em Trocar fonte.';
 
 /** The webcam's encoder aims at 30 fps (`useCamera`). */
 const CAMERA_TARGET_FPS = 30;
@@ -348,7 +354,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       ? (room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.videoTrack ?? null)
       : null;
   const screenTargetFps =
-    broadcast.state.status === 'live' ? QUALITY_PRESETS[broadcast.state.quality].fps : 30;
+    broadcast.state.status === 'live' ? streamQualityOf(broadcast.state.quality).fps : 30;
   const localCameraTrack = camera.state.status === 'on' ? camera.state.localTrack : null;
   const statsSources = useMemo(
     () => ({ screen: localScreenTrack, screenTargetFps, camera: localCameraTrack }),
@@ -899,7 +905,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
         }
         footer={
           <BottomBar
-            defaultQuality={settings?.defaultQuality ?? 'standard'}
+            defaultQuality={settings?.defaultQuality ?? DEFAULT_STREAM_QUALITY}
             broadcast={broadcast.state}
             switching={broadcast.switching}
             onStream={openPicker}

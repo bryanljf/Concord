@@ -1,9 +1,9 @@
 import {
   NICKNAME_MAX_LENGTH,
-  QUALITY_PRESETS,
+  parseStreamQualityId,
   ROOM_ID_PATTERN,
-  type QualityPresetId,
   type RoomId,
+  type StreamQualityId,
   type TokenPurpose,
 } from '@concord/shared';
 import type { MusicAppId, PipResizeCorner, PipTarget } from '../preload/api';
@@ -57,11 +57,10 @@ export function expectNullableString(
   return text;
 }
 
-export function expectQualityPresetId(value: unknown, name = 'quality'): QualityPresetId {
-  if (typeof value !== 'string' || !Object.hasOwn(QUALITY_PRESETS, value)) {
-    throw new IpcValidationError(name);
-  }
-  return value as QualityPresetId;
+export function expectStreamQualityId(value: unknown, name = 'quality'): StreamQualityId {
+  const id = parseStreamQualityId(value);
+  if (id === null) throw new IpcValidationError(name);
+  return id;
 }
 
 export function expectOptionalTokenPurpose(value: unknown): TokenPurpose | undefined {

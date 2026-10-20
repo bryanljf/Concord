@@ -1,12 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { QUALITY_PRESETS, type QualityPresetId } from '@concord/shared';
+import type { StreamQualityId } from '@concord/shared';
 import type { MusicAppId, NowPlaying } from '../../preload/api';
 import type { BroadcastState } from '../hooks/useBroadcast';
 import type { CameraState } from '../hooks/useCamera';
 import type { MusicBroadcastState } from '../hooks/useMusicBroadcast';
 import { useVideoInputs } from '../hooks/useVideoInputs';
 import type { Point } from '../lib/contextMenu';
-import { presetShortLabel } from '../lib/encoding';
+import { streamQualityLabel } from '../lib/encoding';
 import { MUSIC_APP_LABELS } from '../lib/music';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { Marquee } from './music/Marquee';
@@ -25,7 +25,7 @@ import '../styles/bottom-bar.css';
 
 interface BottomBarProps {
   /** Default preset from the settings (shown while idle). */
-  defaultQuality: QualityPresetId;
+  defaultQuality: StreamQualityId;
   broadcast: BroadcastState;
   /** A source switch is in progress. */
   switching: boolean;
@@ -74,7 +74,6 @@ export function BottomBar({
   const live = broadcast.status === 'live';
   const busy = broadcast.status === 'starting' || broadcast.status === 'stopping' || switching;
   const quality = live ? broadcast.quality : defaultQuality;
-  const preset = QUALITY_PRESETS[quality];
 
   const stopping = broadcast.status === 'stopping';
   return (
@@ -132,10 +131,7 @@ export function BottomBar({
       )}
       <MusicChip music={music} onStop={onStopMusic} />
       <span className="bottom-bar__quality">
-        qualidade:{' '}
-        <strong>
-          {preset.label} · {presetShortLabel(quality)}
-        </strong>
+        qualidade: <strong>{streamQualityLabel(quality)}</strong>
       </span>
     </footer>
   );

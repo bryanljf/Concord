@@ -20,7 +20,7 @@ export interface SourceSwitchPlan {
   /** The per-process capture of the old source must be stopped before the new one starts
    *  (main runs a single process capture at a time). */
   stopOldProcessAudioFirst: boolean;
-  /** The quality preset changed: re-apply the encoding to the swapped video track. */
+  /** The resolution or frame rate changed: re-apply the encoding to the swapped video track. */
   reencode: boolean;
 }
 

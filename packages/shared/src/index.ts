@@ -160,42 +160,90 @@ export const TOKEN_TTL_SECONDS = 6 * 60 * 60;
 export const ROOM_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/i;
 
 // ---------------------------------------------------------------------------
-// Streaming quality presets
+// Streaming quality: any resolution × frame rate
 // ---------------------------------------------------------------------------
 
-export interface QualityPreset {
-  label: string;
+/** Heights a live can be captured at (16:9). */
+export const STREAM_RESOLUTIONS = [480, 720, 1080, 1440] as const;
+export type StreamResolution = (typeof STREAM_RESOLUTIONS)[number];
+
+export const STREAM_FRAME_RATES = [15, 30, 60] as const;
+export type StreamFrameRate = (typeof STREAM_FRAME_RATES)[number];
+
+/** "1080p30": what a live is captured and encoded at (settings, IPC and the picker). */
+export type StreamQualityId = `${StreamResolution}p${StreamFrameRate}`;
+
+export interface StreamQuality {
+  id: StreamQualityId;
   width: number;
-  height: number;
-  fps: number;
+  height: StreamResolution;
+  fps: StreamFrameRate;
+  /** Cap of the top simulcast layer (bps). */
   maxBitrate: number;
 }
 
-export const QUALITY_PRESETS = {
-  light: {
-    label: 'Leve',
-    width: 1280,
-    height: 720,
-    fps: 30,
-    maxBitrate: 2_500_000,
-  },
-  standard: {
-    label: 'Padrão',
-    width: 1920,
-    height: 1080,
-    fps: 30,
-    maxBitrate: 4_000_000,
-  },
-  game: {
-    label: 'Jogo',
-    width: 1920,
-    height: 1080,
-    fps: 60,
-    maxBitrate: 6_000_000,
-  },
-} as const satisfies Record<string, QualityPreset>;
+const STREAM_WIDTHS: Record<StreamResolution, number> = {
+  480: 854,
+  720: 1280,
+  1080: 1920,
+  1440: 2560,
+};
 
-export type QualityPresetId = keyof typeof QUALITY_PRESETS;
+/**
+ * Bitrate caps (bps). The former presets keep theirs (720p30 2.5, 1080p30 4, 1080p60 6 Mbps);
+ * the rest scale from them: 15 fps ≈ 0.6×, 60 fps ≈ 1.5× the 30 fps cap.
+ */
+const STREAM_BITRATES: Record<StreamResolution, Record<StreamFrameRate, number>> = {
+  480: { 15: 800_000, 30: 1_200_000, 60: 1_800_000 },
+  720: { 15: 1_500_000, 30: 2_500_000, 60: 3_800_000 },
+  1080: { 15: 2_500_000, 30: 4_000_000, 60: 6_000_000 },
+  1440: { 15: 4_000_000, 30: 6_500_000, 60: 9_500_000 },
+};
+
+export const DEFAULT_STREAM_QUALITY: StreamQualityId = '1080p30';
+
+/** The fixed presets before v0.2.1, still found in saved settings. */
+const LEGACY_QUALITY_PRESETS: Record<string, StreamQualityId> = {
+  light: '720p30',
+  standard: '1080p30',
+  game: '1080p60',
+};
+
+export function streamQualityId(
+  resolution: StreamResolution,
+  fps: StreamFrameRate,
+): StreamQualityId {
+  return `${resolution}p${fps}`;
+}
+
+/** A valid id as is, a former preset ("standard") as its id, anything else null. */
+export function parseStreamQualityId(value: unknown): StreamQualityId | null {
+  if (typeof value !== 'string') return null;
+  const legacy = Object.hasOwn(LEGACY_QUALITY_PRESETS, value)
+    ? LEGACY_QUALITY_PRESETS[value]
+    : undefined;
+  if (legacy) return legacy;
+  const match = /^(\d+)p(\d+)$/.exec(value);
+  if (!match) return null;
+  const height = Number(match[1]);
+  const fps = Number(match[2]);
+  const resolution = STREAM_RESOLUTIONS.find((candidate) => candidate === height);
+  const frameRate = STREAM_FRAME_RATES.find((candidate) => candidate === fps);
+  return resolution !== undefined && frameRate !== undefined
+    ? streamQualityId(resolution, frameRate)
+    : null;
+}
+
+export function streamQualityOf(id: StreamQualityId): StreamQuality {
+  const [height, fps] = id.split('p').map(Number) as [StreamResolution, StreamFrameRate];
+  return {
+    id,
+    width: STREAM_WIDTHS[height],
+    height,
+    fps,
+    maxBitrate: STREAM_BITRATES[height][fps],
+  };
+}
 
 /**
  * Human label for a room id, shown instead of the raw id: "sala-1" → "Sala 1",

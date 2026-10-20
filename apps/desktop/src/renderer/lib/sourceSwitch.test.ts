@@ -23,35 +23,35 @@ describe('planSourceSwitch', () => {
   it('stops the old process capture first only when the new one is also per-process', () => {
     expect(
       planSourceSwitch(
-        { quality: 'standard', processAudio: true },
-        { quality: 'standard', audio: 'process' },
+        { quality: '1080p30', processAudio: true },
+        { quality: '1080p30', audio: 'process' },
       ).stopOldProcessAudioFirst,
     ).toBe(true);
     expect(
       planSourceSwitch(
-        { quality: 'standard', processAudio: true },
-        { quality: 'standard', audio: 'system' },
+        { quality: '1080p30', processAudio: true },
+        { quality: '1080p30', audio: 'system' },
       ).stopOldProcessAudioFirst,
     ).toBe(false);
     expect(
       planSourceSwitch(
-        { quality: 'standard', processAudio: false },
-        { quality: 'standard', audio: 'process' },
+        { quality: '1080p30', processAudio: false },
+        { quality: '1080p30', audio: 'process' },
       ).stopOldProcessAudioFirst,
     ).toBe(false);
   });
 
-  it('re-encodes only when the quality preset changes', () => {
+  it('re-encodes only when the resolution or frame rate changes', () => {
     expect(
       planSourceSwitch(
-        { quality: 'standard', processAudio: false },
-        { quality: 'game', audio: 'none' },
+        { quality: '1080p30', processAudio: false },
+        { quality: '1080p60', audio: 'none' },
       ).reencode,
     ).toBe(true);
     expect(
       planSourceSwitch(
-        { quality: 'standard', processAudio: false },
-        { quality: 'standard', audio: 'none' },
+        { quality: '1080p30', processAudio: false },
+        { quality: '1080p30', audio: 'none' },
       ).reencode,
     ).toBe(false);
   });

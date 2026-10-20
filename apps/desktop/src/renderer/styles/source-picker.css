@@ -227,6 +227,11 @@
   width: 100%;
 }
 
+/* 1440p: a note, in the warning colour, under the upload hint. */
+.picker__heavy {
+  color: var(--warning);
+}
+
 .picker__audio {
   padding: 4px 0;
 }

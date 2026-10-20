@@ -1,5 +1,6 @@
-import { QUALITY_PRESETS, type QualityPresetId } from '@concord/shared';
 import type { Settings } from '../../lib/concord';
+import { streamQualityDescription } from '../../lib/encoding';
+import { QualityFields } from '../QualityFields';
 import { SettingsSection } from './SettingsSection';
 
 interface StreamingSectionProps {
@@ -7,42 +8,26 @@ interface StreamingSectionProps {
   onUpdate(patch: Partial<Settings>): void;
 }
 
-const PRESET_IDS: QualityPresetId[] = ['light', 'standard', 'game'];
-
 const CODECS: { id: Settings['codec']; label: string }[] = [
   { id: 'h264', label: 'H.264 (padrão)' },
   { id: 'vp9', label: 'VP9' },
   { id: 'av1', label: 'AV1' },
 ];
 
-function describePreset(id: QualityPresetId): string {
-  const preset = QUALITY_PRESETS[id];
-  const mbps = (preset.maxBitrate / 1_000_000).toLocaleString('pt-BR');
-  return `${preset.height}p${preset.fps} · até ${mbps} Mbps`;
-}
-
 export function StreamingSection({ settings, onUpdate }: StreamingSectionProps) {
   return (
     <SettingsSection id="transmissao" title="Transmissão">
       <fieldset className="settings__fieldset">
         <legend className="field__label">Qualidade padrão</legend>
-        <div className="radio-group">
-          {PRESET_IDS.map((id) => (
-            <label key={id} className="radio">
-              <input
-                type="radio"
-                name="default-quality"
-                value={id}
-                checked={settings.defaultQuality === id}
-                onChange={() => onUpdate({ defaultQuality: id })}
-              />
-              <span className="radio__text">
-                <span className="radio__title">{QUALITY_PRESETS[id].label}</span>
-                <span className="radio__desc">{describePreset(id)}</span>
-              </span>
-            </label>
-          ))}
-        </div>
+        <QualityFields
+          idPrefix="settings"
+          value={settings.defaultQuality}
+          onChange={(quality) => onUpdate({ defaultQuality: quality })}
+        />
+        <p className="field__hint settings__quality-hint">
+          {streamQualityDescription(settings.defaultQuality)}. Em qualquer combinação os quadros vêm
+          primeiro: se faltar CPU, cai a resolução, não o fps.
+        </p>
       </fieldset>
       <div className="field">
         <label className="field__label" htmlFor="settings-codec">

@@ -4,9 +4,13 @@ import {
   AUXILIARY_IDENTITY_SEPARATOR,
   auxiliaryIdentity,
   isAuxiliaryIdentity,
-  QUALITY_PRESETS,
+  parseStreamQualityId,
   ROOM_ID_PATTERN,
   roomLabel,
+  STREAM_FRAME_RATES,
+  STREAM_RESOLUTIONS,
+  streamQualityId,
+  streamQualityOf,
   type PresenceParticipant,
   type PresenceSnapshot,
 } from './index';
@@ -30,15 +34,41 @@ describe('auxiliary identities', () => {
   });
 });
 
-describe('QUALITY_PRESETS', () => {
-  it('caps the frame rate and bitrate per preset', () => {
-    expect(QUALITY_PRESETS.light).toMatchObject({ height: 720, fps: 30, maxBitrate: 2_500_000 });
-    expect(QUALITY_PRESETS.standard).toMatchObject({
-      height: 1080,
+describe('stream quality', () => {
+  it('keeps the caps of the former presets', () => {
+    expect(streamQualityOf('720p30')).toEqual({
+      id: '720p30',
+      width: 1280,
+      height: 720,
       fps: 30,
-      maxBitrate: 4_000_000,
+      maxBitrate: 2_500_000,
     });
-    expect(QUALITY_PRESETS.game).toMatchObject({ height: 1080, fps: 60, maxBitrate: 6_000_000 });
+    expect(streamQualityOf('1080p30')).toMatchObject({ width: 1920, maxBitrate: 4_000_000 });
+    expect(streamQualityOf('1080p60')).toMatchObject({ width: 1920, maxBitrate: 6_000_000 });
+  });
+
+  it('covers every resolution from 480p to 1440p at 15, 30 and 60 fps', () => {
+    expect(streamQualityOf('480p15')).toMatchObject({ width: 854, height: 480, fps: 15 });
+    expect(streamQualityOf('1440p60')).toMatchObject({ width: 2560, height: 1440, fps: 60 });
+    for (const resolution of STREAM_RESOLUTIONS) {
+      const caps = STREAM_FRAME_RATES.map(
+        (fps) => streamQualityOf(streamQualityId(resolution, fps)).maxBitrate,
+      );
+      // More frames, more bits.
+      expect([...caps].sort((a, b) => a - b)).toEqual(caps);
+    }
+  });
+
+  it('parses ids, maps the former presets and rejects the rest', () => {
+    expect(parseStreamQualityId('1440p15')).toBe('1440p15');
+    expect(parseStreamQualityId('light')).toBe('720p30');
+    expect(parseStreamQualityId('standard')).toBe('1080p30');
+    expect(parseStreamQualityId('game')).toBe('1080p60');
+    expect(parseStreamQualityId('1080p45')).toBeNull();
+    expect(parseStreamQualityId('2160p30')).toBeNull();
+    expect(parseStreamQualityId('ultra')).toBeNull();
+    expect(parseStreamQualityId('toString')).toBeNull();
+    expect(parseStreamQualityId(1080)).toBeNull();
   });
 });
 

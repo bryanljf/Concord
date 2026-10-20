@@ -1,0 +1,10 @@
+/* Resolution and frame rate side by side (QualityFields). */
+.quality-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+.quality-fields .select {
+  width: 100%;
+}

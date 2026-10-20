@@ -73,6 +73,16 @@ describe('sanitizeSettings', () => {
     expect(rejected).toEqual(['serverUrl', 'followDiscord', 'defaultQuality', 'mutedUsers']);
   });
 
+  it('reads the former quality presets as resolution × frame rate', () => {
+    expect(sanitizeSettings({ defaultQuality: 'light' }).settings.defaultQuality).toBe('720p30');
+    expect(sanitizeSettings({ defaultQuality: 'standard' }).settings.defaultQuality).toBe(
+      '1080p30',
+    );
+    expect(sanitizeSettings({ defaultQuality: 'game' }).settings.defaultQuality).toBe('1080p60');
+    expect(sanitizeSettings({ defaultQuality: '1440p15' }).settings.defaultQuality).toBe('1440p15');
+    expect(defaultSettings().defaultQuality).toBe('1080p30');
+  });
+
   it('returns defaults for non-objects', () => {
     expect(sanitizeSettings(null).settings).toEqual(defaultSettings());
     expect(sanitizeSettings([1]).settings).toEqual(defaultSettings());
