@@ -27,7 +27,8 @@ rtc:
   advertise_internal_ip: true
 
 room:
-  max_participants: 15
+  # Conexões ocultas (pop-out e picture-in-picture de cada pessoa) também contam: até 3 por pessoa.
+  max_participants: 45
   # Segundos que uma sala vazia fica aberta antes de ser fechada.
   empty_timeout: 300
 

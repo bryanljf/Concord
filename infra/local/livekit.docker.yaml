@@ -14,7 +14,8 @@ rtc:
   use_external_ip: false
 
 room:
-  max_participants: 15
+  # Conexões ocultas (pop-out e picture-in-picture de cada pessoa) também contam: até 3 por pessoa.
+  max_participants: 45
   empty_timeout: 300
 
 webhook:

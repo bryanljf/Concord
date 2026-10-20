@@ -49,14 +49,27 @@ original).
 - **Salas**: a barra lateral mostra Sala 1, Sala 2 e Sala 3, quem está em cada uma e o selo
   **AO VIVO** de quem está transmitindo. Clique numa sala para entrar; o painel acima do seu
   nome mostra a sala atual e tem o botão de **sair da sala**.
-- **Assistir**: ao entrar numa sala você não recebe vídeo de ninguém até escolher. Cada live
-  aparece como um cartão com **Assistir** (também dá para clicar no selo AO VIVO na barra
-  lateral). A live em destaque vem em qualidade cheia e com som; as outras que você estiver
-  assistindo ficam em miniatura, sem som. Clique numa miniatura para destacá-la.
-- **Clique com o botão direito** numa live para **Parar de assistir**, **Colocar em destaque**,
-  **Abrir em pop-out** (janela separada que pode ficar sempre no topo) ou **Silenciar**.
+- **Assistir**: ao entrar numa sala você não recebe vídeo de ninguém até escolher. Cada live (e
+  cada câmera ligada) aparece como um cartão com **Assistir** (também dá para clicar no selo AO
+  VIVO na barra lateral). Com duas ou mais assistidas, elas ficam lado a lado numa grade, todas
+  com som. Clique numa delas para o **destaque**: ela vem em qualidade cheia e com som, e as
+  outras ficam em miniatura embaixo, sem som. O botão de grade (ou `Esc`) volta para a grade.
+- **Clique com o botão direito** numa live para **Colocar em destaque**, **Voltar para a
+  grade**, **Abrir em pop-out**, **Silenciar**, **Estatísticas da transmissão** ou **Parar de
+  assistir**. No pop-out a live sai da janela principal (fica um aviso no lugar) e volta com
+  **Trazer de volta**.
 - **Volume**: cada live começa em 50%; o controle vai de 0 a 100%. `M` silencia a live em
   destaque, `F11` ou duplo clique abre a tela cheia e `Esc` sai dela.
+- **Câmera**: botão **Câmera** na barra de baixo (a setinha ao lado escolhe o dispositivo; o
+  teste fica em **Configurações → Câmera**). Se o Windows bloquear, libere em **Configurações do
+  Windows → Privacidade e segurança → Câmera → Permitir que aplicativos da área de trabalho
+  acessem a câmera**.
+- **Picture-in-picture**: no botão direito de uma câmera, **Abrir câmeras em
+  picture-in-picture** mostra todas as câmeras que você assiste numa janelinha no canto superior
+  direito, por cima dos outros programas. Arraste para mover, puxe um canto para mudar o tamanho
+  e use o botão direito nela para tela cheia, disposição ou para deixá-la de ficar por cima de
+  tudo. Jogos em **tela cheia exclusiva** ficam por cima dela: use **tela cheia sem bordas**. Ela
+  não aparece nas suas transmissões nem em capturas de tela.
 - **Transmitir**: botão **Transmitir**, item **Transmitir…** da bandeja ou o atalho. Escolha uma
   janela (só aquele programa) ou uma tela inteira e a qualidade (Leve 720p30, Padrão 1080p30 ou
   Jogo 1080p60). O **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o
@@ -84,5 +97,6 @@ Para apagar também suas preferências e o login, exclua a pasta `%APPDATA%\Conc
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | "Esta conta não está autorizada"          | Sua conta Discord ainda não foi liberada: mande o seu ID do Discord para o administrador.                   |
 | "Não foi possível conectar ao servidor …" | Confira se o endereço do servidor é o que o administrador passou e avise-o se continuar.                    |
-| Não ouço uma live                         | Só a live em destaque tem som: clique na miniatura dela. Confira também o volume e se ela não está no mudo. |
+| Não ouço uma live                         | No destaque só a live destacada tem som: clique na miniatura dela. Confira também o volume e o mudo.        |
+| Uma live trava ou perde quadros           | Botão direito nela → **Estatísticas da transmissão** → **Copiar diagnóstico** e mande para o administrador. |
 | A atualização não chega                   | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima.       |

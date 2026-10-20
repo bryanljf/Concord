@@ -19,14 +19,31 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
 - **Salas** fixas (Sala 1, 2 e 3) com presença em tempo real: quem está em cada sala e quem
   está **AO VIVO**, mesmo para quem está fora da sala.
 - **Transmitir** uma janela ou uma tela inteira em Leve (720p30), Padrão (1080p30) ou Jogo
-  (1080p60), H.264 com simulcast; todos mantêm a taxa de quadros e reduzem a resolução quando
-  falta banda ou CPU. **Áudio por processo**: só o som do aplicativo, sem a call do
-  Discord (WASAPI Process Loopback). **Trocar fonte** durante a live sem derrubar quem assiste.
-- **Assistir sob demanda**: ao entrar numa sala nada é baixado; cada live aparece como cartão
-  com **Assistir**. A live em destaque recebe qualidade cheia e áudio; as demais assistidas
-  ficam em miniatura (camada baixa, sem áudio). Botão de parar de assistir no próprio vídeo e menu de clique direito (parar de assistir,
-  destacar, pop-out, silenciar), volume por live (padrão 50%, máximo 100%), tela cheia e
-  janela pop-out sempre no topo.
+  (1080p60), H.264 com simulcast; quando falta CPU a resolução cai antes da taxa de quadros, e o
+  FrameDropper do WebRTC fica desligado (field trial) para não descartar quadros em cenas com
+  muito movimento. **Áudio por processo**: só o som do aplicativo, sem a call do Discord
+  (WASAPI Process Loopback). **Trocar fonte** durante a live sem derrubar quem assiste.
+- **Webcam** com escolha de dispositivo (botão **Câmera** na barra de baixo e Configurações →
+  Câmera), publicada à parte da tela: quem assiste escolhe ver a tela, a câmera ou as duas.
+- **Assistir sob demanda**: ao entrar numa sala nada é baixado; cada live e cada câmera aparece
+  como cartão com **Assistir**. Com duas ou mais assistidas, elas ficam numa **grade** de duas
+  colunas (todas as telas com som, cada uma com seu volume); a vaga ímpar oferece
+  **Transmitir**. Clique num bloco para o **destaque** (qualidade cheia e áudio, as outras em
+  miniatura, câmeras incluídas) e volte à grade pelo botão ou `Esc`. Menu de clique direito
+  (destacar, voltar à grade, pop-out, câmeras em picture-in-picture, silenciar, estatísticas,
+  parar de assistir), volume por live (padrão 50%, máximo 100%) e tela cheia.
+- **Pop-out**: a live abre numa janela própria com os mesmos controles do destaque (somem
+  sozinhos), sempre no topo e tela cheia; a janela principal mostra um aviso no lugar do vídeo
+  em vez de baixar a mesma live duas vezes.
+- **Picture-in-picture das câmeras**: todas as câmeras assistidas numa janelinha que abre no
+  canto superior direito, por cima de qualquer app (inclusive jogos em tela cheia sem bordas;
+  desligável pelo menu dela), arrastável, redimensionável até 1/6 da tela e com tela cheia. Não
+  aparece nas transmissões nem em capturas de tela.
+- **Estatísticas da transmissão** (menu de clique direito): perda de pacotes e fps dos últimos
+  30 s, resolução, codec, conexão, os números do encoder de quem transmite (captura, codificação
+  e envio) e uma lista de possíveis problemas, com **Copiar diagnóstico** para relatar bugs.
+  Cada app publica um resumo do próprio envio nos atributos do LiveKit (`concord.stats.screen` e
+  `concord.stats.camera`).
 - **Quem está assistindo**, como no Go Live do Discord: cada live (e a prévia da sua) mostra o
   número de espectadores e os avatares; passar o mouse lista os nomes. Cada app publica as lives
   que assiste num atributo do LiveKit (`concord.watching`).
@@ -94,7 +111,9 @@ perda de pacotes ficou em no máximo 0,008%.
 | 5 transmissões, 10 espectadores    | 16% / 37%        | 38 Mbps       |
 | Estresse: 2 salas, 28 espectadores | 22% / 44%        | 50 Mbps       |
 
-Cada sala aceita até 15 pessoas (`room.max_participants` em `infra/livekit.yaml`). Se faltar
+Cada sala aceita até 45 conexões (`room.max_participants` em `infra/livekit.yaml`): cada pessoa
+usa até três (janela principal, pop-out e picture-in-picture). O deploy reinicia o LiveKit quando
+esse arquivo muda. Se faltar
 CPU, o Always Free permite subir para 2 OCPU e 12 GB mudando `ocpus` e `memory_in_gbs` no
 Terraform.
 

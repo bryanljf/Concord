@@ -13,6 +13,18 @@ test -f infra/.env
 test -f infra/users.json
 docker compose -f infra/docker-compose.yml config >/dev/null
 docker compose -f infra/docker-compose.yml up -d --build
+
+# livekit.yaml is a bind mount: `up -d` does not recreate the container when only the file
+# changes, so a hash recorded outside the repo decides whether LiveKit must be restarted (rooms
+# drop for a few seconds and the apps reconnect). Checked here, after the reset, because bash
+# keeps reading this file while `git reset` rewrites it: lines above must not move.
+readonly LIVEKIT_HASH_FILE="$HOME/.concord-livekit-config.sha256"
+livekit_hash="$(sha256sum infra/livekit.yaml | cut -d ' ' -f 1)"
+if [ "$(cat "$LIVEKIT_HASH_FILE" 2>/dev/null || true)" != "$livekit_hash" ]; then
+  echo "infra/livekit.yaml changed: restarting livekit"
+  docker compose -f infra/docker-compose.yml restart livekit
+  echo "$livekit_hash" > "$LIVEKIT_HASH_FILE"
+fi
 docker compose -f infra/docker-compose.yml ps
 
 for attempt in $(seq 1 30); do
