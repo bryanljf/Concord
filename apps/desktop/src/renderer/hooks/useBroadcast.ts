@@ -232,20 +232,36 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
 
   const stop = useCallback(() => finish('user'), [finish]);
 
-  // livekit unpublishes screen-share tracks by itself when the capture ends; follow it.
+  // livekit unpublishes screen-share tracks by itself when the capture ends; follow it. A full
+  // reconnect also unpublishes and republishes every local track while the room is reconnecting
+  // (`republishAllTracks`): that must not end the live, so it is only checked once reconnected.
   useEffect(() => {
     const onUnpublished = (publication: LocalTrackPublication): void => {
       const current = published.current;
       if (!current || publication.source !== Track.Source.ScreenShare) return;
+      if (
+        room.state === ConnectionState.Reconnecting ||
+        room.state === ConnectionState.SignalReconnecting
+      ) {
+        return;
+      }
       void finish('ended');
+    };
+    const onReconnected = (): void => {
+      if (!published.current) return;
+      if (!room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track) {
+        void finish('ended');
+      }
     };
     const onDisconnected = (): void => {
       if (published.current) void finish('disconnected');
     };
     room.on(RoomEvent.LocalTrackUnpublished, onUnpublished);
+    room.on(RoomEvent.Reconnected, onReconnected);
     room.on(RoomEvent.Disconnected, onDisconnected);
     return () => {
       room.off(RoomEvent.LocalTrackUnpublished, onUnpublished);
+      room.off(RoomEvent.Reconnected, onReconnected);
       room.off(RoomEvent.Disconnected, onDisconnected);
     };
   }, [room, finish]);
