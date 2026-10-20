@@ -11,6 +11,7 @@ import type { ApiClient } from './api-client';
 import { ApiClientError } from './api-client';
 import { parseCaptureSelection, type CaptureService } from './capture';
 import { log } from './log';
+import type { PipManager } from './pip';
 import { parsePopoutTarget, type PopoutManager } from './popout';
 import type { PresenceClient } from './presence-client';
 import { ProcessAudioError } from './audio';
@@ -23,13 +24,16 @@ import {
   expectBoolean,
   expectNickname,
   expectOptionalTokenPurpose,
+  expectPipResizeCorner,
   expectRoomId,
   expectString,
   IpcValidationError,
+  parsePipTarget,
   UserFacingError,
 } from './validation';
 import type { MainWindow } from './window';
-import { isHttpUrl, type AppWindow, type WindowRegistry } from './windows';
+import type { WindowDrag } from './window-drag';
+import { isHttpUrl, type AppWindow, type WindowKind, type WindowRegistry } from './windows';
 
 export { IpcValidationError } from './validation';
 
@@ -45,6 +49,8 @@ export interface IpcDeps {
   capture: CaptureService;
   streaming: StreamingStore;
   popout: PopoutManager;
+  pip: PipManager;
+  windowDrag: WindowDrag;
   updater: Updater;
   processAudio: ProcessAudioBridge;
 }
@@ -53,6 +59,11 @@ export interface IpcDeps {
 export interface IpcContext {
   sender: WebContents;
   window: AppWindow;
+}
+
+/** Rejects calls from a window that has no business making them (e.g. PiP-only methods). */
+function requireKind(context: IpcContext, ...kinds: WindowKind[]): void {
+  if (!kinds.includes(context.window.kind)) throw new UserFacingError('Acesso negado.');
 }
 
 /** Turns any thrown value into a message that is safe to show in the UI. */
@@ -73,7 +84,7 @@ type Handler<T> = (context: IpcContext, ...args: unknown[]) => Promise<T> | T;
 
 export function registerIpc(deps: IpcDeps): () => void {
   const { settings, session, api, presence, windows, mainWindow } = deps;
-  const { capture, streaming, popout, updater, processAudio } = deps;
+  const { capture, streaming, popout, pip, windowDrag, updater, processAudio } = deps;
   const registered: IpcChannel[] = [];
 
   function handle<T>(channel: IpcChannel, handler: Handler<T>): void {
@@ -124,7 +135,19 @@ export function registerIpc(deps: IpcDeps): () => void {
     await shell.openExternal(target);
   });
   handle(IPC.SET_FULLSCREEN, (ctx, enabled) => {
-    ctx.window.browserWindow.setFullScreen(expectBoolean(enabled, 'enabled'));
+    const on = expectBoolean(enabled, 'enabled');
+    // Native fullscreen would activate the non-focusable PiP; it has its own.
+    if (ctx.window.kind === 'pip') pip.setFullscreen(on);
+    else ctx.window.browserWindow.setFullScreen(on);
+  });
+  handle(IPC.START_WINDOW_DRAG, (ctx) => {
+    requireKind(ctx, 'popout', 'pip');
+    if (ctx.window.kind === 'pip') pip.startDrag();
+    else windowDrag.start(ctx.window.browserWindow, { mode: 'reachable' });
+  });
+  handle(IPC.END_WINDOW_DRAG, (ctx) => {
+    requireKind(ctx, 'popout', 'pip');
+    windowDrag.end(ctx.window.browserWindow);
   });
 
   // --- Capture / streaming ------------------------------------------------------------
@@ -146,6 +169,44 @@ export function registerIpc(deps: IpcDeps): () => void {
   handle(IPC.SET_ALWAYS_ON_TOP, (_ctx, enabled) => {
     popout.setAlwaysOnTop(expectBoolean(enabled, 'enabled'));
   });
+  handle(IPC.GET_ALWAYS_ON_TOP, () => popout.getAlwaysOnTop());
+  handle(IPC.GET_POPOUT_STATE, () => popout.getState());
+  handle(IPC.FOCUS_POPOUT, () => popout.focus());
+
+  // --- Cameras' picture-in-picture ---------------------------------------------------------
+  handle(IPC.OPEN_PIP, (ctx, target) => {
+    requireKind(ctx, 'main');
+    pip.open(parsePipTarget(target));
+  });
+  handle(IPC.UPDATE_PIP, (ctx, target) => {
+    requireKind(ctx, 'main');
+    pip.update(parsePipTarget(target));
+  });
+  handle(IPC.CLOSE_PIP, (ctx) => {
+    requireKind(ctx, 'main', 'pip');
+    pip.close();
+  });
+  handle(IPC.GET_PIP_STATE, (ctx) => {
+    requireKind(ctx, 'main');
+    return pip.getState();
+  });
+  handle(IPC.GET_PIP_TARGET, (ctx) => (ctx.window.kind === 'pip' ? pip.getTarget() : null));
+  handle(IPC.SHOW_PIP_MENU, (ctx) => {
+    requireKind(ctx, 'pip');
+    pip.showMenu();
+  });
+  handle(IPC.START_PIP_RESIZE, (ctx, corner) => {
+    requireKind(ctx, 'pip');
+    pip.startResize(expectPipResizeCorner(corner));
+  });
+  handle(IPC.END_PIP_RESIZE, (ctx) => {
+    requireKind(ctx, 'pip');
+    pip.endResize();
+  });
+  handle(IPC.SET_PIP_FULLSCREEN, (ctx, enabled) => {
+    requireKind(ctx, 'pip');
+    pip.setFullscreen(expectBoolean(enabled, 'enabled'));
+  });
 
   // --- Updates --------------------------------------------------------------------------
   handle(IPC.GET_UPDATE_STATUS, () => updater.getStatus());
@@ -162,6 +223,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     const window = windows.fromSender(event.sender);
     if (!window) return;
     if (window.kind === 'popout') popout.close();
+    else if (window.kind === 'pip') pip.close();
     else mainWindow.hide();
   };
   ipcMain.on(IPC.HIDE_TO_TRAY, onHide);

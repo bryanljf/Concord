@@ -28,8 +28,16 @@ export function defaultSettings(): Settings {
     roomSounds: true,
     audioOutputDeviceId: null,
     trayNoticeShown: false,
+    cameraDeviceId: null,
+    pipAlwaysOnTop: true,
+    pipLayout: 'vertical',
+    pipTileWidth: 320,
+    pipPosition: null,
   };
 }
+
+/** Accepted `pipTileWidth` range; the PiP window clamps it further to the screen. */
+export const PIP_TILE_WIDTH_RANGE = { min: 120, max: 4000 } as const;
 
 /** Thrown by `update()` when the renderer sends a field with the wrong shape. */
 export class SettingsValidationError extends Error {
@@ -44,6 +52,10 @@ export class SettingsValidationError extends Error {
 // ---------------------------------------------------------------------------
 
 type Validator<K extends keyof Settings> = (value: unknown) => Settings[K] | undefined;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 function isHttpUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false;
@@ -63,6 +75,19 @@ const stringList = (value: unknown): string[] | undefined =>
     ? [...new Set(value.filter((item): item is string => typeof item === 'string'))]
     : undefined;
 
+const nullableString = (value: unknown): string | null | undefined =>
+  value === null || typeof value === 'string' ? value : undefined;
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+/** Null, or a screen point with finite coordinates (rounded to whole pixels). */
+const screenPoint = (value: unknown): { x: number; y: number } | null | undefined => {
+  if (value === null) return null;
+  if (!isRecord(value) || !isFiniteNumber(value.x) || !isFiniteNumber(value.y)) return undefined;
+  return { x: Math.round(value.x), y: Math.round(value.y) };
+};
+
 const validators: { [K in keyof Settings]: Validator<K> } = {
   serverUrl: (value) => (isHttpUrl(value) ? value : undefined),
   launchAtLogin: boolean,
@@ -80,16 +105,19 @@ const validators: { [K in keyof Settings]: Validator<K> } = {
   mutedUsers: stringList,
   viewerSounds: boolean,
   roomSounds: boolean,
-  audioOutputDeviceId: (value) =>
-    value === null || typeof value === 'string' ? (value as string | null) : undefined,
+  audioOutputDeviceId: nullableString,
   trayNoticeShown: boolean,
+  cameraDeviceId: nullableString,
+  pipAlwaysOnTop: boolean,
+  pipLayout: (value) => (value === 'vertical' || value === 'horizontal' ? value : undefined),
+  pipTileWidth: (value) =>
+    isFiniteNumber(value) && value >= PIP_TILE_WIDTH_RANGE.min && value <= PIP_TILE_WIDTH_RANGE.max
+      ? Math.round(value)
+      : undefined,
+  pipPosition: screenPoint,
 };
 
 const SETTINGS_KEYS = Object.keys(validators) as (keyof Settings)[];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * Builds a full `Settings` from untrusted data: every missing, unknown or invalid field falls

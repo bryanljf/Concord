@@ -8,7 +8,7 @@ const logger = log('windows');
 /** Delay after `did-finish-load` before queued messages are flushed, so React has subscribed. */
 export const RENDERER_SETTLE_MS = 500;
 
-export type WindowKind = 'main' | 'popout';
+export type WindowKind = 'main' | 'popout' | 'pip';
 
 /** A BrowserWindow that runs our renderer and may talk to the main process over IPC. */
 export interface AppWindow {
@@ -21,8 +21,9 @@ export interface AppWindow {
 export type Sender = AppWindow['send'];
 
 /**
- * Registry of the windows allowed to call IPC handlers (main + pop-out). Everything the main
- * process pushes to "the UI" goes through `broadcast`, so both renderers stay in sync.
+ * Registry of the windows allowed to call IPC handlers (main, pop-out, picture-in-picture);
+ * the capture picker also hides them. Everything the main process pushes to "the UI" goes
+ * through `broadcast`, so every renderer stays in sync.
  */
 export interface WindowRegistry {
   /** Registers a window until it is closed; returns an early-removal function. */
@@ -73,7 +74,7 @@ export function createWindowRegistry(): WindowRegistry {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers shared by the main and pop-out windows
+// Helpers shared by the main, pop-out and picture-in-picture windows
 // ---------------------------------------------------------------------------
 
 export function isHttpUrl(url: string): boolean {

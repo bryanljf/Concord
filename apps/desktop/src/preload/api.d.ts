@@ -37,7 +37,19 @@ export interface Settings {
   audioOutputDeviceId: string | null;
   /** Whether the "closing hides to the tray" notice was already shown once. */
   trayNoticeShown: boolean;
+  /** `MediaDeviceInfo.deviceId` of the webcam, or null for the system default. */
+  cameraDeviceId: string | null;
+  /** Cameras' picture-in-picture stays above everything, fullscreen games included. */
+  pipAlwaysOnTop: boolean;
+  /** How the cameras are stacked in the picture-in-picture window. */
+  pipLayout: PipLayout;
+  /** Width of each camera in the picture-in-picture window (main clamps it to the screen). */
+  pipTileWidth: number;
+  /** Top-left corner of the picture-in-picture window; null = top-right corner of the screen. */
+  pipPosition: { x: number; y: number } | null;
 }
+
+export type PipLayout = 'vertical' | 'horizontal';
 
 export interface Session {
   serverUrl: string;
@@ -92,6 +104,26 @@ export interface PopoutTarget {
   room: RoomId;
   participantId: string;
 }
+
+/** Whether the pop-out window exists and which live it shows (main renderer stops showing it). */
+export interface PopoutState {
+  open: boolean;
+  target: PopoutTarget | null;
+}
+
+/** Cameras shown in the picture-in-picture window, in the order they were watched. */
+export interface PipTarget {
+  room: RoomId;
+  /** Participants whose CAMERA is shown (not stream keys). */
+  participantIds: string[];
+}
+
+export interface PipState {
+  open: boolean;
+}
+
+/** Corner of the picture-in-picture window grabbed to resize it. */
+export type PipResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
 
 // --- Updates (Phase 6) -------------------------------------------------------------
 
@@ -151,7 +183,7 @@ export interface ConcordApi {
 
   // --- concord-api calls (main adds the Authorization header) ------------------
   getRooms(): Promise<RoomId[]>;
-  /** `purpose: 'popout'` yields a hidden, subscribe-only identity for the pop-out window. */
+  /** `popout` / `pip` yield hidden, subscribe-only identities for the pop-out and PiP windows. */
   requestToken(room: RoomId, purpose?: TokenPurpose): Promise<TokenResponse>;
   /** Instance name and region of the server (`GET /api/server`). */
   getServerInfo(): Promise<ServerInfoResponse>;
@@ -172,7 +204,7 @@ export interface ConcordApi {
 
   // --- Window ------------------------------------------------------------------
   /** Which BrowserWindow this renderer lives in. */
-  windowKind: 'main' | 'popout';
+  windowKind: 'main' | 'popout' | 'pip';
   hideToTray(): void;
   openExternal(url: string): Promise<void>;
   setFullscreen(enabled: boolean): Promise<void>;
@@ -196,7 +228,43 @@ export interface ConcordApi {
   closePopout(): Promise<void>;
   /** In the pop-out renderer: what to show. Null in the main window. */
   getPopoutTarget(): Promise<PopoutTarget | null>;
+  /** Pins the pop-out window above other windows. */
   setAlwaysOnTop(enabled: boolean): Promise<void>;
+  /** Whether the pop-out is pinned (so a reopened pop-out shows the right state). */
+  getAlwaysOnTop(): Promise<boolean>;
+  getPopoutState(): Promise<PopoutState>;
+  /** Fired when the pop-out opens, closes or changes live. */
+  onPopoutStateChanged(listener: (state: PopoutState) => void): () => void;
+  /** Brings the pop-out window to the front ("Mostrar janela"). */
+  focusPopout(): Promise<void>;
+
+  // --- Frameless windows (pop-out, picture-in-picture) ------------------------------
+  /**
+   * Starts moving the calling window with the mouse (main follows the cursor) until
+   * `endWindowDrag()`; replaces `-webkit-app-region: drag`, which swallows hover and clicks.
+   */
+  startWindowDrag(): Promise<void>;
+  endWindowDrag(): Promise<void>;
+
+  // --- Cameras' picture-in-picture ----------------------------------------------------
+  /** Main window: opens the picture-in-picture (or brings it to the front) with these cameras. */
+  openPip(target: PipTarget): Promise<void>;
+  /** Main window: new camera list while open (no-op when closed; an empty list closes it). */
+  updatePip(target: PipTarget): Promise<void>;
+  closePip(): Promise<void>;
+  getPipState(): Promise<PipState>;
+  onPipStateChanged(listener: (state: PipState) => void): () => void;
+  /** Picture-in-picture renderer: the cameras to show (null elsewhere). */
+  getPipTarget(): Promise<PipTarget | null>;
+  onPipTarget(listener: (target: PipTarget) => void): () => void;
+  /** Picture-in-picture renderer: native menu (always on top, fullscreen, layout, close…). */
+  showPipMenu(): Promise<void>;
+  /** Picture-in-picture renderer: resize from a corner until `endPipResize()` (keeps the ratio). */
+  startPipResize(corner: PipResizeCorner): Promise<void>;
+  endPipResize(): Promise<void>;
+  /** Picture-in-picture renderer: cover the whole screen, or go back to the previous size. */
+  setPipFullscreen(enabled: boolean): Promise<void>;
+  onPipFullscreenChanged(listener: (enabled: boolean) => void): () => void;
 
   // --- Updates (Phase 6) ----------------------------------------------------------
   getUpdateStatus(): Promise<UpdateStatus>;

@@ -10,6 +10,9 @@ import type {
   CaptureSource,
   ConcordApi,
   NavigateTarget,
+  PipState,
+  PipTarget,
+  PopoutState,
   PopoutTarget,
   PresenceConnectionStatus,
   PresenceState,
@@ -106,6 +109,26 @@ const api: ConcordApi = {
   closePopout: () => invoke<void>(IPC.CLOSE_POPOUT),
   getPopoutTarget: () => invoke<PopoutTarget | null>(IPC.GET_POPOUT_TARGET),
   setAlwaysOnTop: (enabled) => invoke<void>(IPC.SET_ALWAYS_ON_TOP, enabled),
+  getAlwaysOnTop: () => invoke<boolean>(IPC.GET_ALWAYS_ON_TOP),
+  getPopoutState: () => invoke<PopoutState>(IPC.GET_POPOUT_STATE),
+  onPopoutStateChanged: (listener) => subscribe<PopoutState>(EVENTS.POPOUT_STATE, listener),
+  focusPopout: () => invoke<void>(IPC.FOCUS_POPOUT),
+
+  startWindowDrag: () => invoke<void>(IPC.START_WINDOW_DRAG),
+  endWindowDrag: () => invoke<void>(IPC.END_WINDOW_DRAG),
+
+  openPip: (target) => invoke<void>(IPC.OPEN_PIP, target),
+  updatePip: (target) => invoke<void>(IPC.UPDATE_PIP, target),
+  closePip: () => invoke<void>(IPC.CLOSE_PIP),
+  getPipState: () => invoke<PipState>(IPC.GET_PIP_STATE),
+  onPipStateChanged: (listener) => subscribe<PipState>(EVENTS.PIP_STATE, listener),
+  getPipTarget: () => invoke<PipTarget | null>(IPC.GET_PIP_TARGET),
+  onPipTarget: (listener) => subscribe<PipTarget>(EVENTS.PIP_TARGET, listener),
+  showPipMenu: () => invoke<void>(IPC.SHOW_PIP_MENU),
+  startPipResize: (corner) => invoke<void>(IPC.START_PIP_RESIZE, corner),
+  endPipResize: () => invoke<void>(IPC.END_PIP_RESIZE),
+  setPipFullscreen: (enabled) => invoke<void>(IPC.SET_PIP_FULLSCREEN, enabled),
+  onPipFullscreenChanged: (listener) => subscribe<boolean>(EVENTS.PIP_FULLSCREEN, listener),
 
   getUpdateStatus: () => invoke<UpdateStatus>(IPC.GET_UPDATE_STATUS),
   checkForUpdates: () => invoke<UpdateStatus>(IPC.CHECK_FOR_UPDATES),
@@ -119,9 +142,10 @@ const api: ConcordApi = {
 };
 
 /** Main passes `--concord-window=<kind>` through `webPreferences.additionalArguments`. */
-function readWindowKind(argv: readonly string[]): 'main' | 'popout' {
+function readWindowKind(argv: readonly string[]): ConcordApi['windowKind'] {
   const flag = argv.find((arg) => arg.startsWith(WINDOW_KIND_ARG));
-  return flag?.slice(WINDOW_KIND_ARG.length) === 'popout' ? 'popout' : 'main';
+  const kind = flag?.slice(WINDOW_KIND_ARG.length);
+  return kind === 'popout' || kind === 'pip' ? kind : 'main';
 }
 
 contextBridge.exposeInMainWorld('concord', api);

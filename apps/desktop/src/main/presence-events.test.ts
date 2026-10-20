@@ -63,6 +63,27 @@ describe('parsePresenceEvent', () => {
     expect(parse('data:image/png;base64,AAAA')).toBeNull();
   });
 
+  it('keeps camera only when it is a boolean', () => {
+    const parse = (value: unknown) => {
+      const event = parsePresenceEvent({
+        type: 'participant_updated',
+        room: 'geral',
+        participant: { ...ana, camera: value },
+      });
+      return event?.type === 'participant_updated' ? event.participant : null;
+    };
+    expect(parse(true)).toEqual({ ...anaParsed, camera: true });
+    expect(parse(false)).toEqual({ ...anaParsed, camera: false });
+    expect(parse('yes')).toEqual(anaParsed);
+    expect(parse(undefined)).not.toHaveProperty('camera');
+    expect(
+      parsePresenceEvent({
+        type: 'snapshot',
+        data: { rooms: { geral: [{ ...ana, camera: true }] } },
+      }),
+    ).toEqual({ type: 'snapshot', data: { rooms: { geral: [{ ...anaParsed, camera: true }] } } });
+  });
+
   it('rejects malformed payloads', () => {
     expect(parsePresenceEvent(null)).toBeNull();
     expect(parsePresenceEvent('snapshot')).toBeNull();

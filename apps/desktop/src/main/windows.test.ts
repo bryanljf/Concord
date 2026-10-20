@@ -39,8 +39,12 @@ describe('createWindowRegistry', () => {
     const main = makeWindow('main', 1);
     const popout = makeWindow('popout', 2);
     const stranger = makeWindow('popout', 3);
+    const pip = makeWindow('pip', 4);
     registry.add(main.window);
     registry.add(popout.window);
+    registry.add(pip.window);
+    expect(registry.fromSender(pip.webContents)?.kind).toBe('pip');
+    pip.close();
 
     expect(registry.fromSender(main.webContents)).toBe(main.window);
     expect(registry.fromSender(popout.webContents)?.kind).toBe('popout');

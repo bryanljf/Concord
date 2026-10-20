@@ -1,6 +1,12 @@
 import { NICKNAME_MAX_LENGTH } from '@concord/shared';
 import { describe, expect, it } from 'vitest';
-import { expectNickname, IpcValidationError, UserFacingError } from './validation';
+import {
+  expectNickname,
+  expectOptionalTokenPurpose,
+  expectPipResizeCorner,
+  IpcValidationError,
+  UserFacingError,
+} from './validation';
 
 describe('expectNickname', () => {
   it('trims strings and keeps null', () => {
@@ -24,5 +30,25 @@ describe('expectNickname', () => {
     expect(() => expectNickname('x'.repeat(NICKNAME_MAX_LENGTH + 1))).toThrow(
       `O nome pode ter no máximo ${NICKNAME_MAX_LENGTH} caracteres.`,
     );
+  });
+});
+
+describe('expectOptionalTokenPurpose', () => {
+  it('accepts main, popout, pip and undefined', () => {
+    expect(expectOptionalTokenPurpose(undefined)).toBeUndefined();
+    expect(expectOptionalTokenPurpose('main')).toBe('main');
+    expect(expectOptionalTokenPurpose('popout')).toBe('popout');
+    expect(expectOptionalTokenPurpose('pip')).toBe('pip');
+    expect(() => expectOptionalTokenPurpose('camera')).toThrow(IpcValidationError);
+    expect(() => expectOptionalTokenPurpose(null)).toThrow(IpcValidationError);
+  });
+});
+
+describe('expectPipResizeCorner', () => {
+  it('accepts the four corners only', () => {
+    for (const corner of ['nw', 'ne', 'sw', 'se'])
+      expect(expectPipResizeCorner(corner)).toBe(corner);
+    expect(() => expectPipResizeCorner('n')).toThrow(IpcValidationError);
+    expect(() => expectPipResizeCorner(undefined)).toThrow(IpcValidationError);
   });
 });

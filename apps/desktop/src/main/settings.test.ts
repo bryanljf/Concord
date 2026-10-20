@@ -79,6 +79,76 @@ describe('sanitizeSettings', () => {
   });
 });
 
+describe('camera and picture-in-picture settings', () => {
+  it('has the documented defaults', () => {
+    expect(defaultSettings()).toMatchObject({
+      cameraDeviceId: null,
+      pipAlwaysOnTop: true,
+      pipLayout: 'vertical',
+      pipTileWidth: 320,
+      pipPosition: null,
+    });
+  });
+
+  it('validates and normalises each field', () => {
+    expect(
+      sanitizePatch({
+        cameraDeviceId: 'cam-1',
+        pipAlwaysOnTop: false,
+        pipLayout: 'horizontal',
+        pipTileWidth: 480.6,
+        pipPosition: { x: 10.4, y: -20.6 },
+      }),
+    ).toEqual({
+      cameraDeviceId: 'cam-1',
+      pipAlwaysOnTop: false,
+      pipLayout: 'horizontal',
+      pipTileWidth: 481,
+      pipPosition: { x: 10, y: -21 },
+    });
+    expect(sanitizePatch({ cameraDeviceId: null, pipPosition: null })).toEqual({
+      cameraDeviceId: null,
+      pipPosition: null,
+    });
+    expect(sanitizePatch({ pipTileWidth: 120, pipPosition: { x: 0, y: 0, z: 1 } })).toEqual({
+      pipTileWidth: 120,
+      pipPosition: { x: 0, y: 0 },
+    });
+  });
+
+  it('rejects bad values', () => {
+    const bad: Record<string, unknown>[] = [
+      { cameraDeviceId: 7 },
+      { pipAlwaysOnTop: 'yes' },
+      { pipLayout: 'grid' },
+      { pipTileWidth: 119 },
+      { pipTileWidth: 4001 },
+      { pipTileWidth: Number.NaN },
+      { pipTileWidth: Number.POSITIVE_INFINITY },
+      { pipTileWidth: '320' },
+      { pipPosition: { x: 1 } },
+      { pipPosition: { x: 1, y: Number.NaN } },
+      { pipPosition: [1, 2] },
+      { pipPosition: 'top-right' },
+    ];
+    for (const patch of bad) expect(() => sanitizePatch(patch)).toThrow(SettingsValidationError);
+  });
+
+  it('resets invalid stored values to the defaults', () => {
+    const { settings, rejected } = sanitizeSettings({
+      pipTileWidth: 10_000,
+      pipPosition: { x: 'a', y: 2 },
+      pipLayout: 'horizontal',
+    });
+    expect(settings).toMatchObject({
+      pipTileWidth: 320,
+      pipPosition: null,
+      pipLayout: 'horizontal',
+    });
+    expect(rejected).toEqual(['pipTileWidth', 'pipPosition']);
+  });
+});
+
 describe('sanitizePatch', () => {
   it('throws on unknown or invalid fields and keeps valid ones', () => {
     expect(sanitizePatch({ followDiscord: false, mutedUsers: ['ana'] })).toEqual({

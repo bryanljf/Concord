@@ -10,6 +10,7 @@ import { createDiscordWatcher } from './discord-watcher';
 import { registerIpc } from './ipc';
 import { log } from './log';
 import { createNotifier } from './notifications';
+import { createPipManager } from './pip';
 import { createPopoutManager } from './popout';
 import { PresenceClient } from './presence-client';
 import { PresenceController } from './presence-controller';
@@ -21,7 +22,14 @@ import { createStreamingStore } from './streaming';
 import { createTray } from './tray';
 import { createUpdater } from './updater';
 import { createMainWindow } from './window';
+import { createWindowDrag } from './window-drag';
 import { createWindowRegistry } from './windows';
+
+// With contentHint 'motion', WebRTC's FrameDropper drops frames whenever high-motion content
+// overshoots the bitrate cap (it is only forced off for multi-layer screen content). Electron
+// passes --force-fieldtrials on to WebRTC in the renderers; any future trial goes in this same
+// string. Must run before `ready`, hence at the top of the module.
+app.commandLine.appendSwitch('force-fieldtrials', 'WebRTC-FrameDropper/Disabled/');
 
 const logger = log('app');
 
@@ -96,6 +104,13 @@ function bootstrap(): void {
     isQuitting: () => quitting,
   });
   const popout = createPopoutManager({ registry: windows });
+  const windowDrag = createWindowDrag();
+  const pip = createPipManager({
+    registry: windows,
+    settings,
+    drag: windowDrag,
+    showMainWindow: () => window.show(),
+  });
   const streaming = createStreamingStore();
   const capture = createCaptureService({ windows });
   const processAudio = createProcessAudioBridge(createProcessAudioEngine());
@@ -149,6 +164,8 @@ function bootstrap(): void {
     capture,
     streaming,
     popout,
+    pip,
+    windowDrag,
     updater,
     processAudio,
   });
@@ -186,7 +203,9 @@ function bootstrap(): void {
     discord.stop();
     presence.disconnect('no_session');
     void processAudio.stop();
+    windowDrag.destroy();
     popout.destroy();
+    pip.destroy();
     tray.destroy();
   });
 

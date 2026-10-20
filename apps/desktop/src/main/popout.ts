@@ -1,6 +1,6 @@
 import { BrowserWindow, type WebContents } from 'electron';
 import { EVENTS } from '../preload/channels';
-import type { PopoutTarget } from '../preload/api';
+import type { PopoutState, PopoutTarget } from '../preload/api';
 import { log } from './log';
 import { resourcePath } from './resources';
 import { expectRoomId, expectString, IpcValidationError, isRecord } from './validation';
@@ -42,7 +42,13 @@ export interface PopoutManager {
   close(): void;
   /** What the pop-out is showing; null when it is closed. */
   getTarget(): PopoutTarget | null;
+  /** Also pushed to every window (`EVENTS.POPOUT_STATE`) on open, re-target and close. */
+  getState(): PopoutState;
+  /** Brings the pop-out to the front ("Mostrar janela"); no-op when it is closed. */
+  focus(): void;
   setAlwaysOnTop(enabled: boolean): void;
+  /** The pin of the current pop-out (or the one the next pop-out will get). */
+  getAlwaysOnTop(): boolean;
   isPopoutSender(sender: WebContents): boolean;
   /** Closes without ceremony (app quit). */
   destroy(): void;
@@ -61,6 +67,15 @@ export function createPopoutManager(deps: PopoutDeps): PopoutManager {
 
   function alive(): AppWindow | null {
     return current && !current.browserWindow.isDestroyed() ? current : null;
+  }
+
+  function getState(): PopoutState {
+    return alive() && target ? { open: true, target } : { open: false, target: null };
+  }
+
+  /** Every window learns where the live is shown (the main one stops showing it). */
+  function broadcastState(): void {
+    deps.registry.broadcast(EVENTS.POPOUT_STATE, getState());
   }
 
   function create(): AppWindow {
@@ -90,6 +105,8 @@ export function createPopoutManager(deps: PopoutDeps): PopoutManager {
         current = null;
         target = null;
         logger.info('closed');
+        // The closed window is already destroyed, so the registry skips it.
+        broadcastState();
       }
     });
     deps.registry.add(window);
@@ -112,22 +129,34 @@ export function createPopoutManager(deps: PopoutDeps): PopoutManager {
       if (win.isMinimized()) win.restore();
       win.show();
       win.focus();
+      broadcastState();
       logger.info(`showing ${next.participantId} in #${next.room}`);
     },
     close() {
       alive()?.browserWindow.close();
     },
     getTarget: () => (alive() ? target : null),
+    getState,
+    focus() {
+      const win = alive()?.browserWindow;
+      if (!win) return;
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    },
     setAlwaysOnTop(enabled) {
       alwaysOnTop = enabled;
       alive()?.browserWindow.setAlwaysOnTop(enabled);
       logger.info(`always on top: ${enabled}`);
     },
+    getAlwaysOnTop: () => alive()?.browserWindow.isAlwaysOnTop() ?? alwaysOnTop,
     isPopoutSender: (sender) => alive()?.browserWindow.webContents === sender,
     destroy() {
-      alive()?.browserWindow.destroy();
+      const window = alive();
+      // Cleared first so the `closed` handler stays quiet: nobody needs the state on quit.
       current = null;
       target = null;
+      window?.browserWindow.destroy();
     },
   };
 }

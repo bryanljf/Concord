@@ -11,7 +11,16 @@ function parseParticipant(value: unknown): PresenceParticipant | null {
   if (typeof id !== 'string' || typeof name !== 'string') return null;
   if (typeof streaming !== 'boolean' || typeof joinedAt !== 'number') return null;
   // Optional for older servers; anything but a cdn.discordapp.com URL becomes null.
-  return { id, name, streaming, joinedAt, avatarUrl: parseAvatarUrl(value.avatarUrl) };
+  const participant: PresenceParticipant = {
+    id,
+    name,
+    streaming,
+    joinedAt,
+    avatarUrl: parseAvatarUrl(value.avatarUrl),
+  };
+  // Optional too (servers before v0.2.0): kept only when it is a real boolean.
+  if (typeof value.camera === 'boolean') participant.camera = value.camera;
+  return participant;
 }
 
 function parseSnapshot(value: unknown): PresenceSnapshot | null {
