@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import { roomLabel, type RoomId, type StreamQualityId } from '@concord/shared';
-import type { CaptureSource, MusicAppId, ProcessAudioSupport } from '../../../preload/api';
+import type {
+  CaptureSource,
+  MusicAppId,
+  ProcessAudioSupport,
+  VideoEncoderPreference,
+} from '../../../preload/api';
 import type { BroadcastAudioMode, BroadcastRequest } from '../../hooks/useBroadcast';
 import type { MusicBroadcastState } from '../../hooks/useMusicBroadcast';
 import { useCaptureSources } from '../../hooks/useCaptureSources';
@@ -10,6 +15,7 @@ import type { Settings } from '../../lib/concord';
 import { isHeavyStreamQuality, streamUploadHint } from '../../lib/encoding';
 import { musicDuplicationWarning, screenAudioIncludesMusic } from '../../lib/musicWarnings';
 import { sourceKindOf } from '../../lib/sourceSwitch';
+import { EncoderField } from '../EncoderField';
 import { QualityFields } from '../QualityFields';
 import { Spinner } from '../Spinner';
 import {
@@ -52,6 +58,8 @@ interface SourcePickerProps {
   /** "Transmitir música" in the Música tab (joins the selected room when needed). */
   onStartMusic(room: RoomId, app: MusicAppId): void;
   onStopMusic(): void;
+  /** "Codificação de vídeo": saves `Settings.videoEncoder` (applies after a restart). */
+  onEncoder(encoder: VideoEncoderPreference): void;
 }
 
 type Tab = CaptureSource['kind'] | 'music';
@@ -71,6 +79,7 @@ export function SourcePicker({
   music,
   onStartMusic,
   onStopMusic,
+  onEncoder,
 }: SourcePickerProps) {
   const switching = live !== null;
   const [room, setRoom] = useState<RoomId | null>(
@@ -303,6 +312,9 @@ export function SourcePicker({
                 duplicatesMusic={selectedDuplicates}
                 onQuality={setQuality}
                 onAudio={setAudioChoice}
+                encoder={settings.videoEncoder}
+                onEncoder={onEncoder}
+                live={live !== null && live !== undefined}
               />
             )}
 
@@ -357,6 +369,10 @@ interface ScreenOptionsProps {
   duplicatesMusic: boolean;
   onQuality(quality: StreamQualityId): void;
   onAudio(enabled: boolean): void;
+  encoder: VideoEncoderPreference;
+  onEncoder(encoder: VideoEncoderPreference): void;
+  /** Switch mode: the current live keeps its encoder. */
+  live: boolean;
 }
 
 /** Quality and audio of a window/screen broadcast, with their warnings. */
@@ -368,6 +384,9 @@ function ScreenOptions({
   duplicatesMusic,
   onQuality,
   onAudio,
+  encoder,
+  onEncoder,
+  live,
 }: ScreenOptionsProps) {
   const processAudio = support?.supported === true;
   return (
@@ -386,29 +405,32 @@ function ScreenOptions({
           )}
         </div>
 
-        <label className="switch picker__audio">
-          <span className="switch__text">
-            <span className="switch__title">
-              {processAudio ? 'Áudio do aplicativo' : 'Incluir áudio do sistema'}
+        <div className="picker__side">
+          <label className="switch picker__audio">
+            <span className="switch__text">
+              <span className="switch__title">
+                {processAudio ? 'Áudio do aplicativo' : 'Incluir áudio do sistema'}
+              </span>
+              <span className="switch__desc">
+                {support === null
+                  ? 'Verificando a captura de áudio…'
+                  : processAudio
+                    ? 'Só o som do jogo, sem a call do Discord.'
+                    : 'Use fone de ouvido ou o áudio da call vai junto.'}
+              </span>
+              {support !== null && !processAudio && support.reason && (
+                <span className="switch__desc picker__reason">{support.reason}</span>
+              )}
             </span>
-            <span className="switch__desc">
-              {support === null
-                ? 'Verificando a captura de áudio…'
-                : processAudio
-                  ? 'Só o som do jogo, sem a call do Discord.'
-                  : 'Use fone de ouvido ou o áudio da call vai junto.'}
-            </span>
-            {support !== null && !processAudio && support.reason && (
-              <span className="switch__desc picker__reason">{support.reason}</span>
-            )}
-          </span>
-          <input
-            type="checkbox"
-            checked={audioOn}
-            disabled={support === null}
-            onChange={(event) => onAudio(event.target.checked)}
-          />
-        </label>
+            <input
+              type="checkbox"
+              checked={audioOn}
+              disabled={support === null}
+              onChange={(event) => onAudio(event.target.checked)}
+            />
+          </label>
+          <EncoderField idPrefix="picker" value={encoder} onChange={onEncoder} live={live} />
+        </div>
       </div>
 
       {audioOn && support !== null && !processAudio && (

@@ -1,5 +1,6 @@
 import type { Settings } from '../../lib/concord';
 import { streamQualityDescription } from '../../lib/encoding';
+import { EncoderField } from '../EncoderField';
 import { QualityFields } from '../QualityFields';
 import { SettingsSection } from './SettingsSection';
 
@@ -29,6 +30,11 @@ export function StreamingSection({ settings, onUpdate }: StreamingSectionProps) 
           primeiro: se faltar CPU, cai a resolução, não o fps.
         </p>
       </fieldset>
+      <EncoderField
+        idPrefix="settings"
+        value={settings.videoEncoder}
+        onChange={(videoEncoder) => onUpdate({ videoEncoder })}
+      />
       <div className="field">
         <label className="field__label" htmlFor="settings-codec">
           Codec de vídeo (avançado)

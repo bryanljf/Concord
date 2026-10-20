@@ -15,6 +15,8 @@ import type {
   UserInfo,
 } from '@concord/shared';
 
+export type VideoEncoderPreference = 'cpu' | 'gpu';
+
 /** Persisted preferences (JSON file in `app.getPath('userData')`). */
 export interface Settings {
   /** Base URL of concord-api, e.g. "http://127.0.0.1:3000" or "https://concord.duckdns.org". */
@@ -52,6 +54,11 @@ export interface Settings {
   musicSounds: boolean;
   /** The rooms sidebar is reduced to a narrow column of room icons. */
   sidebarCollapsed: boolean;
+  /**
+   * Who encodes your lives and webcam: `cpu` (OpenH264, as always) or `gpu` (the graphics card's
+   * H.264 encoder when there is one, else the CPU anyway). Applies to the next publish.
+   */
+  videoEncoder: VideoEncoderPreference;
 }
 
 export type PipLayout = 'vertical' | 'horizontal';

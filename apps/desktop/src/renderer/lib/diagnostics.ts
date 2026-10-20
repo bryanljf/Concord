@@ -330,8 +330,8 @@ export function senderIssues(
       id: 'software-encoder',
       level: cpuLimited ? 'warning' : 'info',
       text: remote
-        ? `O transmissor codifica por software${name}, o que disputa CPU com o jogo.`
-        : `Codificação por software${name}: disputa CPU com o jogo.`,
+        ? `O transmissor codifica por software${name}, o que disputa CPU com o jogo (a codificação por GPU fica em Configurações → Transmissão).`
+        : `Codificação por software${name}: disputa CPU com o jogo. Experimente a GPU em Configurações → Transmissão.`,
     });
   }
 

@@ -73,6 +73,12 @@ describe('sanitizeSettings', () => {
     expect(rejected).toEqual(['serverUrl', 'followDiscord', 'defaultQuality', 'mutedUsers']);
   });
 
+  it('encodes on the CPU unless the GPU is chosen', () => {
+    expect(defaultSettings().videoEncoder).toBe('cpu');
+    expect(sanitizeSettings({ videoEncoder: 'gpu' }).settings.videoEncoder).toBe('gpu');
+    expect(sanitizeSettings({ videoEncoder: 'nvenc' }).rejected).toEqual(['videoEncoder']);
+  });
+
   it('reads the former quality presets as resolution × frame rate', () => {
     expect(sanitizeSettings({ defaultQuality: 'light' }).settings.defaultQuality).toBe('720p30');
     expect(sanitizeSettings({ defaultQuality: 'standard' }).settings.defaultQuality).toBe(

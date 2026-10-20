@@ -12,7 +12,7 @@ import {
   type LocalTrackPublication,
   type LocalVideoTrack,
 } from 'livekit-client';
-import type { MusicAppId, PopoutState } from '../../preload/api';
+import type { MusicAppId, PopoutState, VideoEncoderPreference } from '../../preload/api';
 import type { BroadcastSwitchRequest } from '../hooks/useBroadcast';
 import {
   useBroadcast,
@@ -44,6 +44,7 @@ import { useViewerSounds } from '../hooks/useViewerSounds';
 import { useWatchedLiveEndedSound } from '../hooks/useWatchedLiveEndedSound';
 import { usePublishWatching, useViewers } from '../hooks/useViewers';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
+import { installEncoderPreference, setEncoderPreference } from '../lib/encoderPreference';
 import { formatShortcut } from '../lib/format';
 import { MUSIC_APP_LABELS } from '../lib/music';
 import { musicElsewhere, presenceMusic, watchingWithMusic } from '../lib/musicListening';
@@ -435,6 +436,19 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const toggleSidebar = useCallback(
     () => saveSettings({ sidebarCollapsed: !sidebarCollapsed }),
     [saveSettings, sidebarCollapsed],
+  );
+
+  // GPU or CPU for the lives and the webcam: applied to every new video sender of this window,
+  // right away (a live started just after the choice uses it, before the setting round-trips).
+  useEffect(() => installEncoderPreference(), []);
+  const videoEncoder = settings?.videoEncoder ?? 'cpu';
+  useEffect(() => setEncoderPreference(videoEncoder), [videoEncoder]);
+  const chooseEncoder = useCallback(
+    (encoder: VideoEncoderPreference) => {
+      setEncoderPreference(encoder);
+      saveSettings({ videoEncoder: encoder });
+    },
+    [saveSettings],
   );
 
   const participants = useMemo(() => knownParticipants(snapshot), [snapshot]);
@@ -994,6 +1008,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           starting={broadcast.state.status === 'starting'}
           onCancel={closePicker}
           onStart={startBroadcast}
+          onEncoder={chooseEncoder}
         />
       )}
       {picker === 'switch' && settings && broadcast.state.status === 'live' && (
@@ -1014,6 +1029,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           onStart={({ sourceId, sourceName, quality, audio: audioMode }) =>
             switchSource({ sourceId, sourceName, quality, audio: audioMode })
           }
+          onEncoder={chooseEncoder}
         />
       )}
       {settingsOpen && settings && (

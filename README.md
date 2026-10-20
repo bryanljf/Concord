@@ -23,7 +23,10 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
 - **Transmitir** uma janela ou uma tela inteira na resolução (480p, 720p, 1080p ou 1440p) e nos
   quadros por segundo (15, 30 ou 60) que a pessoa escolher, H.264 com simulcast (teto de 0,8 a
   9,5 Mbps conforme a combinação); em todas, quando falta CPU a resolução cai antes da taxa de
-  quadros.
+  quadros. **Codificação** na CPU (padrão, OpenH264) ou na **GPU**: o LiveKit negocia H.264
+  Constrained Baseline, que o encoder de hardware do Chromium no Windows não aceita; no modo GPU o
+  app oferece primeiro High/Main (o servidor aceita High) e a placa codifica, sem placa compatível
+  fica a CPU.
   **Áudio por processo**: só o som do aplicativo, sem a call do Discord
   (WASAPI Process Loopback). **Trocar fonte** durante a live sem derrubar quem assiste.
 - **Webcam** com escolha de dispositivo (botão **Câmera** na barra de baixo e Configurações →

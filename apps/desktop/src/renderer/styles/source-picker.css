@@ -232,6 +232,14 @@
   color: var(--warning);
 }
 
+/* Right column: the audio switch, then the encoder. */
+.picker__side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
 .picker__audio {
   padding: 4px 0;
 }

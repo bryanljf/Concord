@@ -35,6 +35,7 @@ export function defaultSettings(): Settings {
     pipPosition: null,
     musicSounds: true,
     sidebarCollapsed: false,
+    videoEncoder: 'cpu',
   };
 }
 
@@ -117,6 +118,7 @@ const validators: { [K in keyof Settings]: Validator<K> } = {
   pipPosition: screenPoint,
   musicSounds: boolean,
   sidebarCollapsed: boolean,
+  videoEncoder: (value) => (value === 'cpu' || value === 'gpu' ? value : undefined),
 };
 
 const SETTINGS_KEYS = Object.keys(validators) as (keyof Settings)[];

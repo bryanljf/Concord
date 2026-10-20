@@ -83,7 +83,9 @@ original).
   janela (só aquele programa) ou uma tela inteira, a **resolução** (480p, 720p, 1080p ou 1440p) e
   os **quadros por segundo** (15, 30 ou 60); o padrão fica em **Configurações → Transmissão**.
   Em qualquer combinação o fps vem primeiro: se o PC não der conta, cai a resolução. Se travar,
-  baixe a resolução. O **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o
+  baixe a resolução. Em **Codificação de vídeo** dá para usar a **GPU** (a placa de vídeo codifica
+  e a CPU fica livre para o jogo); o padrão é a CPU. Vale a partir da próxima transmissão. O
+  **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o
   mesmo botão vira **Trocar fonte**: troca a janela ou a tela sem derrubar quem está assistindo.
 - **Som de aviso**: quando alguém entra ao vivo **na sala em que você está**, toca um som curto.
   Em **Configurações → Sons** dá para silenciar salas ou pessoas.
