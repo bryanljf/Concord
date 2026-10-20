@@ -248,7 +248,8 @@ function CameraControl({
   const tooltip =
     !inRoom && camera.status === 'off' ? 'Entre numa sala para ligar a câmera' : undefined;
 
-  let icon = on ? <CameraIcon size={18} /> : <CameraOffIcon size={18} />;
+  // The icon shows the action: a plain camera turns it on, a crossed one (on the red button) off.
+  let icon = on ? <CameraOffIcon size={18} /> : <CameraIcon size={18} />;
   let label = on ? 'Desligar câmera' : 'Câmera';
   if (camera.status === 'starting') {
     icon = <Spinner size="sm" label="Ligando a câmera" />;
