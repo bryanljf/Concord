@@ -72,7 +72,8 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
 - **Bandeja e inicialização**: inicia com o Windows escondido, opcionalmente só enquanto o
   Discord está aberto; atalho global (`Ctrl+Shift+L`) para transmitir/parar.
 - **Atualização automática**: o app verifica de hora em hora, baixa em segundo plano e avisa
-  (notificação, item na bandeja e faixa "Reiniciar agora").
+  (notificação, item na bandeja, faixa "Reiniciar agora" e uma seta verde ao lado de "CONCORD"
+  na barra lateral expandida, que reinicia para instalar).
 
 ## Arquitetura
 

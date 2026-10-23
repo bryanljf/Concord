@@ -20,15 +20,43 @@
 
 /* The collapse toggle sits at the right end of the row. */
 .sidebar__brand-name {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
 }
 
+/* The toggle keeps the right end; the update arrow sits right after the name. */
 .sidebar__toggle {
   flex: none;
+  margin-left: auto;
   letter-spacing: normal;
+}
+
+/* Discord-like green arrow: an update is downloaded, a click restarts to install it. */
+.sidebar__update {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--online);
+  letter-spacing: normal;
+  animation: sidebar-logo-in var(--transition-slow) ease;
+}
+
+.sidebar__update:hover:not(:disabled) {
+  color: var(--online);
+}
+
+/* Tooltip below the arrow (the row is at the top of the window). */
+.sidebar__update[data-tooltip]::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translate(-50%, -4px);
+}
+
+.sidebar__update[data-tooltip]:hover::after,
+.sidebar__update[data-tooltip]:focus-visible::after {
+  transform: translate(-50%, 0);
 }
 
 /* Tooltip below the toggle and right-aligned (the row is at the top of the window). */

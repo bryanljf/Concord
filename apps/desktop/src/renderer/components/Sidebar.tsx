@@ -1,9 +1,12 @@
-import type { KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import type { PresenceSnapshot, RoomId } from '@concord/shared';
 import logoUrl from '../../../resources/icon.png';
 import { useNow } from '../hooks/useNow';
+import { useToast } from '../hooks/useToast';
+import { useUpdateStatus } from '../hooks/useUpdateStatus';
+import { toErrorMessage } from '../lib/concord';
 import { participantsOf } from '../lib/presence';
-import { ChevronsLeftIcon, ChevronsRightIcon, WarningIcon } from './icons';
+import { ChevronsLeftIcon, ChevronsRightIcon, UpdateArrowIcon, WarningIcon } from './icons';
 import { RoomIcon } from './RoomIcon';
 import { RoomItem } from './RoomItem';
 import '../styles/sidebar.css';
@@ -14,9 +17,46 @@ interface SidebarBrandProps {
   onToggleCollapsed(): void;
 }
 
+const UPDATE_LABEL = 'Atualização disponível';
+
 /**
- * The "CONCORD" row above the rooms, with the collapse toggle at its right end. Collapsed, the
- * name gives way to the app's logo (the same icon as the installer, window and tray).
+ * Discord-like green arrow once an update is downloaded (`ready`): a click restarts the app to
+ * install it. Nothing in any other state.
+ */
+function SidebarUpdate() {
+  const { status, install } = useUpdateStatus();
+  const toast = useToast();
+  const [installing, setInstalling] = useState(false);
+  if (status.state !== 'ready') return null;
+
+  const restart = (): void => {
+    setInstalling(true);
+    install().catch((err: unknown) => {
+      setInstalling(false);
+      toast.show(toErrorMessage(err, 'Não foi possível instalar a atualização.'), {
+        tone: 'error',
+      });
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      className="icon-btn sidebar__update"
+      aria-label={UPDATE_LABEL}
+      data-tooltip={UPDATE_LABEL}
+      disabled={installing}
+      onClick={restart}
+    >
+      <UpdateArrowIcon size={18} />
+    </button>
+  );
+}
+
+/**
+ * The "CONCORD" row above the rooms, with the collapse toggle at its right end and, right after
+ * the name, the update arrow. Collapsed, the name gives way to the app's logo (the same icon as
+ * the installer, window and tray) and the arrow is left out.
  */
 export function SidebarBrand({ collapsed, onToggleCollapsed }: SidebarBrandProps) {
   const label = collapsed ? 'Expandir a barra lateral' : 'Recolher a barra lateral';
@@ -25,7 +65,10 @@ export function SidebarBrand({ collapsed, onToggleCollapsed }: SidebarBrandProps
       {collapsed ? (
         <img className="sidebar__logo" src={logoUrl} alt="Concord" draggable={false} />
       ) : (
-        <span className="sidebar__brand-name">CONCORD</span>
+        <>
+          <span className="sidebar__brand-name">CONCORD</span>
+          <SidebarUpdate />
+        </>
       )}
       <button
         type="button"

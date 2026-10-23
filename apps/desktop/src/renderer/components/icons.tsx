@@ -281,6 +281,17 @@ export function DownloadIcon(props: IconProps) {
   );
 }
 
+/** Bold arrow down onto a bar, like Discord's "update ready" (drawn green by the caller). */
+export function UpdateArrowIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2.75} {...props}>
+      <path d="M12 3v12" />
+      <path d="m6.5 10 5.5 5.5 5.5-5.5" />
+      <path d="M5 20.5h14" />
+    </Icon>
+  );
+}
+
 /** A screen with two arrows going round: switch what is being shared. */
 export function SwapScreenIcon(props: IconProps) {
   return (
