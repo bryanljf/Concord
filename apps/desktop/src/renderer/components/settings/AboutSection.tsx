@@ -64,11 +64,12 @@ export function AboutSection({ version, platform }: AboutSectionProps) {
             Reiniciar para atualizar
           </button>
         ) : (
+          // No tooltip while disabled: it would open over the status line right above, which
+          // already says why.
           <button
             type="button"
             className="btn btn--sm"
             disabled={!view.canCheck}
-            data-tooltip={view.canCheck ? undefined : view.label}
             onClick={() => void check()}
           >
             <RefreshIcon size={16} />

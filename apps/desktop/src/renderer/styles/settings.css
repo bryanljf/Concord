@@ -201,6 +201,11 @@
   color: var(--text-muted);
 }
 
+/* A long label wraps instead of squeezing the spinner. */
+.settings__update-status .spinner {
+  flex: none;
+}
+
 .settings__update-status--info {
   color: var(--text-normal);
 }
