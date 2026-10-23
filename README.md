@@ -26,7 +26,11 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
   quadros. **Codificação** na CPU (padrão, OpenH264) ou na **GPU**: o LiveKit negocia H.264
   Constrained Baseline, que o encoder de hardware do Chromium no Windows não aceita; no modo GPU o
   app oferece primeiro High/Main (o servidor aceita High) e a placa codifica, sem placa compatível
-  fica a CPU.
+  fica a CPU. O processo principal (onde o Chromium captura a tela) roda com **prioridade de GPU
+  em tempo real** (`D3DKMTSetProcessSchedulingPriorityClass`, a mesma chamada do OBS, via
+  `koffi`): com um jogo em primeiro plano ocupando a GPU, a captura caía para 8 a 24 fps e volta
+  a 30, sem perda de fps mensurável no jogo (CS2 medido com PresentMon);
+  `CONCORD_GPU_PRIORITY=normal` desliga.
   **Áudio por processo**: só o som do aplicativo, sem a call do Discord
   (WASAPI Process Loopback). **Trocar fonte** durante a live sem derrubar quem assiste.
 - **Webcam** com escolha de dispositivo (botão **Câmera** na barra de baixo e Configurações →

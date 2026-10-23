@@ -7,3 +7,6 @@ allowBuilds:
   esbuild: true
   # Squirrel installer tooling pulled in by electron-builder; unused (NSIS) and must not fail CI.
   electron-winstaller: false
+  # FFI for the GPU priority call (src/main/gpu-priority.ts): its install script only builds from
+  # source when no prebuilt matches; the prebuilt comes from @koromix/koffi-win32-x64.
+  koffi: false

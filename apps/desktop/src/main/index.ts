@@ -8,6 +8,7 @@ import { bindAutostart } from './autostart';
 import { createCaptureService } from './capture';
 import { parseCliArgs } from './cli';
 import { createDiscordWatcher } from './discord-watcher';
+import { raiseGpuPriority } from './gpu-priority';
 import { registerIpc } from './ipc';
 import { log } from './log';
 import { createNotifier } from './notifications';
@@ -66,6 +67,8 @@ function bootstrap(): void {
   logger.info(
     `starting (version ${app.getVersion()}, packaged=${app.isPackaged}, userData=${app.getPath('userData')})`,
   );
+  // Screen capture runs in this process: keep a game from starving its GPU copies.
+  raiseGpuPriority();
 
   const settings = createSettingsStore();
   const notifier = createNotifier();

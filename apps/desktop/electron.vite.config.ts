@@ -28,6 +28,7 @@ export default defineConfig({
           '@concord/process-audio',
           '@concord/now-playing',
           '@coooookies/windows-smtc-monitor',
+          'koffi',
         ],
       },
     },

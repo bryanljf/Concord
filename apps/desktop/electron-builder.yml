@@ -31,6 +31,10 @@ asarUnpack:
   # (@coooookies/windows-smtc-monitor-win32-x64-msvc).
   - '**/node_modules/@concord/now-playing/**'
   - '**/node_modules/@coooookies/windows-smtc-monitor*/**'
+  # FFI for the GPU priority call (src/main/gpu-priority.ts): koffi finds its binary in the sibling
+  # @koromix/koffi-win32-x64 package.
+  - '**/node_modules/koffi/**'
+  - '**/node_modules/@koromix/koffi-*/**'
 
 # Tray and notification icons are read from disk at runtime (src/main/resources.ts looks in
 # <resourcesPath>/resources first).
@@ -40,8 +44,8 @@ extraResources:
     filter:
       - '**/*.png'
 
-# @concord/process-audio and @concord/now-playing ship prebuilt binaries; nothing is compiled
-# while packaging.
+# @concord/process-audio, @concord/now-playing and koffi ship prebuilt binaries; nothing is
+# compiled while packaging.
 npmRebuild: false
 
 win:
