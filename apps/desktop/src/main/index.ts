@@ -8,6 +8,7 @@ import { bindAutostart } from './autostart';
 import { createCaptureService } from './capture';
 import { parseCliArgs } from './cli';
 import { createDiscordWatcher } from './discord-watcher';
+import { createFakeAutoUpdater } from './fake-updater';
 import { raiseGpuPriority } from './gpu-priority';
 import { registerIpc } from './ipc';
 import { log } from './log';
@@ -116,13 +117,22 @@ function bootstrap(): void {
   // Second entry of the main build (electron.vite.config.ts), next to this bundle; it only
   // starts when a window first asks what a music app plays.
   const nowPlaying = createNowPlaying({ workerPath: join(__dirname, 'now-playing-worker.js') });
+  // `--fake-update` (dev only): the real status machine on a simulated electron-updater.
+  const fakeUpdate = app.isPackaged ? undefined : cli.fakeUpdate;
   const updater = createUpdater({
-    isPackaged: app.isPackaged,
+    isPackaged: app.isPackaged || fakeUpdate !== undefined,
     currentVersion: app.getVersion(),
     // `quitAndInstall` closes every window first: without this, close-to-tray would cancel it.
     onBeforeInstall: () => {
       quitting = true;
     },
+    autoUpdater:
+      fakeUpdate === undefined
+        ? undefined
+        : createFakeAutoUpdater(fakeUpdate, () => {
+            app.relaunch();
+            app.quit();
+          }),
   });
 
   function requestStreamToggle(): void {
@@ -216,7 +226,8 @@ function bootstrap(): void {
   discord.start();
   controller.start();
   void session.restore();
-  updater.start();
+  // A simulated update only runs when asked for (Configurações → Sobre → Verificar atualizações).
+  if (fakeUpdate === undefined) updater.start();
 
   if (!app.isPackaged) applyDevFlags();
 

@@ -16,6 +16,7 @@ describe('parseCliArgs', () => {
         '--key=abc',
         '--room',
         'jogos',
+        '--fake-update=0.2.2',
       ]),
     ).toEqual({
       hidden: true,
@@ -23,6 +24,7 @@ describe('parseCliArgs', () => {
       server: 'http://127.0.0.1:3000',
       key: 'abc',
       room: 'jogos',
+      fakeUpdate: '0.2.2',
     });
   });
 

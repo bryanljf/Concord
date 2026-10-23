@@ -5,6 +5,8 @@
  *   --user-data-dir=<path>    separate settings/cache dir (lets two instances run for testing)
  *   --server=<url> --key=<k>  dev only: log in on startup (same code path as the UI login)
  *   --room=<id>               dev only: navigate to a room once the renderer loads
+ *   --fake-update=<version>   dev only: "Verificar atualizações" finds and downloads <version>
+ *                             (simulated, see fake-updater.ts); installing relaunches the app
  *
  * Both `--flag=value` and `--flag value` forms are accepted.
  * `CONCORD_USER_DATA_DIR` is an alternative for dev runners that consume unknown CLI flags.
@@ -15,6 +17,7 @@ export interface CliArgs {
   server?: string;
   key?: string;
   room?: string;
+  fakeUpdate?: string;
 }
 
 const VALUE_FLAGS = {
@@ -22,6 +25,7 @@ const VALUE_FLAGS = {
   server: 'server',
   key: 'key',
   room: 'room',
+  'fake-update': 'fakeUpdate',
 } as const;
 
 type ValueFlag = keyof typeof VALUE_FLAGS;

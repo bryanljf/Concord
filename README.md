@@ -151,7 +151,8 @@ pnpm --filter @concord/desktop dist   # instalador NSIS local em apps/desktop/re
 
 O `infra/.env.example` documenta todas as variáveis. Para testar sem a interface, o app aceita
 em desenvolvimento `--user-data-dir=<pasta>` (duas instâncias lado a lado), `--server=<url>`,
-`--key=<chave>` e `--room=<sala>`.
+`--key=<chave>` e `--room=<sala>`; `--fake-update=<versão>` simula uma atualização (Configurações
+→ Sobre → Verificar atualizações) para testar a faixa, a seta e o Sobre sem publicar nada.
 
 ### Hospedar num PC Windows (alternativa à Oracle)
 
