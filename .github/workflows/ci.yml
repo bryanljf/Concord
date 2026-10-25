@@ -35,6 +35,15 @@ jobs:
       # The web client (second Vite build of apps/desktop, served by Caddy on the VM) must build;
       # Deploy Oracle rebuilds it on its own runner from the same commit.
       - run: pnpm --filter @concord/desktop build:web
+      # A broken Caddyfile would crash-loop HTTPS on the VM: validate it with the same image and
+      # an empty WEB_EXTRA_DOMAIN (the default), plus a second host.
+      - name: Validate the Caddyfile
+        run: |
+          for extra in '' 'extra.example.org'; do
+            docker run --rm -e DOMAIN=exemplo.duckdns.org -e "WEB_EXTRA_DOMAIN=$extra" \
+              -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 \
+              caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          done
 
   # The jam bot (Go). Deploy Oracle only runs after a fully green CI, so this job also gates it.
   jam-bot:
