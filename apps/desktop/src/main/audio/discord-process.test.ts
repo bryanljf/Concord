@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  chooseDiscordRootPid,
-  chooseRootPid,
-  findDiscordRootPid,
-  findRootPid,
-} from './discord-process';
+import { chooseDiscordRootPid, chooseRootPid, findDiscordRootPid } from './discord-process';
 import type { ProcessInfo } from './win-process';
 
 const row = (pid: number, ppid: number | null, name = 'Discord.exe'): ProcessInfo => ({
@@ -55,69 +50,44 @@ describe('chooseDiscordRootPid', () => {
 });
 
 describe('chooseRootPid', () => {
-  const SPOTIFY = ['Spotify.exe'];
+  const APP = ['App.exe'];
 
-  it('finds the root of a music app tree, ignoring other apps', () => {
+  it('finds the root of another tree, ignoring other apps', () => {
     const processes = [
-      row(5100, 5000, 'Spotify.exe'), // renderer
-      row(5000, 3000, 'Spotify.exe'), // root (parent explorer.exe)
-      row(5200, 5000, 'Spotify.exe'), // gpu
-      row(5300, 5100, 'Spotify.exe'), // utility under the renderer
+      row(5100, 5000, 'App.exe'), // renderer
+      row(5000, 3000, 'App.exe'), // root (parent explorer.exe)
+      row(5200, 5000, 'App.exe'), // gpu
+      row(5300, 5100, 'App.exe'), // utility under the renderer
       row(100, 1, 'Discord.exe'),
       row(101, 100, 'Discord.exe'),
       row(102, 100, 'Discord.exe'),
       row(103, 100, 'Discord.exe'),
       row(104, 100, 'Discord.exe'),
     ];
-    expect(chooseRootPid(processes, SPOTIFY)).toBe(5000);
-  });
-
-  it('handles the Microsoft Store build (same image name, root started by svchost)', () => {
-    const processes = [
-      row(8820, 1144, 'Spotify.exe'),
-      row(8900, 8820, 'Spotify.exe'),
-      row(8930, 8820, 'Spotify.exe'),
-    ];
-    expect(chooseRootPid(processes, SPOTIFY)).toBe(8820);
+    expect(chooseRootPid(processes, APP)).toBe(5000);
   });
 
   it('returns null when the app is not running', () => {
-    expect(chooseRootPid([row(1, null, 'Discord.exe')], SPOTIFY)).toBeNull();
-    expect(chooseRootPid([], SPOTIFY)).toBeNull();
+    expect(chooseRootPid([row(1, null, 'Discord.exe')], APP)).toBeNull();
+    expect(chooseRootPid([], APP)).toBeNull();
   });
 
   it('falls back to the lowest pid without parent pids (tasklist)', () => {
     expect(
       chooseRootPid(
-        [
-          row(7300, null, 'Spotify.exe'),
-          row(7200, null, 'spotify.exe'),
-          row(7400, null, 'Spotify.exe'),
-        ],
-        SPOTIFY,
+        [row(7300, null, 'App.exe'), row(7200, null, 'app.exe'), row(7400, null, 'App.exe')],
+        APP,
       ),
     ).toBe(7200);
   });
 
   it('ignores invalid pids', () => {
-    expect(
-      chooseRootPid([row(0, null, 'Spotify.exe'), row(-3, null, 'Spotify.exe')], SPOTIFY),
-    ).toBeNull();
+    expect(chooseRootPid([row(0, null, 'App.exe'), row(-3, null, 'App.exe')], APP)).toBeNull();
   });
 
   it('keeps the Discord behaviour behind chooseDiscordRootPid', () => {
-    const processes = [row(10, 1), row(11, 10), row(20, 1, 'Spotify.exe')];
+    const processes = [row(10, 1), row(11, 10), row(20, 1, 'App.exe')];
     expect(chooseDiscordRootPid(processes)).toBe(chooseRootPid(processes, ['Discord.exe']));
-  });
-});
-
-describe('findRootPid', () => {
-  it('lists the given image names and picks the root', async () => {
-    const list = async (names: readonly string[]): Promise<ProcessInfo[]> => {
-      expect(names).toEqual(['Spotify.exe']);
-      return [row(41, 40, 'Spotify.exe'), row(40, 2, 'Spotify.exe')];
-    };
-    await expect(findRootPid(['Spotify.exe'], list)).resolves.toBe(40);
   });
 });
 

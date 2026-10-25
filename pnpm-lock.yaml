@@ -217,6 +217,9 @@ importers:
       tsx:
         specifier: 4.23.15
         version: 4.23.15
+      youtubei.js:
+        specifier: 18.3.0
+        version: 18.3.0
     devDependencies:
       '@types/node':
         specifier: 22.20.5
@@ -224,9 +227,6 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@concord/now-playing':
-        specifier: workspace:*
-        version: link:../../packages/now-playing
       '@concord/process-audio':
         specifier: workspace:*
         version: link:../../packages/process-audio
@@ -276,16 +276,6 @@ importers:
       vite:
         specifier: 7.3.7
         version: 7.3.7(@types/node@24.19.0)(jiti@2.7.0)(tsx@4.23.15)
-
-  packages/now-playing:
-    devDependencies:
-      '@types/node':
-        specifier: 24.19.0
-        version: 24.19.0
-    optionalDependencies:
-      '@coooookies/windows-smtc-monitor':
-        specifier: 1.0.12
-        version: 1.0.12
 
   packages/process-audio:
     devDependencies:
@@ -393,33 +383,14 @@ packages:
   '@bufbuild/protobuf@1.10.1':
     resolution: {integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==}
 
+  '@bufbuild/protobuf@2.16.0':
+    resolution: {integrity: sha512-FWa0sPlqYGJgpTs6OxBRcL/AW4JT0OIO+W1ajerluoTVh8CV0B7XM1qsNCRgnkSCkRCgOICKHRQlY17jrsm0+Q==}
+
   '@cacheable/memory@2.2.0':
     resolution: {integrity: sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ==}
 
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
-
-  '@coooookies/windows-smtc-monitor-win32-arm64-msvc@1.0.12':
-    resolution: {integrity: sha512-vokTNsUJ3UDWJGFboxIFzGjgyUY89cSySDrm0+Oat1ajBDfaJYCcBohN4K67NcjLfb1Auc06zKmmdlApH9ksjQ==}
-    engines: {node: '>=16.0.0'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@coooookies/windows-smtc-monitor-win32-ia32-msvc@1.0.12':
-    resolution: {integrity: sha512-iX25W+blahFGTE66pirN36Eq5DMlSrOUPeHkcAd8hB3YWhpHOK9OHXOhuaCIHUNCrfrb2pWOZfjIgpAJs7jyIQ==}
-    engines: {node: '>=16.0.0'}
-    cpu: [ia32]
-    os: [win32]
-
-  '@coooookies/windows-smtc-monitor-win32-x64-msvc@1.0.12':
-    resolution: {integrity: sha512-Ktj3p8m/emw1GnptAFuOhoD680DPegLUrUaoOuHiT3obQTa5LCd+W93kSLn8N8C+DwrJsPBEIs0Kg7vUCWXDDw==}
-    engines: {node: '>=16.0.0'}
-    cpu: [x64]
-    os: [win32]
-
-  '@coooookies/windows-smtc-monitor@1.0.12':
-    resolution: {integrity: sha512-sIubsDCPsnFmR9T1anMgHBVfNxubXTt7mmv3X+ZJWPecwbWAGo41TI3iCzRChCpuLWpEMG3Zoo8n1m2/Hly+XQ==}
-    engines: {node: '>=16.0.0'}
 
   '@electron-internal/extract-zip@1.0.5':
     resolution: {integrity: sha512-+bqFCP98pLI0Tt0XQo1TmlXtwjWchISndDOxCkEcIuUgXWpBnLyRI+2DU+mesvnMMX6L1XDqYNA0lXNDHd/yiA==}
@@ -1850,6 +1821,9 @@ packages:
       picomatch:
         optional: true
 
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
+
   file-entry-cache@11.1.5:
     resolution: {integrity: sha512-+PFTHITI08JIGhnNpGNI8T8inUpgZfk3GNEqfT9R2zZV2iFXg3CvqzSl/uEhs7TSGujYRELEANyDvS8Fj7+S7Q==}
 
@@ -2214,6 +2188,10 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
+
+  meriyah@7.4.0:
+    resolution: {integrity: sha512-4npg8C/aeb+kOZo8/6XZrwzo+neA+NQU7U6BHP3KxqTzprtYQb+Fs752GRuvsJLREvblRjQng4F76DEe2QKblQ==}
+    engines: {node: '>=20.0.0'}
 
   mime-db@1.52.0:
     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
@@ -2911,6 +2889,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  youtubei.js@18.3.0:
+    resolution: {integrity: sha512-6Cwn/U8a+OjpZp5XgqOjwy7Lk0RrGavm3I5zO7qZWO+fes20vhWMZnlUs0h/97SwjS0AsxAZrZ5bJ85XBJVWTw==}
+
   zod-validation-error@4.0.2:
     resolution: {integrity: sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==}
     engines: {node: '>=18.0.0'}
@@ -3041,6 +3022,8 @@ snapshots:
 
   '@bufbuild/protobuf@1.10.1': {}
 
+  '@bufbuild/protobuf@2.16.0': {}
+
   '@cacheable/memory@2.2.0':
     dependencies:
       '@cacheable/utils': 2.5.0
@@ -3052,22 +3035,6 @@ snapshots:
     dependencies:
       hashery: 1.5.1
       keyv: 5.6.0
-
-  '@coooookies/windows-smtc-monitor-win32-arm64-msvc@1.0.12':
-    optional: true
-
-  '@coooookies/windows-smtc-monitor-win32-ia32-msvc@1.0.12':
-    optional: true
-
-  '@coooookies/windows-smtc-monitor-win32-x64-msvc@1.0.12':
-    optional: true
-
-  '@coooookies/windows-smtc-monitor@1.0.12':
-    optionalDependencies:
-      '@coooookies/windows-smtc-monitor-win32-arm64-msvc': 1.0.12
-      '@coooookies/windows-smtc-monitor-win32-ia32-msvc': 1.0.12
-      '@coooookies/windows-smtc-monitor-win32-x64-msvc': 1.0.12
-    optional: true
 
   '@electron-internal/extract-zip@1.0.5': {}
 
@@ -4499,6 +4466,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.7
 
+  fflate@0.8.3: {}
+
   file-entry-cache@11.1.5:
     dependencies:
       flat-cache: 6.1.23
@@ -4903,6 +4872,8 @@ snapshots:
     optional: true
 
   math-intrinsics@1.1.0: {}
+
+  meriyah@7.4.0: {}
 
   mime-db@1.52.0: {}
 
@@ -5527,6 +5498,12 @@ snapshots:
       yargs-parser: 21.1.1
 
   yocto-queue@0.1.0: {}
+
+  youtubei.js@18.3.0:
+    dependencies:
+      '@bufbuild/protobuf': 2.16.0
+      fflate: 0.8.3
+      meriyah: 7.4.0
 
   zod-validation-error@4.0.2(zod@4.6.5):
     dependencies:

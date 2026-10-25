@@ -1,29 +1,29 @@
-import { pluralize } from '../../lib/format';
+import { jamIndicatorSummary } from '../../lib/jam';
 import { HeadphonesIcon } from '../icons';
 import { Equalizer } from './Equalizer';
 import '../../styles/music.css';
 
 interface MusicButtonProps {
-  /** Music broadcasts in this room (presence), yours included. */
-  count: number;
-  /** How many of them you are listening to. */
-  listening: number;
+  /** The room's Jam ("Jam: Get Lucky — Daft Punk"). */
+  jamLabel: string;
+  /** A song is playing (not paused): the bars bounce; frozen otherwise. */
+  playing: boolean;
+  /** You listen to it. */
+  listening: boolean;
   open: boolean;
   onToggle(): void;
 }
 
 /**
- * In a room's row, left of its people count: opens and closes the music drawer. Only rendered for
- * a room where someone broadcasts music; a small equalizer bounces while you listen to it.
+ * In a room's row, left of its people count, while the room has a Jam: the headphones with the
+ * playing bars (no counter), opening and closing the music drawer.
  */
-export function MusicButton({ count, listening, open, onToggle }: MusicButtonProps) {
-  const summary = `Música: ${pluralize(count, 'transmissão', 'transmissões')}${
-    listening > 0 ? `, ouvindo ${listening}` : ''
-  }`;
+export function MusicButton({ jamLabel, playing, listening, open, onToggle }: MusicButtonProps) {
+  const summary = jamIndicatorSummary(jamLabel, listening);
   const className = [
     'music-button',
     open ? 'music-button--open' : '',
-    listening > 0 ? 'music-button--listening' : '',
+    listening ? 'music-button--listening' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -38,10 +38,7 @@ export function MusicButton({ count, listening, open, onToggle }: MusicButtonPro
       onClick={onToggle}
     >
       <HeadphonesIcon size={16} />
-      {listening > 0 && <Equalizer />}
-      <span className="music-button__count" aria-hidden="true">
-        {count}
-      </span>
+      <Equalizer paused={!playing} />
     </button>
   );
 }

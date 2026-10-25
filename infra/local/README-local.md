@@ -13,6 +13,8 @@ script não consegue fazer por você (roteador, DuckDNS, provedor) e como testar
 - Windows 10 ou 11 (64 bits). O script roda no Windows PowerShell 5.1, que já vem instalado.
 - [Node.js](https://nodejs.org) 22 ou mais novo e [pnpm](https://pnpm.io) (`npm install -g pnpm`).
 - Git (para clonar o repositório).
+- [Go](https://go.dev/dl/), só se quiser a Jam (a versão está em `apps/jam-bot/go.mod`). Veja
+  [Jam](#jam-opcional).
 - Internet com **upload alto** (fibra), de preferência com **IP público** no roteador.
 - Acesso ao painel do seu roteador (para o port forwarding).
 - O PC precisa **ficar ligado** enquanto o pessoal usa o Concord.
@@ -251,6 +253,53 @@ capacity management is unavailable`. Se o `.env` estiver sem segredo o LiveKit n
    webhook do LiveKit não está chegando ao api: confira na janela do LiveKit por erros de
    `webhook` e se `LIVEKIT_API_KEY=concord` no `.env` é igual a `webhook.api_key` no yaml.
 
+## Jam (opcional)
+
+A Jam (fila de músicas do YouTube Music por sala) precisa do `jam-bot`, um programa em Go que
+toca a fila no LiveKit. O `start.ps1` não o sobe, e sem ele a Jam fica desligada (o app a
+esconde). Para ligar:
+
+1. Instale o Go (versão do `apps/jam-bot/go.mod`) e, na raiz do repositório, suba o bot em outro
+   terminal (deixe-o aberto; `Ctrl+C` para parar):
+
+   ```powershell
+   pnpm dev:jam-bot
+   ```
+
+   Ele escuta só em `127.0.0.1:3001` (`JAM_BOT_LISTEN`) e lê o áudio de `infra/jam-cache`, a
+   mesma pasta em que o api grava (`JAM_CACHE_DIR`; padrão igual nos dois). Não abra a porta
+   3001 no roteador nem no firewall: só o api fala com ele.
+
+   O `pnpm dev:jam-bot` (`go run`) compila e roda direto, sem mais nada. Só quem quiser montar a
+   imagem Docker do bot (`apps/jam-bot/Dockerfile`, a da Oracle) precisa antes gerar o binário
+   para a arquitetura do PC em `apps/jam-bot/dist/`, porque a imagem não compila Go, só o copia:
+
+   ```powershell
+   $env:CGO_ENABLED = '0'; $env:GOOS = 'linux'; $env:GOARCH = 'amd64'
+   go -C apps/jam-bot build -trimpath -ldflags "-s -w" -o dist/jam-bot-linux-amd64 .
+   Remove-Item Env:CGO_ENABLED, Env:GOOS, Env:GOARCH
+   ```
+
+2. No `infra/.env`, ative a linha da Jam no fim do bloco A (tire o `# `):
+
+   ```dotenv
+   JAM_BOT_URL=http://127.0.0.1:3001
+   ```
+
+3. Reinicie o api (`start.ps1 -Stop` e `start.ps1` de novo, ou o `pnpm dev:api`).
+
+O bot recebe do api a URL do LiveKit (`ws://127.0.0.1:7880`, derivada de `LIVEKIT_API_URL`) e um
+token por sala. `JAM_BOT_TOKEN` é dispensável aqui (o bot só escuta no próprio PC); se quiser
+usar, o `pnpm dev:jam-bot` não lê o `infra/.env`, então defina o mesmo valor no terminal do bot
+antes de subi-lo (`$env:JAM_BOT_TOKEN = '...'`). As filas ficam em `infra/jam-state.json` e o
+áudio em `infra/jam-cache` (até `JAM_CACHE_MAX_MB`, padrão 512 MB; músicas fora da fila e não
+tocadas há `JAM_CACHE_TTL_HOURS` horas, padrão 3, saem), os dois fora do git.
+
+Para o upload, a Jam pesa pouco perto do vídeo: uma faixa de áudio Opus (~160 kbps) por pessoa
+ouvindo. Quem adiciona uma música baixa o áudio do YouTube pela própria internet e o envia ao seu
+PC enquanto baixa (alguns MB por música); o bot começa a tocar com ~128 KB recebidos (~8 s de
+áudio).
+
 ## Manutenção
 
 - **Parar**: `start.ps1 -Stop` (mata os processos registrados em `infra/local/.pids`, com os
@@ -264,7 +313,8 @@ capacity management is unavailable`. Se o `.env` estiver sem segredo o LiveKit n
 - **Atualizar o Concord**: `git pull`, `pnpm install`, `-Stop` e `start.ps1`.
 - **Backup**: `infra/users.json` e `infra/.env` (os dois estão fora do git).
 - **Só o LiveKit** (desenvolvimento): `start.ps1 -LiveKitOnly` e rode o api com `pnpm dev:api`
-  em outro terminal (o api lê o mesmo `infra/.env`). Quem prefere Docker Desktop usa
+  em outro terminal (o api lê o mesmo `infra/.env`); para a Jam, também `pnpm dev:jam-bot`
+  (seção [Jam](#jam-opcional)). Quem prefere Docker Desktop usa
   `infra/docker-compose.dev.yml` em vez do script.
 - **Logs**: `infra/local/livekit.log` e `infra/local/api.log` são recriados a cada start.
 

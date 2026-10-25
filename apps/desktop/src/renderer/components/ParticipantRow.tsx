@@ -1,7 +1,7 @@
 import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
 import { formatJoinedAgo } from '../lib/format';
 import { Avatar } from './Avatar';
-import { CameraIcon, HeadphonesIcon } from './icons';
+import { CameraIcon } from './icons';
 
 interface ParticipantRowProps {
   room: RoomId;
@@ -29,16 +29,6 @@ export function ParticipantRow({ room, participant, watching, now, onWatch }: Pa
           data-tooltip="Câmera ligada"
         >
           <CameraIcon size={16} />
-        </span>
-      )}
-      {participant.music && (
-        <span
-          className="participant__music"
-          role="img"
-          aria-label="Transmitindo música"
-          data-tooltip="Transmitindo música"
-        >
-          <HeadphonesIcon size={16} />
         </span>
       )}
       {participant.streaming && (

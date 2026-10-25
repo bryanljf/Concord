@@ -1,5 +1,7 @@
-# Contexto de build do apps/api/Dockerfile (contexto = raiz do repositório). O Dockerfile só
-# copia manifestos, pnpm-lock.yaml, apps/api/src e packages/shared/src; o resto fica de fora
+# Contexto de build do apps/api/Dockerfile e do apps/jam-bot/Dockerfile (contexto = raiz do
+# repositório). O do api só copia manifestos, pnpm-lock.yaml, apps/api/src e
+# packages/shared/src; o do jam-bot, só o binário já compilado em
+# apps/jam-bot/dist/jam-bot-linux-<arquitetura> (a imagem não compila Go). O resto fica de fora
 # para o contexto ser pequeno e nenhum segredo chegar ao daemon do Docker.
 .git
 **/node_modules
@@ -10,6 +12,21 @@
 **/*.log
 infra/local/bin
 infra/local/.pids
+infra/terraform
+
+# Dados que o api grava em dev (perfis, filas da Jam) e o cache de áudio da Jam (até 512 MB).
+infra/profiles.json*
+infra/jam-state.json*
+infra/jam-cache
+
+# Saídas de build do jam-bot (Go) ficam de fora (**/dist acima inclui apps/jam-bot/dist)...
+apps/jam-bot/bin
+apps/jam-bot/jam-bot
+**/*.exe
+apps/jam-bot/*.test
+apps/jam-bot/*.out
+# ...menos o binário que a imagem copia (o deploy o envia para a VM; local: veja o README).
+!apps/jam-bot/dist/jam-bot-linux-*
 
 # Segredos: nunca entram na imagem (o compose os entrega por env_file e volume).
 **/.env

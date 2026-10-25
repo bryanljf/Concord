@@ -21,8 +21,9 @@ export function isCameraKey(key: string): boolean {
 }
 
 /**
- * Listening to someone's music is published in `concord.watching` as `<id>#music` (so the
- * broadcaster sees who listens). Not a stage stream: never pass it to `parseStreamKey`.
+ * Listening to a music is published in `concord.watching` as `<id>#music` (the Jam's is
+ * `@jam#music`), so everyone sees who listens. Not a stage stream: never pass it to
+ * `parseStreamKey`.
  */
 export const MUSIC_KEY_SUFFIX = '#music';
 

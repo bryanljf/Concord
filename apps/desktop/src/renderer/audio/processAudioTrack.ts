@@ -1,13 +1,12 @@
 /**
  * Turns the PCM pushed by main (`window.concord.onProcessAudioData`) into a MediaStreamTrack
- * that livekit-client can publish: the screen share's `Track.Source.ScreenShareAudio`, or the
- * separate music track (Phase 3b). Several can run at once; each only takes the chunks tagged
- * with its own `captureId`.
+ * that livekit-client can publish as the screen share's `Track.Source.ScreenShareAudio` (Phase 3b).
+ * Several can run at once; each only takes the chunks tagged with its own `captureId`.
  *
  * Graph: main (Process Loopback, float32 interleaved) → IPC → AudioWorkletNode (jitter buffer,
  * `pcm-worklet.ts`) → MediaStreamAudioDestinationNode → `track`. Callers must check
  * `getProcessAudioSupport()` first and fall back to loopback when `startProcessAudio` rejects
- * (e.g. Discord not running for a screen capture, or `app_not_running` for a music app).
+ * (e.g. Discord not running for a screen capture).
  */
 import type { ProcessAudioFormat, ProcessAudioTarget } from '../../preload/api';
 import workletUrl from './pcm-worklet?worker&url';
@@ -19,11 +18,6 @@ export interface ProcessAudioTrack {
   captureId: string;
   /** Stops main's capture and releases the audio graph. */
   stop(): Promise<void>;
-  /**
-   * Called once when main ended the capture on its own (the captured app was closed); the
-   * graph is already released by then.
-   */
-  onEnded(listener: () => void): void;
 }
 
 /** Upper bound for audio buffered in the renderer; older frames are dropped beyond it. */
@@ -81,36 +75,19 @@ export async function createProcessAudioTrack(
     if (!track) throw new Error('Não foi possível criar a faixa de áudio da captura.');
 
     let stopped: Promise<void> | null = null;
-    const release = (stopMain: boolean): Promise<void> => {
+    const release = (): Promise<void> => {
       stopped ??= (async () => {
         unsubscribe();
         node.port.postMessage(PCM_WORKLET_STOP);
         node.disconnect();
         track.stop();
-        if (stopMain) await releaseMain();
+        await releaseMain();
         await audioContext.close().catch(() => undefined);
       })();
       return stopped;
     };
 
-    const endedListeners: (() => void)[] = [];
-    unsubscribers.push(
-      window.concord.onProcessAudioEnded((id) => {
-        if (id !== captureId) return;
-        void release(false).then(() => {
-          for (const listener of endedListeners.splice(0)) listener();
-        });
-      }),
-    );
-
-    return {
-      track,
-      captureId,
-      stop: () => release(true),
-      onEnded(listener) {
-        endedListeners.push(listener);
-      },
-    };
+    return { track, captureId, stop: release };
   } catch (err) {
     unsubscribe();
     await releaseMain();

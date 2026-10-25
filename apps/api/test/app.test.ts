@@ -1,3 +1,4 @@
+import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import type { ApiErrorResponse } from '@concord/shared';
 import { ALICE, bearer, testApp } from './helpers';
@@ -8,6 +9,25 @@ describe('app', () => {
     const res = await app.inject({ method: 'GET', url: '/api/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
+    await app.close();
+  });
+
+  it('does not log the routine health checks, but still logs other requests', async () => {
+    const lines: { msg: string; req?: { url: string } }[] = [];
+    const stream = new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        lines.push(JSON.parse(chunk.toString()));
+        callback();
+      },
+    });
+    const { app } = testApp({ logger: { level: 'info', stream } });
+    for (let i = 0; i < 3; i += 1) {
+      expect((await app.inject({ method: 'GET', url: '/api/health' })).statusCode).toBe(200);
+    }
+    expect(lines).toEqual([]);
+    await app.inject({ method: 'GET', url: '/api/rooms', headers: bearer(ALICE) });
+    expect(lines.map((line) => line.msg)).toEqual(['incoming request', 'request completed']);
+    expect(lines[0]?.req?.url).toBe('/api/rooms');
     await app.close();
   });
 
@@ -75,7 +95,7 @@ describe('app', () => {
     });
     expect(res.statusCode).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBe('*');
-    expect(res.headers['access-control-allow-methods']).toBe('GET, POST, PUT');
+    expect(res.headers['access-control-allow-methods']).toBe('GET, POST, PUT, DELETE');
     expect(res.headers['access-control-allow-headers']).toBe('Authorization, Content-Type');
     await app.close();
   });

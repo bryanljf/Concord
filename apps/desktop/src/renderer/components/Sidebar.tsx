@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
-import type { PresenceSnapshot, RoomId } from '@concord/shared';
+import type { JamState, PresenceSnapshot, RoomId } from '@concord/shared';
 import logoUrl from '../../../resources/icon.png';
 import { useNow } from '../hooks/useNow';
 import { useToast } from '../hooks/useToast';
@@ -92,7 +92,9 @@ interface SidebarProps {
    * badge reads "assistindo" (camera keys never match a participant).
    */
   watchedIds: readonly string[];
-  /** How many music broadcasts you listen to (the equalizer on your room's music button). */
+  /** Every room's Jam (only rooms with one; empty without the Jam). */
+  jamRooms: Readonly<Record<RoomId, JamState>>;
+  /** How many music you listen to in your room: its Jam (your room's music button says so). */
   musicListening: number;
   musicOpen: boolean;
   /** Just a column of room icons (`Settings.sidebarCollapsed`). */
@@ -121,6 +123,7 @@ export function Sidebar({
   snapshot,
   currentRoom,
   watchedIds,
+  jamRooms,
   musicListening,
   musicOpen,
   collapsed,
@@ -146,6 +149,7 @@ export function Sidebar({
                 room={room}
                 participants={participantsOf(snapshot, room)}
                 current={room === currentRoom}
+                jam={jamRooms[room] ?? null}
                 onJoin={onJoin}
                 onToggleMusic={onToggleMusic}
               />
@@ -174,6 +178,7 @@ export function Sidebar({
               current={room === currentRoom}
               watchedIds={room === currentRoom ? watchedIds : NONE}
               musicListening={room === currentRoom ? musicListening : 0}
+              jam={jamRooms[room] ?? null}
               musicOpen={musicOpen}
               onToggleMusic={onToggleMusic}
               now={now}

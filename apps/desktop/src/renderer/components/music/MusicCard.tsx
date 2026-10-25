@@ -1,17 +1,17 @@
-import type { NowPlaying } from '../../../preload/api';
-import { Avatar } from '../Avatar';
-import { HeadphonesIcon } from '../icons';
+import type { Viewer } from '../../lib/viewers';
+import { HeadphonesIcon, MusicIcon } from '../icons';
+import { ViewerList } from '../stream/ViewerList';
 import { Marquee } from './Marquee';
 import '../../styles/music.css';
 
-/** A music broadcast in your room, as the stage shows it (like the cards of lives and cameras). */
+/** The room's Jam as the stage shows it (like the cards of lives and cameras). */
 export interface MusicCardItem {
+  /** What "Ouvir" listens to: the jam bot (`JAM_BOT_IDENTITY`), never shown as a person. */
   participantId: string;
-  name: string;
-  avatarUrl: string | null;
-  /** Cover of what it plays (data URL); the avatar when there is none. */
+  /** Cover of the song playing (a link); a note when there is none. */
   artUrl: string | null;
-  nowPlaying: NowPlaying | null;
+  /** "Get Lucky — Daft Punk", or that the first song is on its way. */
+  line: string | null;
   /** You are listening to it. */
   listening: boolean;
 }
@@ -20,61 +20,78 @@ interface MusicCardProps {
   item: MusicCardItem;
   /** `stage`: big card in the grid; `strip`: same size as a mini tile. */
   size: 'stage' | 'strip';
+  /** Who listens to it (`concord.watching` `@jam#music`), you included. */
+  listeners?: readonly Viewer[];
   onListen(): void;
   onStopListening(): void;
 }
 
-/** "Dusk Till Dawn · Bart Skils", "Anúncio", or nothing while it plays nothing. */
-function playingLine(nowPlaying: NowPlaying | null): string | null {
-  if (!nowPlaying) return null;
-  if (nowPlaying.ad) return 'Anúncio';
-  if (!nowPlaying.title) return null;
-  return nowPlaying.artist ? `${nowPlaying.title} · ${nowPlaying.artist}` : nowPlaying.title;
-}
+const NO_LISTENERS: readonly Viewer[] = [];
 
 /**
- * Someone's music on the stage: the green "MÚSICA" badge, the cover (or their avatar), "Música
- * de Fulano", what it plays and "Ouvir" (one music at a time) / "Parar de ouvir". Nothing is
- * downloaded until "Ouvir", like "Assistir" for lives.
+ * The room's Jam on the stage: the green "JAM" badge, the song's cover (or a note), "Jam", what it
+ * plays and "Ouvir" / "Parar de ouvir". Nothing is downloaded until "Ouvir", like "Assistir" for
+ * lives. Once someone listens, the corner opposite the badge shows who, with overlapped avatars
+ * like a live's viewers (only the count on a strip card).
  */
-export function MusicCard({ item, size, onListen, onStopListening }: MusicCardProps) {
+export function MusicCard({
+  item,
+  size,
+  listeners = NO_LISTENERS,
+  onListen,
+  onStopListening,
+}: MusicCardProps) {
   const strip = size === 'strip';
-  const title = `Música de ${item.name}`;
-  const line = playingLine(item.nowPlaying);
   const classes = ['live-card', 'music-card-stage', strip ? 'live-card--strip' : '']
     .filter(Boolean)
     .join(' ');
+  const coverClass = strip
+    ? 'music-card-stage__cover music-card-stage__cover--strip'
+    : 'music-card-stage__cover';
   return (
-    <article className={classes} aria-label={`${item.name} está transmitindo música`}>
-      <span className="live-card__badge badge-music">MÚSICA</span>
+    <article className={classes} aria-label="A Jam está tocando nesta sala">
+      <span className="live-card__badge badge-music">JAM</span>
+      {listeners.length > 0 &&
+        (strip ? (
+          <ViewerList
+            viewers={listeners}
+            variant="compact"
+            kind="listening"
+            tone="surface"
+            className="music-card-stage__listeners music-card-stage__listeners--strip"
+          />
+        ) : (
+          <ViewerList
+            viewers={listeners}
+            kind="listening"
+            tone="surface"
+            placement="below"
+            align="end"
+            className="music-card-stage__listeners"
+          />
+        ))}
       {item.artUrl ? (
         <img
-          className={
-            strip
-              ? 'music-card-stage__cover music-card-stage__cover--strip'
-              : 'music-card-stage__cover'
-          }
+          className={coverClass}
           src={item.artUrl}
           alt=""
           draggable={false}
+          referrerPolicy="no-referrer"
         />
       ) : (
-        <Avatar
-          id={item.participantId}
-          name={item.name}
-          src={item.avatarUrl}
-          size={strip ? 'sm' : 'lg'}
-        />
+        <span className={`${coverClass} music-card-stage__cover--note`} aria-hidden="true">
+          <MusicIcon size={strip ? 16 : 32} />
+        </span>
       )}
-      <span className="live-card__name" title={title}>
-        {title}
+      <span className="live-card__name" title="Jam">
+        Jam
       </span>
-      {line && !strip && <Marquee className="music-card-stage__playing" text={line} />}
+      {item.line && !strip && <Marquee className="music-card-stage__playing" text={item.line} />}
       {item.listening ? (
         <button
           type="button"
           className={strip ? 'btn btn--sm live-card__watch' : 'btn'}
-          aria-label={`Parar de ouvir a música de ${item.name}`}
+          aria-label="Parar de ouvir a Jam"
           onClick={onStopListening}
         >
           <HeadphonesIcon size={strip ? 14 : 18} />
@@ -84,7 +101,7 @@ export function MusicCard({ item, size, onListen, onStopListening }: MusicCardPr
         <button
           type="button"
           className={strip ? 'btn btn--primary btn--sm live-card__watch' : 'btn btn--primary'}
-          aria-label={`Ouvir a música de ${item.name}`}
+          aria-label="Ouvir a Jam"
           onClick={onListen}
         >
           <HeadphonesIcon size={strip ? 14 : 18} />

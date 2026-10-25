@@ -1,3 +1,5 @@
+import { createServer, type IncomingHttpHeaders } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiClientError, createApiClient, normalizeServerUrl, parseUserInfo } from './api-client';
 
@@ -297,5 +299,244 @@ describe('normalizeServerUrl https upgrade (main)', () => {
     expect(normalizeServerUrl('http://friend.duckdns.org:3000')).toBe(
       'http://friend.duckdns.org:3000',
     );
+  });
+});
+
+describe('jam routes', () => {
+  const track = {
+    videoId: '4D7u5KF7SP8',
+    title: 'Get Lucky',
+    artists: 'Daft Punk, Pharrell Williams',
+    album: null,
+    durationMs: 370_000,
+    artworkUrl: null,
+  };
+  const item = { id: 'item-1', track, requestedBy: 'bryan', addedAt: 1, status: 'downloading' };
+
+  function capture(response: () => Response) {
+    const calls: { url: string; init: RequestInit | undefined }[] = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), init });
+      return response();
+    });
+    return { api: client(fetchImpl as typeof fetch), calls };
+  }
+
+  const noContent = () => new Response(null, { status: 204 });
+  const headersOf = (init: RequestInit | undefined) => init?.headers as Record<string, string>;
+
+  it('searches with an encoded query and skips malformed results', async () => {
+    const { api, calls } = capture(() =>
+      jsonResponse(200, {
+        results: [track, { ...track, videoId: 'bad' }, { ...track, title: 'B' }],
+      }),
+    );
+    expect(await api.jamSearch('daft punk & co')).toEqual({
+      results: [track, { ...track, title: 'B' }],
+      cached: [],
+    });
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3000/api/jam/search?q=daft%20punk%20%26%20co');
+    expect(calls[0]?.init?.method).toBe('GET');
+    expect(headersOf(calls[0]?.init).Authorization).toBe('Bearer secret');
+  });
+
+  it('caps the search results and rejects a body without them', async () => {
+    const many = Array.from({ length: 30 }, () => track);
+    const { results } = await capture(() => jsonResponse(200, { results: many })).api.jamSearch(
+      'x',
+    );
+    expect(results).toHaveLength(20);
+    const err = await failure(capture(() => jsonResponse(200, { tracks: [] })).api.jamSearch('x'));
+    expect(err.kind).toBe('bad_response');
+  });
+
+  it('reads which results the server already has', async () => {
+    const { api } = capture(() =>
+      jsonResponse(200, { results: [track], cached: [track.videoId, 'bad', 42, null] }),
+    );
+    expect(await api.jamSearch('x')).toEqual({ results: [track], cached: [track.videoId] });
+    const odd = capture(() => jsonResponse(200, { results: [track], cached: 'all' }));
+    expect((await odd.api.jamSearch('x')).cached).toEqual([]);
+  });
+
+  it('enqueues a video and parses the item', async () => {
+    const { api, calls } = capture(() => jsonResponse(200, { item, upload: true }));
+    expect(await api.jamEnqueue('sala-1', '4D7u5KF7SP8')).toEqual({ item, upload: true });
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3000/api/rooms/sala-1/jam/queue');
+    expect(calls[0]?.init?.method).toBe('POST');
+    expect(headersOf(calls[0]?.init)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ videoId: '4D7u5KF7SP8' });
+
+    const malformed = capture(() => jsonResponse(200, { item: { ...item, id: '' }, upload: true }));
+    expect((await failure(malformed.api.jamEnqueue('sala-1', '4D7u5KF7SP8'))).kind).toBe(
+      'bad_response',
+    );
+  });
+
+  it('uploads the audio as audio/webm', async () => {
+    const { api, calls } = capture(noContent);
+    const audio = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3]);
+    await api.jamUpload('sala-1', 'item-1', audio);
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3000/api/rooms/sala-1/jam/items/item-1/audio');
+    expect(calls[0]?.init?.method).toBe('PUT');
+    expect(headersOf(calls[0]?.init)['Content-Type']).toBe('audio/webm');
+    expect(calls[0]?.init?.body).toBe(audio);
+    expect(calls[0]?.init?.duplex).toBeUndefined();
+  });
+
+  it('streams a body chunked, as it is read', async () => {
+    const chunks: Buffer[] = [];
+    let headers: IncomingHttpHeaders = {};
+    let sawFirst: () => void = () => undefined;
+    const firstArrived = new Promise<void>((resolve) => {
+      sawFirst = resolve;
+    });
+    const server = createServer((req, res) => {
+      headers = req.headers;
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+        sawFirst();
+      });
+      req.on('end', () => {
+        res.writeHead(204);
+        res.end();
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const api = createApiClient({
+        getServerUrl: () => `http://127.0.0.1:${port}`,
+        getKey: () => 'secret',
+      });
+      let step = 0;
+      const body = new ReadableStream<Uint8Array>(
+        {
+          async pull(controller) {
+            step += 1;
+            if (step === 1) controller.enqueue(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+            else if (step === 2) {
+              // The server has the first bytes before the next ones even exist.
+              await firstArrived;
+              controller.enqueue(Buffer.from([1, 2, 3]));
+            } else controller.close();
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      await api.jamUpload('sala-1', 'item-1', body);
+      expect(headers['transfer-encoding']).toBe('chunked');
+      expect(headers['content-type']).toBe('audio/webm');
+      expect(headers.authorization).toBe('Bearer secret');
+      expect(Buffer.concat(chunks)).toEqual(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3]));
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('takes an answer that comes while the body is still being sent', async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(404, { 'Content-Type': 'application/json', Connection: 'close' });
+      res.end(JSON.stringify({ error: 'item_not_found', message: 'Not found' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const api = createApiClient({
+        getServerUrl: () => `http://127.0.0.1:${port}`,
+        getKey: () => 'secret',
+      });
+      // A body that never ends: only the early answer can end the request.
+      const body = new ReadableStream<Uint8Array>(
+        {
+          async pull(controller) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            controller.enqueue(new Uint8Array(16 * 1024));
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      const err = await failure(api.jamUpload('sala-1', 'item-1', body));
+      expect(err.status).toBe(404);
+      expect(err.code).toBe('item_not_found');
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('reports a cancelled upload as such', async () => {
+    const controller = new AbortController();
+    const fetchImpl = (async (_input: string | URL | Request, init?: RequestInit) => {
+      controller.abort();
+      throw init?.signal?.reason ?? new Error('aborted');
+    }) as typeof fetch;
+    const err = await failure(
+      client(fetchImpl).jamUpload('sala-1', 'item-1', Buffer.alloc(1), controller.signal),
+    );
+    expect(err.kind).toBe('cancelled');
+  });
+
+  it('removes, skips, pauses and resumes', async () => {
+    const { api, calls } = capture(noContent);
+    await api.jamRemove('sala-1', 'item-1');
+    await api.jamSkip('sala-1', 'item-1');
+    await api.jamPause('sala-1');
+    await api.jamResume('sala-1');
+    expect(calls.map((call) => `${call.init?.method} ${call.url}`)).toEqual([
+      'DELETE http://127.0.0.1:3000/api/rooms/sala-1/jam/items/item-1',
+      'POST http://127.0.0.1:3000/api/rooms/sala-1/jam/skip',
+      'POST http://127.0.0.1:3000/api/rooms/sala-1/jam/pause',
+      'POST http://127.0.0.1:3000/api/rooms/sala-1/jam/resume',
+    ]);
+    expect(JSON.parse(String(calls[1]?.init?.body))).toEqual({ itemId: 'item-1' });
+    // No body: no JSON Content-Type for Fastify to choke on.
+    expect(calls[2]?.init?.body).toBeUndefined();
+    expect(headersOf(calls[2]?.init)['Content-Type']).toBeUndefined();
+  });
+
+  it('uses its own pt-BR message for every jam error code', async () => {
+    const errorOf = async (status: number, body: unknown) =>
+      failure(capture(() => jsonResponse(status, body)).api.jamPause('sala-1'));
+
+    const notInRoom = await errorOf(403, { error: 'not_in_room', message: 'Forbidden' });
+    expect(notInRoom.message).toBe('Entre na sala para mexer na Jam.');
+    expect(notInRoom.code).toBe('not_in_room');
+    expect(notInRoom.status).toBe(403);
+    expect((await errorOf(409, { error: 'queue_full', message: 'x' })).message).toBe(
+      'A fila da Jam está cheia (50 músicas). Espere algumas tocarem.',
+    );
+    expect((await errorOf(422, { error: 'too_long', message: 'x' })).message).toBe(
+      'Essa música é longa demais para a Jam (máximo de 20 minutos).',
+    );
+    expect((await errorOf(404, { error: 'track_not_found', message: 'x' })).message).toBe(
+      'Essa música não foi encontrada no YouTube Music.',
+    );
+    expect((await errorOf(503, { error: 'jam_unavailable', message: 'x' })).code).toBe(
+      'jam_unavailable',
+    );
+    expect((await errorOf(409, { error: 'stale', message: 'x' })).code).toBe('stale');
+    // A server from before the Jam: its generic 404.
+    expect(
+      (await errorOf(404, { error: 'not_found', message: 'Rota não encontrada.' })).message,
+    ).toBe('Este servidor ainda não tem a Jam. Peça para atualizarem o concord-api.');
+    expect((await errorOf(413, { error: 'payload_too_large', message: 'x' })).message).toBe(
+      'O áudio dessa música é grande demais para a Jam.',
+    );
+    // Unknown codes keep the server's message; 401 stays the usual one.
+    expect((await errorOf(400, { error: 'other', message: 'Outra coisa.' })).message).toBe(
+      'Outra coisa.',
+    );
+    expect((await errorOf(401, { error: 'x', message: 'y' })).kind).toBe('unauthorized');
+  });
+
+  it('maps errors of the regular routes as before', async () => {
+    const err = await failure(
+      capture(() =>
+        jsonResponse(404, { error: 'not_found', message: 'Rota não encontrada.' }),
+      ).api.me(),
+    );
+    expect(err.message).toBe('Rota não encontrada.');
   });
 });

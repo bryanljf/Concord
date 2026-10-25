@@ -9,11 +9,14 @@ import type { WebhookReceiver } from 'livekit-server-sdk';
 import type { ApiErrorResponse, ServerInfoResponse } from '@concord/shared';
 import type { UserStore } from './auth';
 import type { ApiConfig } from './config';
+import { createJamService, type JamService } from './jam/service';
+import type { YouTubeMusic } from './jam/youtube';
 import { createWebhookReceiver } from './livekit';
 import { cachedServerInfo } from './server-info';
 import type { PresenceStore } from './presence-store';
 import type { ProfileStore } from './profiles';
 import { healthRoutes } from './routes/health';
+import { jamRoutes } from './routes/jam';
 import { livekitWebhookRoutes } from './routes/livekit-webhook';
 import { meRoutes } from './routes/me';
 import { presenceRoutes } from './routes/presence';
@@ -38,6 +41,15 @@ export interface BuildAppOptions {
   webhookReceiver?: Pick<WebhookReceiver, 'receive'>;
   /** Instance name and region for `GET /api/server`; defaults to detecting them once. */
   serverInfo?: () => Promise<ServerInfoResponse>;
+  /**
+   * The Jam, started and stopped by its owner (index.ts). Defaults to one built from the config
+   * (with `youtube` and `now` below), never started: no persistence, no bot events.
+   */
+  jam?: JamService;
+  /** YouTube Music client for the default Jam; defaults to youtubei.js. */
+  youtube?: YouTubeMusic;
+  /** Clock for the default Jam. */
+  now?: () => number;
 }
 
 const NOT_FOUND: ApiErrorResponse = { error: 'not_found', message: 'Rota não encontrada.' };
@@ -79,7 +91,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
   app.register(cors, {
     origin: '*',
-    methods: ['GET', 'POST', 'PUT'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type'],
   });
   app.register(rateLimit, { global: false });
@@ -97,6 +109,16 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   // Name/avatar changes reach everyone watching presence (participant_updated).
   const stopProfileForwarding = profiles.onChange((userId) => presence.refreshUser(userId));
   app.addHook('onClose', async () => stopProfileForwarding());
+
+  const jam =
+    options.jam ??
+    createJamService({
+      config,
+      presence,
+      log: app.log,
+      youtube: options.youtube,
+      now: options.now,
+    });
 
   app.register(healthRoutes);
   // Registered as a plugin so @fastify/rate-limit (loaded above) sees these routes.
@@ -121,9 +143,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   app.register(presenceRoutes, {
     users,
     presence,
+    jam,
     heartbeatMs: options.heartbeatMs,
     sessionSecret: config.auth.sessionSecret,
   });
+  app.register(jamRoutes, { users, sessionSecret: config.auth.sessionSecret, jam });
   app.register(livekitWebhookRoutes, {
     presence,
     receiver: options.webhookReceiver ?? createWebhookReceiver(config.livekit),

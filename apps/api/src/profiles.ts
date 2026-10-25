@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { NICKNAME_MAX_LENGTH } from '@concord/shared';
+import { moveAsideCorrupt, writeFileAtomic } from './atomic-file';
 import type { User, UserStore } from './auth';
 import type { Logger } from './logger';
 
@@ -206,7 +206,6 @@ export class ProfileStore {
   private readonly log: Logger | undefined;
   private readonly now: () => number;
   private writeChain: Promise<void> = Promise.resolve();
-  private writeCounter = 0;
 
   constructor(options: ProfileStoreOptions = {}) {
     this.path = options.path;
@@ -216,7 +215,8 @@ export class ProfileStore {
 
   /**
    * Loads the store from `path`. A missing file starts empty; a corrupt one is logged, moved
-   * aside to `<path>.corrupt-<timestamp>` (so nothing is lost) and the store starts empty.
+   * aside to `<path>.corrupt-<timestamp>` (so nothing is lost; only the latest such copy is
+   * kept) and the store starts empty.
    */
   static async load(path: string, log?: Logger, now?: () => number): Promise<ProfileStore> {
     const store = new ProfileStore({ path, log, now });
@@ -230,9 +230,8 @@ export class ProfileStore {
     try {
       for (const [id, profile] of parseProfilesFile(json)) store.profiles.set(id, profile);
     } catch (err) {
-      const backup = `${path}.corrupt-${store.now()}`;
       try {
-        await rename(path, backup);
+        const backup = await moveAsideCorrupt(path, store.now());
         log?.error({ err, path, backup }, 'profiles file is corrupt, moved aside; starting empty');
       } catch (renameErr) {
         log?.error(
@@ -304,31 +303,6 @@ export class ProfileStore {
 
   private async writeFile(path: string): Promise<void> {
     const data: ProfilesFile = { version: 1, profiles: Object.fromEntries(this.profiles) };
-    this.writeCounter += 1;
-    const tmp = `${path}.tmp-${process.pid}-${this.writeCounter}`;
-    await mkdir(dirname(path), { recursive: true });
-    try {
-      await writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
-      await renameWithRetry(tmp, path);
-    } catch (err) {
-      await unlink(tmp).catch(() => undefined);
-      throw err;
-    }
-  }
-}
-
-/** On Windows a rename can briefly fail while another process (antivirus, indexer) reads the file. */
-async function renameWithRetry(from: string, to: string, attempts = 5): Promise<void> {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      await rename(from, to);
-      return;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (attempt >= attempts || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) {
-        throw err;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
-    }
+    await writeFileAtomic(path, `${JSON.stringify(data, null, 2)}\n`);
   }
 }

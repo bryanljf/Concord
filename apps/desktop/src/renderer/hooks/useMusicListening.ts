@@ -14,20 +14,22 @@ import {
   type PendingListen,
 } from '../lib/musicListening';
 import { volumeToGain, type VolumeSetting } from '../lib/volume';
-import type { RemoteMusic } from './useRemoteMusic';
+import type { ListenableMusic } from './useRemoteMusic';
 
 export interface MusicListening {
-  /** Participants whose music you listen to in the current room, in the order picked. */
+  /** The music you listen to in the current room (`JAM_BOT_IDENTITY` for the Jam). */
   listening: readonly string[];
-  /** Participant being joined to listen to ("Ouvir" on a music in another room); null if none. */
+  /** Music being joined to listen to ("Entrar e ouvir" on a Jam in another room); null if none. */
   pending: string | null;
-  /** "Ouvir" on a music in this room: subscribes and plays it. */
+  /** Room of `pending` (the Jam has the same identity in every room); null if none. */
+  pendingRoom: RoomId | null;
+  /** "Ouvir" in this room: subscribes and plays it. */
   listen(participantId: string): void;
-  /** "Ouvir" on a music in another room: enters it and listens once the music shows up. */
+  /** "Entrar e ouvir" in another room: enters it and listens once the music shows up. */
   listenIn(room: RoomId, participantId: string): void;
   /** "Parar de ouvir": unsubscribes. */
   stop(participantId: string): void;
-  /** Volume of someone's music (0–100 % in steps of 1, 50 % by default). */
+  /** Volume of a music (0–100 % in steps of 1, 50 % by default). */
   settingFor(participantId: string): VolumeSetting;
   setVolume(participantId: string, volume: number): void;
   toggleMute(participantId: string): void;
@@ -36,8 +38,14 @@ export interface MusicListening {
 interface UseMusicListeningOptions {
   currentRoom: RoomId | null;
   connected: boolean;
-  /** `useRemoteMusic`: the music broadcasts in the current room. */
-  music: readonly RemoteMusic[];
+  /** `useRemoteMusic`: the music tracks in the current room (the Jam's). */
+  music: readonly ListenableMusic[];
+  /**
+   * Music that stays listened to while its track is not published (`lib/jam.ts`
+   * `jamListenable`: the room's Jam between songs or before the first one is ready); its audio
+   * plays as soon as the track shows up. Omitted: none.
+   */
+  sticky?: readonly string[];
   /** Enters a room (Workspace's `enterRoom`); resolves true once connected. */
   join(roomId: RoomId): Promise<boolean>;
   /** Resumes playback from the click (the browser may have blocked audio). */
@@ -54,13 +62,14 @@ interface ListeningState {
 const NONE: readonly string[] = [];
 
 /**
- * Listening to the music broadcasts on demand: the music tracks are subscribed only while you
- * listen (attached so they play through the room's Web Audio mix, which also follows the output
- * device), with a per-broadcaster volume re-applied on every (re)subscription. The list resets
- * when the room changes, and a music that goes off the air drops out of it.
+ * Listening to the Jam on demand: its track is subscribed only while you listen (attached so it
+ * plays through the room's Web Audio mix, which also follows the output device), with your volume
+ * re-applied on every (re)subscription. The list resets when the room changes, and a music that
+ * goes off the air drops out of it (the `sticky` ones, the room's Jam, only once the Jam itself
+ * ends).
  */
 export function useMusicListening(options: UseMusicListeningOptions): MusicListening {
-  const { currentRoom, connected, music, join, startAudio } = options;
+  const { currentRoom, connected, music, sticky = NONE, join, startAudio } = options;
   const [state, setState] = useState<ListeningState>({
     room: currentRoom,
     ids: NONE,
@@ -69,7 +78,11 @@ export function useMusicListening(options: UseMusicListeningOptions): MusicListe
   const [volumes, setVolumes] = useState<MusicVolumes>(() => new Map());
   const attached = useRef(new Set<RemoteAudioTrack>());
 
-  const available = useMemo(() => music.map((item) => item.participantId), [music]);
+  const available = useMemo(() => {
+    const ids = music.map((item) => item.participantId);
+    for (const id of sticky) if (!ids.includes(id)) ids.push(id);
+    return ids;
+  }, [music, sticky]);
 
   // Adjusted while rendering (no effect round-trip): another room starts empty (a pending
   // "Ouvir" for that room survives), a music that ended drops out (only while connected: during a
@@ -153,7 +166,8 @@ export function useMusicListening(options: UseMusicListeningOptions): MusicListe
   const listen = useCallback(
     (participantId: string) => {
       resumeAudio();
-      setState((prev) => ({ ...prev, ids: addListening(prev.ids, participantId) }));
+      // The latest choice wins: a pending "Ouvir" elsewhere is dropped (one music at a time).
+      setState((prev) => ({ ...prev, ids: addListening(prev.ids, participantId), pending: null }));
     },
     [resumeAudio],
   );
@@ -192,6 +206,7 @@ export function useMusicListening(options: UseMusicListeningOptions): MusicListe
   return {
     listening: ids,
     pending: pending?.participantId ?? null,
+    pendingRoom: pending?.room ?? null,
     listen,
     listenIn,
     stop,

@@ -1,11 +1,11 @@
 /**
- * The listener side of the music broadcast: who broadcasts music where (presence), which ones you
- * listen to, their volume and the progress bar. Pure so it can be unit-tested;
- * `hooks/useMusicListening.ts` and `components/music/*` drive livekit and the UI with it.
+ * Listening to the Jam on demand: what you listen to (published so the others see you among its
+ * listeners), "Ouvir" on a Jam in another room, its volume and the progress bar's shape. The list
+ * keeps the shape of "music by participant" (the jam bot is `JAM_BOT_IDENTITY`). Pure so it can
+ * be unit-tested; `hooks/useMusicListening.ts` and `components/music/*` drive livekit and the UI
+ * with it.
  */
-import type { PresenceParticipant, PresenceSnapshot, RoomId } from '@concord/shared';
-import type { NowPlaying } from '../../preload/api';
-import { MUSIC_ART_MAX_BASE64, extrapolatePosition } from './music';
+import type { RoomId } from '@concord/shared';
 import { musicKey } from './streamKey';
 import {
   DEFAULT_VOLUME_SETTING,
@@ -15,48 +15,10 @@ import {
   type VolumeSetting,
 } from './volume';
 
-const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
-
-/** Someone broadcasting music somewhere on the server, as presence sees it. */
-export interface PresenceMusic {
-  room: RoomId;
-  participant: PresenceParticipant;
-}
-
-/**
- * Every music broadcast on the server (presence `music === true`, any room): rooms in snapshot
- * order, people by name inside each room.
- */
-export function presenceMusic(snapshot: PresenceSnapshot): PresenceMusic[] {
-  const found: PresenceMusic[] = [];
-  for (const [room, participants] of Object.entries(snapshot.rooms)) {
-    const broadcasting = participants
-      .filter((participant) => participant.music === true)
-      .sort((a, b) => collator.compare(a.name, b.name) || collator.compare(a.id, b.id));
-    for (const participant of broadcasting) found.push({ room, participant });
-  }
-  return found;
-}
-
-/**
- * The broadcasts the room's livekit connection cannot show: every room but the one you are
- * connected to (while connecting or disconnected, the current room's too). Never your own.
- */
-export function musicElsewhere(
-  all: readonly PresenceMusic[],
-  currentRoom: RoomId | null,
-  connected: boolean,
-  selfId: string,
-): PresenceMusic[] {
-  return all.filter(
-    (entry) => entry.participant.id !== selfId && (!connected || entry.room !== currentRoom),
-  );
-}
-
 /**
  * What goes in `concord.watching`: the watched streams plus `<id>#music` for each music you listen
- * to (so its broadcaster sees "Ouvindo: N"). Returns `watchedKeys` itself when you listen to
- * nothing, so memoized consumers keep a stable reference.
+ * to (`@jam#music` for the Jam, so everyone sees you among its listeners). Returns `watchedKeys`
+ * itself when you listen to nothing, so memoized consumers keep a stable reference.
  */
 export function watchingWithMusic(
   watchedKeys: readonly string[],
@@ -119,18 +81,7 @@ export interface MusicProgress {
   fraction: number;
 }
 
-/**
- * The progress bar at `now`: extrapolated while playing, frozen while paused or stopped. A track
- * with no known duration (a live radio, some ads) shows an empty bar.
- */
-export function musicProgress(nowPlaying: NowPlaying, now: number): MusicProgress {
-  const durationMs = nowPlaying.durationMs;
-  const positionMs = extrapolatePosition(nowPlaying, now);
-  const fraction = durationMs > 0 ? Math.min(1, Math.max(0, positionMs / durationMs)) : 0;
-  return { positionMs, durationMs, fraction };
-}
-
-/** Per-broadcaster volume of the music (0–100 % in steps of 1, 50 % by default). */
+/** Volume of each music by participant (0–100 % in steps of 1, 50 % by default). */
 export type MusicVolumes = ReadonlyMap<string, VolumeSetting>;
 
 export function musicVolumeOf(volumes: MusicVolumes, id: string): VolumeSetting {
@@ -151,32 +102,4 @@ export function withMusicMuteToggled(volumes: MusicVolumes, id: string): MusicVo
   const next = new Map(volumes);
   next.set(id, toggleMuteSetting(musicVolumeOf(volumes, id)));
   return next;
-}
-
-const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
-const IMAGE_DATA_URL = /^data:image\/(?:jpeg|png|webp);base64,/;
-
-/**
- * The `<img>` source for a cover-art RPC reply (a base64 JPEG; an already formed image data URL
- * is accepted too). Null for an empty, oversized or malformed reply: the placeholder stays.
- */
-export function musicArtDataUrl(reply: string): string | null {
-  const value = reply.trim();
-  const prefix = IMAGE_DATA_URL.exec(value)?.[0] ?? '';
-  const base64 = value.slice(prefix.length);
-  if (base64.length === 0 || base64.length > MUSIC_ART_MAX_BASE64 * 2) return null;
-  if (!BASE64.test(base64)) return null;
-  return prefix ? value : `data:image/jpeg;base64,${base64}`;
-}
-
-/** "Ouvindo: 2" for your own music in the drawer. */
-export function listenersLabel(count: number): string {
-  return `Ouvindo: ${count}`;
-}
-
-/** Tooltip listing who listens: "Ninguém ouvindo ainda" / "Ana e Bia estão ouvindo". */
-export function listenersTitle(names: readonly string[]): string {
-  if (names.length === 0) return 'Ninguém ouvindo ainda';
-  if (names.length === 1) return `${names[0] ?? ''} está ouvindo`;
-  return `${names.slice(0, -1).join(', ')} e ${names.at(-1) ?? ''} estão ouvindo`;
 }

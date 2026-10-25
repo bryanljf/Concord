@@ -2,18 +2,14 @@ import { useMemo, useState } from 'react';
 import { roomLabel, type RoomId, type StreamQualityId } from '@concord/shared';
 import type {
   CaptureSource,
-  MusicAppId,
   ProcessAudioSupport,
   VideoEncoderPreference,
 } from '../../../preload/api';
 import type { BroadcastAudioMode, BroadcastRequest } from '../../hooks/useBroadcast';
-import type { MusicBroadcastState } from '../../hooks/useMusicBroadcast';
 import { useCaptureSources } from '../../hooks/useCaptureSources';
-import { useMusicAppStatus } from '../../hooks/useMusicAppStatus';
 import { useProcessAudioSupport } from '../../hooks/useProcessAudioSupport';
 import type { Settings } from '../../lib/concord';
 import { isHeavyStreamQuality, streamUploadHint } from '../../lib/encoding';
-import { musicDuplicationWarning, screenAudioIncludesMusic } from '../../lib/musicWarnings';
 import { sourceKindOf } from '../../lib/sourceSwitch';
 import { EncoderField } from '../EncoderField';
 import { QualityFields } from '../QualityFields';
@@ -21,15 +17,12 @@ import { Spinner } from '../Spinner';
 import {
   CloseIcon,
   MonitorIcon,
-  MusicIcon,
   RefreshIcon,
   SpeakerIcon,
-  StopIcon,
   SwapScreenIcon,
   WarningIcon,
   WindowIcon,
 } from '../icons';
-import { MusicTab } from './MusicTab';
 import { SourceCard } from './SourceCard';
 import '../../styles/source-picker.css';
 
@@ -53,21 +46,13 @@ interface SourcePickerProps {
   live?: { sourceId: string; quality: StreamQualityId; audio: BroadcastAudioMode } | null;
   onCancel(): void;
   onStart(request: BroadcastRequest): void;
-  /** "Música" tab: the music broadcast (independent of the screen share), started from here. */
-  music: MusicBroadcastState;
-  /** "Transmitir música" in the Música tab (joins the selected room when needed). */
-  onStartMusic(room: RoomId, app: MusicAppId): void;
-  onStopMusic(): void;
   /** "Codificação de vídeo": saves `Settings.videoEncoder` (applies after a restart). */
   onEncoder(encoder: VideoEncoderPreference): void;
 }
 
-type Tab = CaptureSource['kind'] | 'music';
+type Tab = CaptureSource['kind'];
 
-/** The only music app for now ("Por enquanto, só o Spotify"). */
-const MUSIC_APP: MusicAppId = 'spotify';
-
-/** Discord-like modal to choose a window/screen, the quality and the audio, or the music. */
+/** Discord-like modal to choose a window/screen, the quality and the audio. */
 export function SourcePicker({
   rooms,
   currentRoom,
@@ -76,9 +61,6 @@ export function SourcePicker({
   live = null,
   onCancel,
   onStart,
-  music,
-  onStartMusic,
-  onStopMusic,
   onEncoder,
 }: SourcePickerProps) {
   const switching = live !== null;
@@ -91,15 +73,9 @@ export function SourcePicker({
   const [audioChoice, setAudioChoice] = useState<boolean | null>(
     live ? live.audio !== 'none' : null,
   );
-  const [musicRetry, setMusicRetry] = useState(0);
   const support = useProcessAudioSupport();
   const choosingRoom = room === null;
-  const musicTab = tab === 'music';
-  // The Música tab only needs the list while live, for the name of what is being shared.
-  const { sources, loading, error, refresh } = useCaptureSources(
-    !choosingRoom && (!musicTab || switching),
-  );
-  const musicStatus = useMusicAppStatus(MUSIC_APP, !choosingRoom && musicTab, musicRetry);
+  const { sources, loading, error, refresh } = useCaptureSources(!choosingRoom);
 
   const processAudio = support?.supported === true;
   // Per-process capture is safe by default; whole-system loopback carries the Discord call.
@@ -110,27 +86,6 @@ export function SourcePicker({
   // A selection whose window disappeared between refreshes simply stops being selectable.
   const selected = sources.find((source) => source.id === selectedId) ?? null;
 
-  // Music + a screen share whose audio also carries the music app: allowed, but it goes out twice.
-  const musicActive = music.status === 'live' || music.status === 'starting';
-  const musicNowPlaying =
-    music.status === 'live' ? music.nowPlaying : (musicStatus?.nowPlaying ?? null);
-  const selectedDuplicates =
-    musicActive &&
-    selected !== null &&
-    screenAudioIncludesMusic(
-      { sourceId: selected.id, sourceName: selected.name, audio: audioMode },
-      MUSIC_APP,
-      musicNowPlaying,
-    );
-  const liveSourceName = live ? sources.find((source) => source.id === live.sourceId)?.name : '';
-  const liveDuplicates =
-    live !== null &&
-    screenAudioIncludesMusic(
-      { sourceId: live.sourceId, sourceName: liveSourceName ?? '', audio: live.audio },
-      MUSIC_APP,
-      musicNowPlaying,
-    );
-
   function start(): void {
     if (!room || !selected) return;
     onStart({
@@ -140,13 +95,6 @@ export function SourcePicker({
       quality,
       audio: audioMode,
     });
-  }
-
-  const canStartMusic =
-    room !== null && music.status === 'idle' && musicStatus?.running === true && processAudio;
-
-  function startMusic(): void {
-    if (room && canStartMusic) onStartMusic(room, MUSIC_APP);
   }
 
   return (
@@ -162,11 +110,9 @@ export function SourcePicker({
           <h2 id="picker-title" className="picker__title">
             {choosingRoom
               ? 'Transmitir em qual sala?'
-              : musicTab
-                ? 'Transmitir música'
-                : switching
-                  ? 'Trocar o que você está transmitindo'
-                  : 'O que você quer transmitir?'}
+              : switching
+                ? 'Trocar o que você está transmitindo'
+                : 'O que você quer transmitir?'}
           </h2>
           {!choosingRoom && room && (
             <span className="picker__room">
@@ -236,36 +182,17 @@ export function SourcePicker({
               </button>
               <button
                 type="button"
-                role="tab"
-                aria-selected={musicTab}
-                className="picker__tab"
-                onClick={() => setTab('music')}
-              >
-                <MusicIcon size={18} />
-                Música
-              </button>
-              <button
-                type="button"
                 className="icon-btn picker__refresh"
-                aria-label={musicTab ? 'Verificar de novo' : 'Atualizar lista'}
-                data-tooltip={musicTab ? 'Verificar de novo' : 'Atualizar lista'}
-                onClick={musicTab ? () => setMusicRetry((value) => value + 1) : refresh}
+                aria-label="Atualizar lista"
+                data-tooltip="Atualizar lista"
+                onClick={refresh}
               >
                 <RefreshIcon size={18} />
               </button>
             </div>
 
             <div className="picker__grid-wrap" role="tabpanel">
-              {musicTab ? (
-                <MusicTab
-                  app={MUSIC_APP}
-                  status={musicStatus}
-                  support={support}
-                  music={music}
-                  duplicates={liveDuplicates}
-                  onRetry={() => setMusicRetry((value) => value + 1)}
-                />
-              ) : loading ? (
+              {loading ? (
                 <div className="picker__state" role="status">
                   <Spinner label="Carregando" />
                   <span>Procurando janelas e telas…</span>
@@ -303,55 +230,43 @@ export function SourcePicker({
               )}
             </div>
 
-            {!musicTab && (
-              <ScreenOptions
-                quality={quality}
-                codec={settings.codec}
-                support={support}
-                audioOn={audioOn}
-                duplicatesMusic={selectedDuplicates}
-                onQuality={setQuality}
-                onAudio={setAudioChoice}
-                encoder={settings.videoEncoder}
-                onEncoder={onEncoder}
-                live={live !== null && live !== undefined}
-              />
-            )}
+            <ScreenOptions
+              quality={quality}
+              codec={settings.codec}
+              support={support}
+              audioOn={audioOn}
+              onQuality={setQuality}
+              onAudio={setAudioChoice}
+              encoder={settings.videoEncoder}
+              onEncoder={onEncoder}
+              live={live !== null && live !== undefined}
+            />
 
             <div className="picker__footer">
               <button type="button" className="btn btn--ghost" onClick={onCancel}>
-                {musicTab && music.status === 'live' ? 'Fechar' : 'Cancelar'}
+                Cancelar
               </button>
-              {musicTab ? (
-                <MusicAction
-                  music={music}
-                  canStart={canStartMusic}
-                  onStart={startMusic}
-                  onStop={onStopMusic}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  disabled={!selected || starting}
-                  onClick={start}
-                >
-                  {starting ? (
-                    <Spinner size="sm" label={switching ? 'Trocando' : 'Iniciando'} />
-                  ) : switching ? (
-                    <SwapScreenIcon size={18} />
-                  ) : (
-                    <MonitorIcon size={18} />
-                  )}
-                  {starting
-                    ? switching
-                      ? 'Trocando…'
-                      : 'Iniciando…'
-                    : switching
-                      ? 'Trocar'
-                      : 'Transmitir'}
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={!selected || starting}
+                onClick={start}
+              >
+                {starting ? (
+                  <Spinner size="sm" label={switching ? 'Trocando' : 'Iniciando'} />
+                ) : switching ? (
+                  <SwapScreenIcon size={18} />
+                ) : (
+                  <MonitorIcon size={18} />
+                )}
+                {starting
+                  ? switching
+                    ? 'Trocando…'
+                    : 'Iniciando…'
+                  : switching
+                    ? 'Trocar'
+                    : 'Transmitir'}
+              </button>
             </div>
           </>
         )}
@@ -365,8 +280,6 @@ interface ScreenOptionsProps {
   codec: Settings['codec'];
   support: ProcessAudioSupport | null;
   audioOn: boolean;
-  /** The music is being broadcast and the selected source's audio also carries it. */
-  duplicatesMusic: boolean;
   onQuality(quality: StreamQualityId): void;
   onAudio(enabled: boolean): void;
   encoder: VideoEncoderPreference;
@@ -381,7 +294,6 @@ function ScreenOptions({
   codec,
   support,
   audioOn,
-  duplicatesMusic,
   onQuality,
   onAudio,
   encoder,
@@ -440,54 +352,6 @@ function ScreenOptions({
           PC toca, Discord incluído.
         </p>
       )}
-
-      {duplicatesMusic && (
-        <p className="picker__warning" role="note">
-          <WarningIcon size={16} />
-          {musicDuplicationWarning(MUSIC_APP)}
-        </p>
-      )}
     </>
   );
-}
-
-interface MusicActionProps {
-  music: MusicBroadcastState;
-  canStart: boolean;
-  onStart(): void;
-  onStop(): void;
-}
-
-/** Footer button of the Música tab: "Transmitir música", or "Parar música" while it plays. */
-function MusicAction({ music, canStart, onStart, onStop }: MusicActionProps) {
-  switch (music.status) {
-    case 'idle':
-      return (
-        <button type="button" className="btn btn--primary" disabled={!canStart} onClick={onStart}>
-          <MusicIcon size={18} />
-          Transmitir música
-        </button>
-      );
-    case 'starting':
-      return (
-        <button type="button" className="btn btn--primary" disabled>
-          <Spinner size="sm" label="Iniciando" />
-          Iniciando…
-        </button>
-      );
-    case 'live':
-      return (
-        <button type="button" className="btn btn--danger" onClick={onStop}>
-          <StopIcon size={18} />
-          Parar música
-        </button>
-      );
-    case 'stopping':
-      return (
-        <button type="button" className="btn btn--danger" disabled>
-          <Spinner size="sm" label="Parando" />
-          Parando…
-        </button>
-      );
-  }
 }

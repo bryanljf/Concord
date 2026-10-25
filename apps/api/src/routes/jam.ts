@@ -1,0 +1,164 @@
+import type { Readable } from 'node:stream';
+import type { FastifyPluginAsync } from 'fastify';
+import {
+  JAM_UPLOAD_CONTENT_TYPE,
+  type JamEnqueueResponse,
+  type JamSearchResponse,
+  type JamSnapshot,
+  type RoomId,
+} from '@concord/shared';
+import { getUser, requireUser, type UserStore } from '../auth';
+import { JamError } from '../jam/errors';
+import type { JamService } from '../jam/service';
+
+export interface JamRoutesOptions {
+  users: UserStore;
+  sessionSecret: string;
+  jam: JamService;
+}
+
+interface RoomParams {
+  room: RoomId;
+}
+
+interface ItemParams extends RoomParams {
+  itemId: string;
+}
+
+/** `type/subtype` of a Content-Type header, lowercased, without parameters. */
+function mediaType(header: string | undefined): string | undefined {
+  return header?.split(';')[0]?.trim().toLowerCase() || undefined;
+}
+
+function isStream(body: unknown): body is Readable {
+  return typeof (body as Readable | undefined)?.pipe === 'function';
+}
+
+/** The string field `name` of a JSON body, or undefined. */
+function stringField(body: unknown, name: string): string | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
+  const value = (body as Record<string, unknown>)[name];
+  return typeof value === 'string' ? value : undefined;
+}
+
+const PER_MINUTE = (max: number) => ({ rateLimit: { max, timeWindow: '1 minute' } });
+
+/**
+ * The Jam (a YouTube Music queue per room, routes listed in `@concord/shared` jam.ts). Every
+ * route needs the session; mutations also need the caller in that room, except the audio upload,
+ * which only its requester may send (from anywhere: the app keeps sending after a room change).
+ */
+export const jamRoutes: FastifyPluginAsync<JamRoutesOptions> = async (
+  app,
+  { users, sessionSecret, jam },
+) => {
+  const authenticate = requireUser(users, sessionSecret);
+
+  // Jam errors answer with their own code and pt-BR message; anything else goes to the app's.
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof JamError) return reply.code(error.statusCode).send(error.toResponse());
+    throw error;
+  });
+
+  app.get<{ Querystring: { q?: unknown } }>(
+    '/api/jam/search',
+    { preHandler: authenticate, config: PER_MINUTE(30) },
+    async (request): Promise<JamSearchResponse> => {
+      const { q } = request.query;
+      return jam.search(typeof q === 'string' ? q : '');
+    },
+  );
+
+  app.get('/api/jam', { preHandler: authenticate }, async (): Promise<JamSnapshot> =>
+    jam.snapshot(),
+  );
+
+  app.post<{ Params: RoomParams; Body: unknown }>(
+    '/api/rooms/:room/jam/queue',
+    { preHandler: authenticate, config: PER_MINUTE(30) },
+    async (request): Promise<JamEnqueueResponse> => {
+      const videoId = stringField(request.body, 'videoId');
+      if (videoId === undefined) throw new JamError('invalid_video');
+      return jam.enqueue(getUser(request).id, request.params.room, videoId.trim());
+    },
+  );
+
+  app.delete<{ Params: ItemParams }>(
+    '/api/rooms/:room/jam/items/:itemId',
+    { preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      const { room, itemId } = request.params;
+      await jam.remove(getUser(request).id, room, itemId);
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<{ Params: RoomParams; Body: unknown }>(
+    '/api/rooms/:room/jam/skip',
+    { preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      const itemId = stringField(request.body, 'itemId');
+      if (!itemId) throw new JamError('stale');
+      await jam.skip(getUser(request).id, request.params.room, itemId);
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<{ Params: RoomParams }>(
+    '/api/rooms/:room/jam/pause',
+    { preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      await jam.pause(getUser(request).id, request.params.room);
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<{ Params: RoomParams }>(
+    '/api/rooms/:room/jam/resume',
+    { preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      await jam.resume(getUser(request).id, request.params.room);
+      return reply.code(204).send();
+    },
+  );
+
+  // The audio upload, in its own scope: only here does `audio/webm` reach the handler, as the
+  // raw stream (written to disk as it arrives, never buffered in memory; it may be chunked and
+  // slow, and its song may start playing long before it ends). Answered once the body ended.
+  app.register(async (scope) => {
+    scope.addContentTypeParser(JAM_UPLOAD_CONTENT_TYPE, (_request, payload, done) => {
+      done(null, payload);
+    });
+
+    scope.put<{ Params: ItemParams; Body: unknown }>(
+      '/api/rooms/:room/jam/items/:itemId/audio',
+      {
+        preHandler: authenticate,
+        // Documents the limit: a streamed body is counted by the service as it is written.
+        bodyLimit: jam.uploadMaxBytes,
+        config: PER_MINUTE(20),
+      },
+      async (request, reply) => {
+        const { room, itemId } = request.params;
+        const { body, raw } = request;
+        const declared = Number(request.headers['content-length']);
+        const length = Number.isFinite(declared) ? declared : undefined;
+        try {
+          if (mediaType(request.headers['content-type']) !== JAM_UPLOAD_CONTENT_TYPE) {
+            throw new JamError('unsupported_media_type');
+          }
+          if (!isStream(body)) throw new JamError('invalid_audio');
+          await jam.upload(getUser(request).id, room, itemId, body, length);
+        } catch (err) {
+          // A body never read is discarded by Node, so the client still gets this answer (it
+          // needs it: already_uploaded means done, item_not_found means gone). One read halfway,
+          // or announced over the limit, is not worth waiting for: close the connection instead.
+          const halfRead = raw.readableDidRead && !raw.readableEnded;
+          if (halfRead || (length ?? 0) > jam.uploadMaxBytes) reply.header('connection', 'close');
+          throw err;
+        }
+        return reply.code(204).send();
+      },
+    );
+  });
+};

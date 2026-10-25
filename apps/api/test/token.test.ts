@@ -15,7 +15,7 @@ function requestToken(app: FastifyInstance, payload: object, remoteAddress?: str
 }
 
 describe('POST /api/token', () => {
-  it('issues a LiveKit join token restricted to screen sharing, the camera and music', async () => {
+  it('issues a LiveKit join token restricted to screen sharing and the camera', async () => {
     const { app, config } = testApp();
     const before = Math.floor(Date.now() / 1000);
     const res = await requestToken(app, { room: 'jogos' });
@@ -32,7 +32,7 @@ describe('POST /api/token', () => {
       room: 'jogos',
       canSubscribe: true,
       canPublish: true,
-      canPublishSources: ['screen_share', 'screen_share_audio', 'camera', 'microphone'],
+      canPublishSources: ['screen_share', 'screen_share_audio', 'camera'],
       canPublishData: true,
       canUpdateOwnMetadata: true,
     });
@@ -78,7 +78,7 @@ describe('POST /api/token', () => {
       room: 'geral',
       canSubscribe: true,
       canPublish: true,
-      canPublishSources: ['screen_share', 'screen_share_audio', 'camera', 'microphone'],
+      canPublishSources: ['screen_share', 'screen_share_audio', 'camera'],
       canPublishData: true,
       canUpdateOwnMetadata: true,
     });

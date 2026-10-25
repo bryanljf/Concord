@@ -10,6 +10,7 @@
     "dev": "pnpm --filter @concord/desktop dev",
     "dev:api": "pnpm --filter @concord/api dev",
     "dev:livekit": "powershell -ExecutionPolicy Bypass -File infra/local/start.ps1 -LiveKitOnly",
+    "dev:jam-bot": "go -C apps/jam-bot run .",
     "build": "pnpm -r build",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",

@@ -1,0 +1,512 @@
+/* The Jam: its part of the music drawer, the queue and the search dialog (components/jam/*). */
+
+/* A song still on its way ("Baixando…"), next to the paused chip's shape. */
+.jam-badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: rgba(240, 178, 50, 0.16);
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 16px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* --- In the music drawer ------------------------------------------------------------------ */
+.jam-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jam-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.jam-panel__header .music-drawer__heading {
+  margin-bottom: 0;
+}
+
+/* The music's green, like the bottom bar's "Música". */
+.btn.jam-panel__add {
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  background: rgba(35, 165, 89, 0.22);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btn.jam-panel__add:hover:not(:disabled) {
+  background: rgba(35, 165, 89, 0.3);
+}
+
+.jam-panel__add svg {
+  color: var(--online);
+}
+
+.jam-player__by {
+  flex: none;
+}
+
+.jam-player__paused-by {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.jam-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn.jam-controls__btn {
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--bg-active);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btn.jam-controls__btn:hover:not(:disabled) {
+  background: var(--bg-selected);
+}
+
+.jam-controls__listeners {
+  margin-left: auto;
+}
+
+/* --- Queue ("A seguir") --------------------------------------------------------------------- */
+.jam-queue__heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jam-queue__count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bg-active);
+  color: var(--text-normal);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-queue__empty {
+  padding: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.jam-queue__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jam-queue__item {
+  display: grid;
+  grid-template-columns: 16px 32px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition);
+}
+
+.jam-queue__item:hover,
+.jam-queue__item:focus-within {
+  background: var(--bg-hover);
+}
+
+.jam-queue__position {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-queue__text {
+  min-width: 0;
+}
+
+/* Title and artists slide when too long (Marquee), like the search results. */
+.jam-queue__title {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.jam-queue__artist {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.jam-queue__artists {
+  flex: 1;
+}
+
+.jam-queue__duration {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-queue__requester {
+  display: flex;
+}
+
+.icon-btn.jam-queue__remove {
+  width: 24px;
+  height: 24px;
+}
+
+.icon-btn.jam-queue__remove:hover:not(:disabled) {
+  background: var(--bg-active);
+  color: var(--danger);
+}
+
+/* --- Search dialog -------------------------------------------------------------------------- */
+/* Above the drawer, the tiles and the statistics panel, like the source picker. Anchored near
+   the top, not centered: results arriving (or going) while typing make the dialog grow or shrink
+   downwards only, so the search box never moves. */
+.jam-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding: min(12vh, 96px) 24px 24px;
+  background: var(--bg-overlay);
+  animation: fade-in var(--transition-slow) ease;
+}
+
+.jam-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: min(660px, 100%);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow);
+  animation: scale-in var(--transition-slow) ease;
+}
+
+.jam-modal:focus-visible {
+  outline: none;
+}
+
+.jam-modal__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 12px 20px;
+}
+
+.jam-modal__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(35, 165, 89, 0.22);
+  color: var(--online);
+}
+
+.jam-modal__title {
+  color: var(--text-strong);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.jam-modal__room {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jam-modal__room strong {
+  color: var(--text-normal);
+}
+
+/* The room's Jam above the search. */
+.jam-compact {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 20px 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.jam-compact__now {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.jam-compact__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.jam-compact__label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.jam-compact__title {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.jam-compact__controls {
+  display: flex;
+  gap: 2px;
+}
+
+.jam-compact__queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.btn.jam-compact__open {
+  font-size: 12px;
+}
+
+.jam-compact__queue {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 2px;
+  list-style: decimal inside;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.jam-compact__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jam-compact__item::marker {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slides when too long (Marquee), like the search results. */
+.jam-compact__item-title {
+  flex: 1;
+  color: var(--text-normal);
+}
+
+.jam-compact__duration {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.jam-compact__more {
+  list-style: none;
+  color: var(--text-muted);
+}
+
+/* Search box and results. */
+.jam-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 20px 18px;
+}
+
+.jam-search__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.jam-search__icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.input.jam-search__input {
+  padding-right: 40px;
+  padding-left: 40px;
+}
+
+.jam-search__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.jam-search__spinner {
+  position: absolute;
+  right: 12px;
+  display: flex;
+}
+
+.jam-search__hint,
+.jam-search__status {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.jam-search__error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.jam-search__note {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.jam-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity var(--transition);
+}
+
+.jam-results--stale {
+  opacity: 0.6;
+}
+
+/* One result: the music player's look (cover, bold title, muted artist), the whole row adds. */
+.jam-result {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition);
+}
+
+.jam-result:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.jam-result:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.jam-result--adding:disabled {
+  opacity: 1;
+}
+
+.jam-result__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.jam-result__title {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.jam-result__artist {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.jam-result__detail {
+  display: flex;
+  gap: 0.3em;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.jam-result__album {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jam-result__detail > :not(.jam-result__album) {
+  flex: none;
+}
+
+.jam-result__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(35, 165, 89, 0.22);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--transition);
+}
+
+.jam-result__action svg {
+  color: var(--online);
+}
+
+.jam-result:hover:not(:disabled) .jam-result__action,
+.jam-result:focus-visible .jam-result__action {
+  background: rgba(35, 165, 89, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jam-modal-backdrop,
+  .jam-modal {
+    animation: none;
+  }
+}

@@ -119,10 +119,10 @@ export function playLiveStartedInRoom(): void {
 const HARP: Voice = { type: 'triangle', peak: 0.06, attack: 0.025, lowpassHz: 1800 };
 
 /**
- * Someone else started broadcasting music in the room you are in: a strummed, harp-like G major
- * arpeggio whose notes ring into each other (the other chimes are short, separate blips).
+ * A Jam started in the room you are in (a song someone else asked for): a strummed, harp-like
+ * G major arpeggio whose notes ring into each other (the other chimes are short, separate blips).
  */
-export function playMusicStartedInRoom(): void {
+export function playJamStartedInRoom(): void {
   play(
     [
       [392, 0, 0.55],

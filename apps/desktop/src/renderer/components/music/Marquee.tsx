@@ -15,8 +15,8 @@ const OVERFLOW_EPSILON_PX = 0.5;
 
 /**
  * One line of text that never wraps: when it does not fit, it slides to its end, waits, and
- * glides slowly back to the start, over and over (like Spotify's long titles). Fits → plain
- * text. With reduced motion it stays put and ends in an ellipsis.
+ * glides slowly back to the start, over and over (like the long titles of music players). Fits
+ * → plain text. With reduced motion it stays put and ends in an ellipsis.
  */
 export function Marquee({ text, className, as: Tag = 'span' }: MarqueeProps) {
   const outer = useRef<HTMLElement | null>(null);

@@ -1,13 +1,15 @@
 import {
+  JAM_SEARCH_LIMIT,
+  JAM_SEARCH_MAX_LENGTH,
   NICKNAME_MAX_LENGTH,
   parseStreamQualityId,
   ROOM_ID_PATTERN,
+  YOUTUBE_VIDEO_ID_PATTERN,
   type RoomId,
   type StreamQualityId,
   type TokenPurpose,
 } from '@concord/shared';
-import type { MusicAppId, PipResizeCorner, PipTarget } from '../preload/api';
-import { isMusicAppId } from './music-apps';
+import type { PipResizeCorner, PipTarget } from '../preload/api';
 
 /**
  * Error whose `message` is pt-BR and safe to show in the UI. The IPC layer forwards it to the
@@ -96,11 +98,6 @@ export function parsePipTarget(raw: unknown): PipTarget {
   return { room, participantIds };
 }
 
-export function expectMusicAppId(value: unknown, name = 'app'): MusicAppId {
-  if (!isMusicAppId(value)) throw new IpcValidationError(name);
-  return value;
-}
-
 export function expectPipResizeCorner(value: unknown): PipResizeCorner {
   if (value === 'nw' || value === 'ne' || value === 'sw' || value === 'se') return value;
   throw new IpcValidationError('corner');
@@ -119,4 +116,38 @@ export function expectNickname(value: unknown): string | null {
     throw new UserFacingError(`O nome pode ter no máximo ${NICKNAME_MAX_LENGTH} caracteres.`);
   }
   return nickname;
+}
+
+// --- Jam ---------------------------------------------------------------------------------
+
+/** Jam queue item ids, from the server (`jam-events.ts`) and from the renderer alike. */
+export const JAM_ITEM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function expectYouTubeVideoId(value: unknown, name = 'videoId'): string {
+  const id = expectString(value, name);
+  if (!YOUTUBE_VIDEO_ID_PATTERN.test(id)) throw new IpcValidationError(name);
+  return id;
+}
+
+/** `prefetchJam` input: at most a search's worth (`JAM_SEARCH_LIMIT`) of video ids. */
+export function expectYouTubeVideoIds(value: unknown, name = 'videoIds'): string[] {
+  if (!Array.isArray(value) || value.length > JAM_SEARCH_LIMIT) throw new IpcValidationError(name);
+  return value.map((id: unknown) => expectYouTubeVideoId(id, name));
+}
+
+export function expectJamItemId(value: unknown, name = 'itemId'): string {
+  const id = expectString(value, name);
+  if (!JAM_ITEM_ID_PATTERN.test(id)) throw new IpcValidationError(name);
+  return id;
+}
+
+/** `searchJam` input: trimmed, 1 to `JAM_SEARCH_MAX_LENGTH` characters (pt-BR errors). */
+export function expectJamQuery(value: unknown): string {
+  const query = expectString(value, 'query').trim();
+  if (query === '') throw new UserFacingError('Digite o nome de uma música para buscar.');
+  // Counted in code points, like the nickname (an emoji is one character).
+  if ([...query].length > JAM_SEARCH_MAX_LENGTH) {
+    throw new UserFacingError(`A busca pode ter no máximo ${JAM_SEARCH_MAX_LENGTH} caracteres.`);
+  }
+  return query;
 }

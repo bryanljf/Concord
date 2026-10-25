@@ -1,4 +1,4 @@
-import type { PresenceEvent } from '@concord/shared';
+import type { JamEvent, PresenceEvent } from '@concord/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PresenceConnectionStatus } from '../preload/api';
 import { backoffDelay, BACKOFF_MAX_MS, BACKOFF_MIN_MS, PresenceClient } from './presence-client';
@@ -186,6 +186,80 @@ describe('PresenceClient', () => {
       state: 'error',
       message: 'A conexão com o servidor foi encerrada.',
     });
+    client.disconnect('no_session');
+  });
+
+  it('asks for the jam events and routes them to the jam store', async () => {
+    const streams: ReturnType<typeof sseResponse>[] = [];
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      urls.push(String(input));
+      const stream = sseResponse(init?.signal ?? undefined);
+      streams.push(stream);
+      return stream.response;
+    });
+    const { client, events } = setup(fetchImpl as typeof fetch);
+    const jamEvents: JamEvent[] = [];
+    client.jam.onEvent((event) => jamEvents.push(event));
+    expect(client.jam.get()).toEqual({ available: false, rooms: {}, serverTime: 0 });
+
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(urls).toEqual(['http://127.0.0.1:3000/api/presence?jam=1']);
+
+    const jamSnapshot: JamEvent = {
+      type: 'jam_snapshot',
+      data: { available: true, rooms: {}, serverTime: 5 },
+    };
+    streams[0]?.push(`data: ${JSON.stringify(snapshotEvent)}\n\n`);
+    streams[0]?.push(`data: ${JSON.stringify(jamSnapshot)}\n\n`);
+    // Malformed: dropped without touching presence or the jam.
+    streams[0]?.push('data: {"type":"jam_updated","state":{"room":"geral"},"serverTime":6}\n\n');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(events.map((event) => event.type)).toEqual(['snapshot']);
+    expect(jamEvents).toEqual([jamSnapshot]);
+    expect(client.jam.get()).toEqual(jamSnapshot.data);
+
+    // Dropped connections keep the jam until the server resends it.
+    streams[0]?.end();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(client.jam.get().available).toBe(true);
+
+    client.disconnect('no_session');
+    expect(client.jam.get()).toEqual({ available: false, rooms: {}, serverTime: 0 });
+    expect(jamEvents.at(-1)).toEqual({
+      type: 'jam_snapshot',
+      data: { available: false, rooms: {}, serverTime: 0 },
+    });
+  });
+
+  it('drops the jam of the previous server when connecting to another one', async () => {
+    let serverUrl = 'http://127.0.0.1:3000';
+    const streams: ReturnType<typeof sseResponse>[] = [];
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      const stream = sseResponse(init?.signal ?? undefined);
+      streams.push(stream);
+      return stream.response;
+    });
+    const client = new PresenceClient({
+      getServerUrl: () => serverUrl,
+      getKey: () => 'key',
+      fetchImpl: fetchImpl as typeof fetch,
+      backoff: () => 100,
+    });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    streams[0]?.push(
+      `data: ${JSON.stringify({ type: 'jam_snapshot', data: { available: true, rooms: {}, serverTime: 1 } })}\n\n`,
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.jam.get().available).toBe(true);
+
+    serverUrl = 'http://127.0.0.1:4000';
+    client.reconnect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.jam.get().available).toBe(false);
     client.disconnect('no_session');
   });
 });

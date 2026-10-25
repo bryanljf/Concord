@@ -1,37 +1,86 @@
-import { viewersLabel, type Viewer } from '../../lib/viewers';
+import {
+  viewerStack,
+  viewersEmptyText,
+  viewersHeading,
+  viewersLabel,
+  type AudienceKind,
+  type Viewer,
+} from '../../lib/viewers';
 import { Avatar } from '../Avatar';
-import { EyeIcon } from '../icons';
+import { EyeIcon, HeadphonesIcon } from '../icons';
+import '../../styles/viewers.css';
 
 interface ViewerListProps {
   viewers: readonly Viewer[];
-  /** `compact`: only the eye and the count (mini tiles, where the overlay ignores the pointer). */
+  /** `compact`: only the icon and the count (mini tiles, where the overlay ignores the pointer). */
   variant?: 'full' | 'compact';
+  /** `watching` (the eye: a live, a camera) or `listening` (headphones: a music, the Jam). */
+  kind?: AudienceKind;
+  /** `overlay`: dark pill over a video; `surface`: on the app's panels and cards. */
+  tone?: 'overlay' | 'surface';
+  /** Where the list opens on hover: above (tiles' bottom bars) or below (inside a scroll box). */
+  placement?: 'above' | 'below';
+  /** Which edge the list lines up with: the start, or the end for one at the right of a row. */
+  align?: 'start' | 'end';
+  className?: string;
 }
 
-const STACKED = 3;
+function classes(...names: (string | false | undefined)[]): string {
+  return names.filter(Boolean).join(' ');
+}
 
 /**
- * Who is watching a live, as in Discord's Go Live: eye + count + stacked avatars; hovering or
- * focusing it lists everyone.
+ * Who is watching a live (or listening to a music), as in Discord's Go Live: icon + count +
+ * slightly overlapped avatars (yours too while you are among them); hovering or focusing it lists
+ * everyone.
  */
-export function ViewerList({ viewers, variant = 'full' }: ViewerListProps) {
-  const label = viewersLabel(viewers);
+export function ViewerList({
+  viewers,
+  variant = 'full',
+  kind = 'watching',
+  tone = 'overlay',
+  placement = 'above',
+  align = 'start',
+  className,
+}: ViewerListProps) {
+  const label = viewersLabel(viewers, kind);
+  const Icon = kind === 'listening' ? HeadphonesIcon : EyeIcon;
   if (variant === 'compact') {
     return (
-      <span className="viewers viewers--compact" role="img" aria-label={label} title={label}>
-        <EyeIcon size={14} />
+      <span
+        className={classes(
+          'viewers viewers--compact',
+          tone === 'surface' && 'viewers--surface',
+          className,
+        )}
+        role="img"
+        aria-label={label}
+        title={label}
+      >
+        <Icon size={14} />
         {viewers.length}
       </span>
     );
   }
-  const extra = viewers.length - STACKED;
+  const { shown, extra } = viewerStack(viewers);
   return (
-    <div className="viewers" role="group" tabIndex={0} aria-label={label}>
-      <EyeIcon size={16} />
+    <div
+      className={classes(
+        'viewers',
+        tone === 'surface' && 'viewers--surface',
+        placement === 'below' && 'viewers--below',
+        align === 'end' && 'viewers--end',
+        className,
+      )}
+      role="group"
+      tabIndex={0}
+      aria-label={label}
+    >
+      <Icon size={16} />
       <span className="viewers__count">{viewers.length}</span>
-      {viewers.length > 0 && (
+      {shown.length > 0 && (
         <span className="viewers__stack" aria-hidden="true">
-          {viewers.slice(0, STACKED).map((viewer) => (
+          {shown.map((viewer) => (
             <Avatar
               key={viewer.id}
               id={viewer.id}
@@ -45,10 +94,10 @@ export function ViewerList({ viewers, variant = 'full' }: ViewerListProps) {
       )}
       <div className="viewers__popover" aria-hidden="true">
         {viewers.length === 0 ? (
-          <p className="viewers__empty">Ninguém assistindo ainda.</p>
+          <p className="viewers__empty">{viewersEmptyText(kind)}</p>
         ) : (
           <>
-            <p className="viewers__title">Assistindo — {viewers.length}</p>
+            <p className="viewers__title">{viewersHeading(viewers.length, kind)}</p>
             <ul className="viewers__list">
               {viewers.map((viewer) => (
                 <li key={viewer.id}>

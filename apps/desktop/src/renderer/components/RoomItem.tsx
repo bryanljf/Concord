@@ -1,5 +1,6 @@
-import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
+import { roomLabel, type JamState, type PresenceParticipant, type RoomId } from '@concord/shared';
 import { pluralize } from '../lib/format';
+import { jamIndicatorLabel, jamPlaying } from '../lib/jam';
 import { ParticipantRow } from './ParticipantRow';
 import { MusicButton } from './music/MusicButton';
 import { SpeakerIcon } from './icons';
@@ -10,8 +11,10 @@ interface RoomItemProps {
   current: boolean;
   /** Lives watched in this room (only for the current room). */
   watchedIds: readonly string[];
-  /** Music broadcasts you listen to in this room (only the current room can have any). */
+  /** You listen to this room's Jam when above 0 (only the current room can have any). */
   musicListening: number;
+  /** The room's Jam (something playing or queued); null without one, or without the Jam. */
+  jam: JamState | null;
   /** The music drawer is open (every room's music button shows it). */
   musicOpen: boolean;
   onToggleMusic(): void;
@@ -26,6 +29,7 @@ export function RoomItem({
   current,
   watchedIds,
   musicListening,
+  jam,
   musicOpen,
   onToggleMusic,
   now,
@@ -33,14 +37,15 @@ export function RoomItem({
   onWatch,
 }: RoomItemProps) {
   const count = participants.length;
-  const musicCount = participants.filter((participant) => participant.music === true).length;
+  // While it has a Jam: the headphones with the playing bars, left of the people count.
+  const jamLabel = jamIndicatorLabel(jam);
   const label = roomLabel(room);
   return (
     <li className="room">
       <div className="room__row">
         <button
           type="button"
-          className={musicCount > 0 ? 'room__button room__button--music' : 'room__button'}
+          className={jamLabel !== null ? 'room__button room__button--music' : 'room__button'}
           data-navitem
           aria-current={current ? 'true' : undefined}
           title={current ? `Você está em ${label}` : `Entrar em ${label}`}
@@ -55,11 +60,12 @@ export function RoomItem({
           )}
         </button>
         {/* A sibling of the room button (no button inside a button), laid over its right end. */}
-        {musicCount > 0 && (
+        {jamLabel !== null && (
           <span className="room__music">
             <MusicButton
-              count={musicCount}
-              listening={musicListening}
+              jamLabel={jamLabel}
+              playing={jamPlaying(jam)}
+              listening={musicListening > 0}
               open={musicOpen}
               onToggle={onToggleMusic}
             />

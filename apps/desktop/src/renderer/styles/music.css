@@ -1,13 +1,14 @@
-/* Music broadcast, listener side: the sidebar button, the drawer and its players. */
+/* Music (the Jam), listener side: the rooms' music button, the drawer, the player and the
+   stage card. */
 
-/* --- Sidebar button (next to the server name) ------------------------------------------- */
+/* --- A room row's button (left of its people count) ------------------------------------ */
 .music-button {
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: 5px;
   height: 26px;
-  padding: 0 5px 0 7px;
+  padding: 0 7px;
   border: none;
   border-radius: 13px;
   background: var(--bg-tertiary);
@@ -34,24 +35,6 @@
 .music-button--open:hover {
   background: var(--accent);
   color: var(--text-on-accent);
-}
-
-.music-button__count {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-size: 10px;
-  line-height: 16px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.music-button--open .music-button__count {
-  background: var(--text-on-accent);
-  color: var(--accent);
 }
 
 /* --- Equalizer -------------------------------------------------------------------------- */
@@ -277,32 +260,10 @@
   font-weight: 600;
 }
 
-.music-player__paused {
-  flex: none;
-  margin-left: 2px;
-  padding: 0 5px;
-  border-radius: 3px;
-  background: var(--bg-active);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 16px;
-  text-transform: uppercase;
-}
-
 .music-player__actions {
   display: flex;
   flex: none;
   align-items: center;
-}
-
-.music-player__listeners {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 /* --- Progress --------------------------------------------------------------------------- */
@@ -322,19 +283,6 @@
 
 .music-progress__time--end {
   text-align: left;
-}
-
-.music-progress__ad {
-  display: inline-block;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: var(--warning);
-  color: #000;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 15px;
-  text-transform: uppercase;
 }
 
 .music-progress__track {
@@ -478,10 +426,65 @@
   border-radius: var(--radius-sm);
 }
 
+/* Who listens, in the corner opposite the badge (only while someone does). */
+.viewers.music-card-stage__listeners {
+  --viewers-surface: var(--bg-tertiary);
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+}
+
+.viewers.music-card-stage__listeners--strip {
+  top: 5px;
+  right: 6px;
+  padding: 1px 6px;
+}
+
 .music-card-stage__playing {
   max-width: 100%;
   /* Short lines sit centered like the rest of the card; long ones slide from the start. */
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* --- Smaller covers (search results, the Jam's queue, compact rows) ------------------------- */
+.music-cover--sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 5px;
+}
+
+.music-cover--xs {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.music-cover--sm .music-cover__eq,
+.music-cover--xs .music-cover__eq {
+  right: 2px;
+  bottom: 2px;
+  padding: 2px;
+}
+
+/* A thin bar with small times (the Jam above the search). */
+.music-progress--compact {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.music-progress--compact .music-progress__track {
+  height: 3px;
+}
+
+/* The Jam's stage card without a cover: a note in the cover's place. */
+.music-card-stage__cover--note {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
 }

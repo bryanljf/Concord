@@ -1,8 +1,7 @@
 /**
- * Finds the root of a multi-process app's tree: Discord's (excluded from a screen capture) or a
- * music app's (the only thing an app capture includes). These apps run a browser process plus
- * renderers and utility processes under the same image name, so a capture must target the root:
- * the process whose parent is not one of the app's processes.
+ * Finds the root of Discord's process tree (excluded from a screen capture). Discord runs a browser
+ * process plus renderers and utility processes under the same image name, so a capture must target
+ * the root: the process whose parent is not one of Discord's processes.
  */
 import { DISCORD_PROCESS_NAMES } from '../discord-watcher';
 import { listProcessesByName, type ProcessInfo } from './win-process';
@@ -14,8 +13,7 @@ import { listProcessesByName, type ProcessInfo } from './win-process';
  *
  * Without parent pids (the `tasklist` fallback) every process looks like a root with no
  * descendants, so the lowest pid wins: usually the app's first (root) process, but Windows reuses
- * pids, so it is a best guess. Callers that must know whether a capture's process is still alive
- * should check that its pid is still listed rather than re-running this choice.
+ * pids, so it is a best guess.
  */
 export function chooseRootPid(
   processes: readonly ProcessInfo[],
@@ -74,12 +72,4 @@ export async function findDiscordRootPid(
   list: (names: readonly string[]) => Promise<ProcessInfo[]> = listProcessesByName,
 ): Promise<number | null> {
   return chooseDiscordRootPid(await list(DISCORD_PROCESS_NAMES));
-}
-
-/** Root of the tree of processes named `names` (a music app), or null when none runs. */
-export async function findRootPid(
-  names: readonly string[],
-  list: (names: readonly string[]) => Promise<ProcessInfo[]> = listProcessesByName,
-): Promise<number | null> {
-  return chooseRootPid(await list(names), names);
 }

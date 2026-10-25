@@ -1,122 +1,75 @@
 import { useEffect, useRef } from 'react';
-import { roomLabel } from '@concord/shared';
-import type { MusicBroadcastState } from '../../hooks/useMusicBroadcast';
+import { JAM_BOT_IDENTITY, type JamState, type RoomId } from '@concord/shared';
+import type { JamUploadStatus } from '../../../preload/api';
 import type { MusicListening } from '../../hooks/useMusicListening';
-import { useOwnMusicArt, type RemoteMusic } from '../../hooks/useRemoteMusic';
-import { listenersLabel, listenersTitle, type PresenceMusic } from '../../lib/musicListening';
+import type { JamPerson } from '../../lib/jam';
 import type { Viewer } from '../../lib/viewers';
-import { Avatar } from '../Avatar';
-import { Spinner } from '../Spinner';
 import { CloseIcon, HeadphonesIcon } from '../icons';
-import { MusicPlayerBar } from './MusicPlayerBar';
+import type { JamListeningControls } from '../jam/JamPlayer';
+import { JamElsewhereItem, JamRoomPanel } from '../jam/JamRoomPanel';
 import '../../styles/music.css';
 
-/** Who you are, for your own entry. */
-export interface MusicDrawerSelf {
-  id: string;
-  name: string;
-  avatarUrl: string | null;
+/** The Jam in the drawer. */
+export interface MusicDrawerJam {
+  /** Your room while connected to it (where the controls work); null otherwise. */
+  room: RoomId | null;
+  /** That room's Jam; null when it has none (or you are not connected). */
+  state: JamState | null;
+  /** The Jams the connection cannot play: other rooms, yours while not connected. */
+  elsewhere: readonly JamState[];
+  clockOffsetMs: number;
+  person(id: string): JamPerson;
+  uploads: ReadonlyMap<string, JamUploadStatus>;
+  /** Who listens to your room's Jam (`concord.watching` `@jam#music`), you included. */
+  listeners: readonly Viewer[];
+  /** "Adicionar música": the search dialog (the drawer stays open behind it). */
+  onOpenSearch(): void;
 }
 
 interface MusicDrawerProps {
   open: boolean;
-  self: MusicDrawerSelf;
-  /** Your music broadcast: "Sua música" on top while starting or live. */
-  own: MusicBroadcastState;
-  /** Who listens to your music (`concord.watching` `<you>#music`). */
-  ownListeners: readonly Viewer[];
-  /** The music broadcasts in your room (livekit). */
-  music: readonly RemoteMusic[];
-  /** The ones livekit cannot show yet: other rooms (and yours while not connected). */
-  elsewhere: readonly PresenceMusic[];
+  /** The Jam; null when the server has none (the drawer then never opens). */
+  jam: MusicDrawerJam | null;
   listening: MusicListening;
-  /** "Parar música" on your own entry. */
-  onStopOwn(): void;
   /** The ×, or a click anywhere outside it (Esc and the room buttons are handled by the owner). */
   onClose(): void;
 }
 
-interface OwnMusicProps {
-  self: MusicDrawerSelf;
-  own: Extract<MusicBroadcastState, { status: 'starting' | 'live' }>;
-  listeners: readonly Viewer[];
-  onStop(): void;
-}
-
-function OwnMusic({ self, own, listeners, onStop }: OwnMusicProps) {
-  const nowPlaying = own.status === 'live' ? own.nowPlaying : null;
-  const artUrl = useOwnMusicArt(nowPlaying?.artId ?? null);
-  const starting = own.status === 'starting';
-  return (
-    <MusicPlayerBar
-      who="Você"
-      personId={self.id}
-      avatarUrl={self.avatarUrl}
-      app={own.app}
-      nowPlaying={nowPlaying}
-      artUrl={artUrl}
-      placeholder={starting ? 'Iniciando…' : undefined}
-      actions={
-        <button
-          type="button"
-          className="btn btn--danger btn--sm"
-          disabled={starting}
-          onClick={onStop}
-        >
-          Parar música
-        </button>
-      }
-      footer={
-        <p
-          className="music-player__listeners"
-          title={listenersTitle(listeners.map((viewer) => viewer.name))}
-        >
-          <HeadphonesIcon size={14} />
-          {listenersLabel(listeners.length)}
-          {own.status === 'live' && (
-            <span
-              className="music-player__quality"
-              title="Qualidade do áudio enviado: a melhor que a sua conexão aguenta sem perder pacotes"
-            >
-              · {own.audioKbps} kbps
-            </span>
-          )}
-        </p>
-      }
-    />
-  );
-}
+/**
+ * Elements whose clicks never close the drawer: the rooms' music buttons toggle it themselves
+ * (closing here first would make them reopen it), and the Jam's search dialog opens over it from
+ * "Adicionar música" (the drawer is still there, with the new song, once it closes).
+ */
+const KEEPS_OPEN = '.music-button, .room-icon__music, .jam-modal-backdrop';
 
 /**
- * The music drawer: slides in from the left over the top of the stage (the layout stays put) and
- * lists every music broadcast with its own "Ouvir", like "Assistir" for lives: your own first,
- * then a full player for each one in your room, then the other rooms (entering them to listen).
- * Nothing plays until "Ouvir" is pressed, even with a single broadcast. Closing it (×, Esc, a click
- * outside) never stops the audio.
+ * The music drawer: slides in from the left over the top of the stage (the layout stays put) with
+ * your room's Jam (player, controls, who listens, the queue and "Adicionar música"), then the Jams
+ * of the other rooms ("Entrar e ouvir"). Nothing plays until "Ouvir" is pressed. Closing it (×,
+ * Esc, a click outside) never stops the audio.
  */
-export function MusicDrawer({
-  open,
-  self,
-  own,
-  ownListeners,
-  music,
-  elsewhere,
-  listening,
-  onStopOwn,
-  onClose,
-}: MusicDrawerProps) {
-  const ownActive = own.status === 'starting' || own.status === 'live';
-  const empty = !ownActive && music.length === 0 && elsewhere.length === 0;
+export function MusicDrawer({ open, jam, listening, onClose }: MusicDrawerProps) {
+  const jamHere = jam?.room && jam.state ? { room: jam.room, state: jam.state } : null;
+  const jamsElsewhere = jam?.elsewhere ?? [];
+  const empty = jamHere === null && jamsElsewhere.length === 0;
+  const jamListening: JamListeningControls = {
+    on: listening.listening.includes(JAM_BOT_IDENTITY),
+    pending: listening.pending === JAM_BOT_IDENTITY,
+    setting: listening.settingFor(JAM_BOT_IDENTITY),
+    listen: () => listening.listen(JAM_BOT_IDENTITY),
+    stop: () => listening.stop(JAM_BOT_IDENTITY),
+    setVolume: (volume) => listening.setVolume(JAM_BOT_IDENTITY, volume),
+    toggleMute: () => listening.toggleMute(JAM_BOT_IDENTITY),
+  };
   const panel = useRef<HTMLElement>(null);
 
-  // A click anywhere else closes it, like the ×. The room rows' music buttons toggle it
-  // themselves (closing here first would make them reopen it).
+  // A click anywhere else closes it, like the ×.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (panel.current?.contains(target) || target.closest('.music-button')) return;
+      if (panel.current?.contains(target) || target.closest(KEEPS_OPEN)) return;
       onClose();
     };
     document.addEventListener('pointerdown', onPointerDown, true);
@@ -146,108 +99,38 @@ export function MusicDrawer({
         </button>
       </header>
       <div className="music-drawer__body">
-        {ownActive && (
-          <section className="music-drawer__section" aria-label="Sua música">
-            <h3 className="music-drawer__heading">Sua música</h3>
-            <OwnMusic self={self} own={own} listeners={ownListeners} onStop={onStopOwn} />
-          </section>
+        {jam && jamHere && (
+          <JamRoomPanel
+            room={jamHere.room}
+            state={jamHere.state}
+            clockOffsetMs={jam.clockOffsetMs}
+            person={jam.person}
+            uploads={jam.uploads}
+            listeners={jam.listeners}
+            listening={jamListening}
+            onOpenSearch={jam.onOpenSearch}
+          />
         )}
 
-        {music.length > 0 && (
-          <section className="music-drawer__section" aria-label="Músicas nesta sala">
-            <h3 className="music-drawer__heading">Nesta sala</h3>
-            <ul className="music-drawer__list">
-              {music.map((item) => {
-                const id = item.participantId;
-                const on = listening.listening.includes(id);
-                const pending = listening.pending === id;
-                return (
-                  <li key={id}>
-                    <MusicPlayerBar
-                      who={item.name}
-                      personId={id}
-                      avatarUrl={item.avatarUrl}
-                      app={item.app}
-                      nowPlaying={item.nowPlaying}
-                      artUrl={item.artUrl}
-                      listening={on}
-                      actions={
-                        on ? (
-                          <button
-                            type="button"
-                            className="btn btn--sm"
-                            onClick={() => listening.stop(id)}
-                          >
-                            Parar de ouvir
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn btn--primary btn--sm"
-                            disabled={pending}
-                            aria-label={`Ouvir a música de ${item.name}`}
-                            onClick={() => listening.listen(id)}
-                          >
-                            {pending ? <Spinner size="sm" label="Conectando" /> : 'Ouvir'}
-                          </button>
-                        )
-                      }
-                      volume={
-                        on
-                          ? {
-                              setting: listening.settingFor(id),
-                              onVolume: (volume) => listening.setVolume(id, volume),
-                              onToggleMute: () => listening.toggleMute(id),
-                            }
-                          : null
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
-
-        {elsewhere.length > 0 && (
-          <section className="music-drawer__section" aria-label="Músicas em outras salas">
+        {jamsElsewhere.length > 0 && (
+          <section className="music-drawer__section" aria-label="Jams em outras salas">
             <h3 className="music-drawer__heading">Em outras salas</h3>
             <ul className="music-drawer__list">
-              {elsewhere.map(({ room, participant }) => {
-                const pending = listening.pending === participant.id;
-                const where = roomLabel(room);
-                return (
-                  <li key={`${room}\n${participant.id}`} className="music-elsewhere">
-                    <Avatar
-                      id={participant.id}
-                      name={participant.name}
-                      src={participant.avatarUrl}
-                      size="sm"
-                    />
-                    <div className="music-elsewhere__text">
-                      <p className="music-elsewhere__name" title={`Música de ${participant.name}`}>
-                        Música de <strong>{participant.name}</strong>
-                        <span className="music-elsewhere__room"> · {where}</span>
-                      </p>
-                      <p className="music-elsewhere__hint">Ouvir entra na sala</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn--primary btn--sm"
-                      disabled={pending}
-                      aria-label={`Entrar em ${where} e ouvir a música de ${participant.name}`}
-                      onClick={() => listening.listenIn(room, participant.id)}
-                    >
-                      {pending ? <Spinner size="sm" label="Entrando" /> : 'Ouvir'}
-                    </button>
-                  </li>
-                );
-              })}
+              {jamsElsewhere.map((state) => (
+                <JamElsewhereItem
+                  key={`jam:${state.room}`}
+                  state={state}
+                  pending={
+                    listening.pending === JAM_BOT_IDENTITY && listening.pendingRoom === state.room
+                  }
+                  onListenIn={() => listening.listenIn(state.room, JAM_BOT_IDENTITY)}
+                />
+              ))}
             </ul>
           </section>
         )}
 
-        {empty && <p className="music-drawer__empty">Procurando as transmissões de música…</p>}
+        {empty && <p className="music-drawer__empty">Nenhuma Jam tocando agora.</p>}
       </div>
     </section>
   );

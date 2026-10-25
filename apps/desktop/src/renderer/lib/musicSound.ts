@@ -1,31 +1,30 @@
-import type { PresenceEvent, PresenceSnapshot } from '@concord/shared';
+import type { JamEvent, JamSnapshot } from '@concord/shared';
 import type { LiveSoundContext } from './liveSound';
 
 export interface MusicSoundContext extends LiveSoundContext {
-  /** `Settings.musicSounds`. */
+  /** `Settings.musicSounds`: the chime when a Jam starts in your room. */
   enabled: boolean;
 }
 
 /**
- * Whether a presence event should play the "someone started broadcasting music in your room"
- * chime: a `participant_updated` turning `music` on (it was off or unknown in `previous`, the
- * snapshot before this event) in the room you are connected to, by someone else, with the sound
- * enabled and neither the room nor the person muted in Settings → Sons. Never the snapshot (music
- * already playing when you open the app or enter the room), nor someone arriving with it on.
+ * Whether a jam event should play the Jam's chime: a `jam_updated` where the room you are
+ * connected to goes from nothing playing (no Jam, or only songs still on their way) to a song,
+ * asked for by someone else, with the sound enabled and neither the room nor that person muted.
+ * A song following another never counts, nor the snapshot (a Jam already playing when you open
+ * the app or reconnect).
  */
-export function shouldPlayMusicStarted(
-  event: PresenceEvent,
-  previous: PresenceSnapshot,
+export function shouldPlayJamStarted(
+  event: JamEvent,
+  previous: JamSnapshot,
   context: MusicSoundContext,
 ): boolean {
-  if (!context.enabled || event.type !== 'participant_updated') return false;
-  if (event.participant.music !== true) return false;
+  if (!context.enabled || event.type !== 'jam_updated') return false;
+  const { state } = event;
   if (!context.connected || context.currentRoom === null) return false;
-  if (event.room !== context.currentRoom) return false;
-  const id = event.participant.id;
-  if (id === context.selfId) return false;
-  const before = previous.rooms[event.room]?.find((participant) => participant.id === id);
-  if (!before || before.music === true) return false;
-  if (context.mutedRooms.includes(event.room)) return false;
-  return !context.mutedUsers.includes(id);
+  if (state.room !== context.currentRoom || state.current === null) return false;
+  if (previous.rooms[state.room]?.current) return false;
+  if (context.mutedRooms.includes(state.room)) return false;
+  const requester = state.current.item.requestedBy;
+  if (requester === context.selfId) return false;
+  return !context.mutedUsers.includes(requester);
 }

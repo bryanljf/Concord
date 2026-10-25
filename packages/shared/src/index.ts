@@ -15,8 +15,6 @@ export interface PresenceParticipant {
   avatarUrl?: string | null;
   /** Publishing a webcam (a camera never counts as `streaming`). Optional for older servers. */
   camera?: boolean;
-  /** Broadcasting an app's music (Spotify…); never counts as `streaming`. Optional. */
-  music?: boolean;
 }
 
 export interface PresenceSnapshot {
@@ -253,3 +251,5 @@ export function roomLabel(room: RoomId): string {
   const words = room.replace(/[-_]+/g, ' ').trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
+
+export * from './jam';

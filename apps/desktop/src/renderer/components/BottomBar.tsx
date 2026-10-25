@@ -1,15 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react';
 import type { StreamQualityId } from '@concord/shared';
-import type { MusicAppId, NowPlaying } from '../../preload/api';
 import type { BroadcastState } from '../hooks/useBroadcast';
 import type { CameraState } from '../hooks/useCamera';
-import type { MusicBroadcastState } from '../hooks/useMusicBroadcast';
 import { useVideoInputs } from '../hooks/useVideoInputs';
 import type { Point } from '../lib/contextMenu';
 import { streamQualityLabel } from '../lib/encoding';
-import { MUSIC_APP_LABELS } from '../lib/music';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { Marquee } from './music/Marquee';
 import { Spinner } from './Spinner';
 import {
   CameraIcon,
@@ -46,9 +42,12 @@ interface BottomBarProps {
   onPickCamera(deviceId: string | null): void;
   /** "Configurações da câmera…": opens Settings on the camera section. */
   onCameraSettings(): void;
-  /** Music broadcast: a "♪ música · artista" chip with "Parar música" while live. */
-  music: MusicBroadcastState;
-  onStopMusic(): void;
+  /** The server has the Jam: the green "Música" button (hidden otherwise). */
+  jamAvailable: boolean;
+  /** The Jam's search dialog is open. */
+  jamOpen: boolean;
+  /** "Música": opens the search to add a song to your room's Jam (needs a room, like the camera). */
+  onOpenJam(): void;
 }
 
 /** A click on the chevron that just closed the menu (outside pointerdown) must not reopen it. */
@@ -68,8 +67,9 @@ export function BottomBar({
   onToggleCamera,
   onPickCamera,
   onCameraSettings,
-  music,
-  onStopMusic,
+  jamAvailable,
+  jamOpen,
+  onOpenJam,
 }: BottomBarProps) {
   const live = broadcast.status === 'live';
   const busy = broadcast.status === 'starting' || broadcast.status === 'stopping' || switching;
@@ -123,13 +123,13 @@ export function BottomBar({
         onPick={onPickCamera}
         onSettings={onCameraSettings}
       />
+      {jamAvailable && <JamButton inRoom={inRoom} open={jamOpen} onOpen={onOpenJam} />}
       {live && (
         <span className="bottom-bar__live" role="status">
           <span className="bottom-bar__live-dot" aria-hidden="true" />
           AO VIVO · <strong>{broadcast.sourceName}</strong>
         </span>
       )}
-      <MusicChip music={music} onStop={onStopMusic} />
       <span className="bottom-bar__quality">
         qualidade: <strong>{streamQualityLabel(quality)}</strong>
       </span>
@@ -149,63 +149,31 @@ function BarLabel({ children }: { children: ReactNode }) {
   return <span className="bar-btn__label">{children}</span>;
 }
 
-/** "Dusk Till Dawn · Bart Skils"; the app's name while it plays nothing, "Anúncio" for ads. */
-function musicChipLabel(app: MusicAppId, nowPlaying: NowPlaying | null): string {
-  const appLabel = MUSIC_APP_LABELS[app];
-  if (!nowPlaying) return appLabel;
-  if (nowPlaying.ad) return 'Anúncio';
-  if (!nowPlaying.title) return appLabel;
-  return nowPlaying.artist ? `${nowPlaying.title} · ${nowPlaying.artist}` : nowPlaying.title;
-}
-
-interface MusicChipProps {
-  music: MusicBroadcastState;
-  onStop(): void;
+interface JamButtonProps {
+  inRoom: boolean;
+  open: boolean;
+  onOpen(): void;
 }
 
 /**
- * The music broadcast, shaped like the other buttons (green): just the note, sliding out what it
- * plays and "Parar música" on hover or focus (the music is never "ao vivo").
+ * "Música": the Jam's way in, shaped like the other buttons (icon only, the label slides out)
+ * and green like the music. Needs a room, like the camera.
  */
-function MusicChip({ music, onStop }: MusicChipProps) {
-  if (music.status === 'idle') return null;
-  if (music.status !== 'live') {
-    const starting = music.status === 'starting';
-    return (
-      <span className="bottom-bar__music bottom-bar__music--expanded" role="status">
-        <Spinner size="sm" label={starting ? 'Iniciando a música' : 'Parando a música'} />
-        <span className="bottom-bar__music-more">
-          <span className="bottom-bar__music-text">
-            {starting ? 'Iniciando a música…' : 'Parando a música…'}
-          </span>
-        </span>
-      </span>
-    );
-  }
-  const label = musicChipLabel(music.app, music.nowPlaying);
-  const paused = music.nowPlaying !== null && music.nowPlaying.state !== 'playing';
+function JamButton({ inRoom, open, onOpen }: JamButtonProps) {
   return (
-    <span
-      className={paused ? 'bottom-bar__music bottom-bar__music--paused' : 'bottom-bar__music'}
-      role="status"
-      // Focusable so the keyboard can slide it out too.
-      tabIndex={0}
-      aria-label={`Transmitindo música: ${label}`}
+    <button
+      type="button"
+      className={barButtonClass('btn bottom-bar__jam', open)}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      disabled={!inRoom}
+      // Only the reason it is disabled: the label itself slides out on hover.
+      data-tooltip={inRoom ? undefined : 'Entre numa sala para adicionar músicas'}
+      onClick={onOpen}
     >
-      <MusicIcon size={18} className="bottom-bar__music-icon" />
-      <span className="bottom-bar__music-more">
-        <Marquee className="bottom-bar__music-text" text={label} />
-        <button
-          type="button"
-          className="bottom-bar__music-stop"
-          aria-label="Parar música"
-          title="Parar música"
-          onClick={onStop}
-        >
-          <StopIcon size={14} />
-        </button>
-      </span>
-    </span>
+      <MusicIcon size={18} className="bottom-bar__jam-icon" />
+      <BarLabel>Música</BarLabel>
+    </button>
   );
 }
 

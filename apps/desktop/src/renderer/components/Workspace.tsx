@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_STREAM_QUALITY,
+  JAM_BOT_IDENTITY,
   roomLabel,
   streamQualityOf,
+  type JamItem,
   type RoomId,
   type UserInfo,
 } from '@concord/shared';
@@ -12,7 +14,7 @@ import {
   type LocalTrackPublication,
   type LocalVideoTrack,
 } from 'livekit-client';
-import type { MusicAppId, PopoutState, VideoEncoderPreference } from '../../preload/api';
+import type { JamUploadStatus, PopoutState, VideoEncoderPreference } from '../../preload/api';
 import type { BroadcastSwitchRequest } from '../hooks/useBroadcast';
 import {
   useBroadcast,
@@ -22,10 +24,10 @@ import {
 import { useCamera, type CameraEndReason } from '../hooks/useCamera';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { useHotkeys } from '../hooks/useHotkeys';
+import { useJam, useJamUploads } from '../hooks/useJam';
+import { useJamStartedSound } from '../hooks/useJamStartedSound';
 import { useLiveStartedSound } from '../hooks/useLiveStartedSound';
-import { useMusicBroadcast, type MusicEndReason } from '../hooks/useMusicBroadcast';
 import { useMusicListening } from '../hooks/useMusicListening';
-import { useMusicStartedSound } from '../hooks/useMusicStartedSound';
 import { usePublishStats } from '../hooks/usePublishStats';
 import { useRoomSounds } from '../hooks/useRoomSounds';
 import { useServerPing } from '../hooks/useServerPing';
@@ -46,9 +48,16 @@ import { usePublishWatching, useViewers } from '../hooks/useViewers';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { installEncoderPreference, setEncoderPreference } from '../lib/encoderPreference';
 import { formatShortcut } from '../lib/format';
-import { MUSIC_APP_LABELS } from '../lib/music';
-import { musicElsewhere, presenceMusic, watchingWithMusic } from '../lib/musicListening';
-import { musicDuplicationKey, musicDuplicationWarning } from '../lib/musicWarnings';
+import {
+  jamAddedMessage,
+  jamArtworkSrc,
+  jamListenable,
+  jamPerson,
+  jamsElsewhere,
+  jamTrackLine,
+  jamUploadErrorMessage,
+} from '../lib/jam';
+import { watchingWithMusic } from '../lib/musicListening';
 import { knownParticipants, presenceProfiles, withPresenceProfiles } from '../lib/presence';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
 import { computeStageLayout } from '../lib/stageLayout';
@@ -64,8 +73,9 @@ import { Sidebar, SidebarBrand } from './Sidebar';
 import { Stage, type StatsRequest } from './Stage';
 import { RoomStatusPanel } from './RoomStatusPanel';
 import { UserPanel } from './UserPanel';
+import { JamSearchModal } from './jam/JamSearchModal';
 import { type MusicCardItem } from './music/MusicCard';
-import { MusicDrawer } from './music/MusicDrawer';
+import { MusicDrawer, type MusicDrawerJam } from './music/MusicDrawer';
 import { SourcePicker } from './picker/SourcePicker';
 import { SettingsView, type SettingsSectionId } from './settings/SettingsView';
 import { StatsPanel, type StatsTarget } from './stats/StatsPanel';
@@ -88,13 +98,6 @@ const CAMERA_END_MESSAGES: Record<CameraEndReason, string> = {
   disconnected: 'Câmera desligada: a conexão com a sala caiu.',
 };
 
-/** Leaving or switching rooms stops the music first, so a choice never reads as "caiu". */
-const MUSIC_END_MESSAGES: Record<MusicEndReason, string> = {
-  app_closed: 'O Spotify foi fechado. A música parou.',
-  disconnected: 'A música parou: a conexão com a sala caiu.',
-  unpublished: 'A música parou.',
-};
-
 const CPU_MESSAGE =
   'Seu PC está sem CPU para codificar a transmissão. Se travar, baixe a resolução em Trocar fonte.';
 
@@ -102,6 +105,7 @@ const CPU_MESSAGE =
 const CAMERA_TARGET_FPS = 30;
 
 const NO_VIEWERS: readonly Viewer[] = [];
+const NO_MUSIC_CARDS: readonly MusicCardItem[] = [];
 
 const CLOSED_POPOUT: PopoutState = { open: false, target: null };
 
@@ -214,7 +218,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   }, [connected, streams, syncLive]);
   // A live you watch went off the air: the same chime the streamer hears when stopping.
   useWatchedLiveEndedSound(streams, watchedKeys, currentRoom, connected);
-  // Who watches what: you publish your watched streams (and the music you listen to, below),
+  // Who watches what: you publish your watched streams (and the Jam while you listen, below),
   // everyone's attributes give the viewers.
   const viewerIds = useViewers(room);
   // Volume is remembered per participant for their screen share: a webcam (no audio) must not
@@ -256,7 +260,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const cameraActive = camera.state.status === 'on' || camera.state.status === 'starting';
 
   // Switching rooms ends this room's webcam: turn it off first, so it is not reported as lost.
-  const joinRoom = useCallback(
+  const enterRoom = useCallback(
     async (roomId: RoomId, watchKey: string | null = null): Promise<boolean> => {
       if (roomId !== currentRoom && cameraActive) await stopCameraTrack().catch(() => undefined);
       return join(roomId, watchKey);
@@ -267,33 +271,6 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const onBroadcastWarning = useCallback(
     (message: string, tone: 'info' | 'error') => toast.show(message, { tone, durationMs: 7000 }),
     [toast],
-  );
-
-  // The music broadcast (an app's audio on its own track), independent of the screen share.
-  const onMusicEnded = useCallback(
-    (reason: MusicEndReason) => {
-      toast.show(MUSIC_END_MESSAGES[reason], { tone: 'info', durationMs: 6000 });
-    },
-    [toast],
-  );
-  const music = useMusicBroadcast({
-    room,
-    currentRoom,
-    join: joinRoom,
-    onEnded: onMusicEnded,
-    onWarning: onBroadcastWarning,
-  });
-  const { start: startMusicTrack, stop: stopMusicTrack } = music;
-  const musicLive = music.state.status === 'live';
-
-  // The music belongs to its room: switching rooms stops it first (no "caiu" notice for a
-  // choice). Only once live: stopping a start in progress would cancel it.
-  const enterRoom = useCallback(
-    async (roomId: RoomId, watchKey: string | null = null): Promise<boolean> => {
-      if (roomId !== currentRoom && musicLive) await stopMusicTrack().catch(() => undefined);
-      return joinRoom(roomId, watchKey);
-    },
-    [stopMusicTrack, musicLive, currentRoom, joinRoom],
   );
 
   const onBroadcastEnded = useCallback(
@@ -339,20 +316,6 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     };
   }, [room, toast]);
 
-  // The screen's audio also carries the music app (whole screen, system audio or the app's own
-  // window): allowed, with one notice per live and app.
-  const duplicationKey = musicDuplicationKey(
-    broadcast.state.status === 'live' ? broadcast.state : null,
-    music.state.status === 'live' ? music.state : null,
-  );
-  const musicApp = music.state.status === 'live' ? music.state.app : null;
-  const duplicationWarned = useRef<string | null>(null);
-  useEffect(() => {
-    if (!duplicationKey || !musicApp || duplicationWarned.current === duplicationKey) return;
-    duplicationWarned.current = duplicationKey;
-    toast.show(musicDuplicationWarning(musicApp), { tone: 'info', durationMs: 10000 });
-  }, [duplicationKey, musicApp, toast]);
-
   // Sender-side statistics of your screen share and webcam (panel + published summary).
   const localScreenTrack =
     broadcast.state.status === 'live'
@@ -387,12 +350,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     [currentRoom, connected, user.id, settings?.mutedRooms, settings?.mutedUsers],
   );
   useLiveStartedSound(liveSoundContext);
-  // Its own chime when someone else starts broadcasting music here (with its own switch).
+  // Its own chime when a Jam starts here (its own switch, the same muted rooms and people).
   const musicSoundContext = useMemo(
     () => ({ ...liveSoundContext, enabled: settings?.musicSounds ?? true }),
     [liveSoundContext, settings?.musicSounds],
   );
-  useMusicStartedSound(musicSoundContext);
 
   // Voice-channel style chimes: people (you included) entering or leaving your room.
   useRoomSounds({
@@ -456,53 +418,113 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const profiles = useMemo(() => presenceProfiles(snapshot), [snapshot]);
   const stageStreams = useMemo(() => withPresenceProfiles(streams, profiles), [streams, profiles]);
 
-  // Listening to music, on demand: the broadcasts in this room (livekit), the ones elsewhere
-  // (presence), what you listen to (published as `<id>#music` next to the watched streams).
-  const remoteMusic = useRemoteMusic(room, profiles);
+  // The Jam: every room's queue (from main, next to presence), what this app is sending, and the
+  // room's Jam staying listened to between songs (`jamListenable`).
+  const jam = useJam();
+  const onJamUploadError = useCallback(
+    (status: JamUploadStatus) => {
+      toast.show(jamUploadErrorMessage(status), { tone: 'error', durationMs: 8000 });
+    },
+    [toast],
+  );
+  const { uploads: jamUploads, noteAdded: noteJamAdded } = useJamUploads(onJamUploadError);
+  const currentJam =
+    jam.available && connected && currentRoom ? (jam.rooms[currentRoom] ?? null) : null;
+  const jamSticky = useMemo(
+    () => jamListenable(jam.available, jam.rooms, currentRoom, connected),
+    [jam.available, jam.rooms, currentRoom, connected],
+  );
+
+  // Listening to the Jam, on demand: its track in this room (livekit), the Jams elsewhere (the jam
+  // state), what you listen to (published as `@jam#music` next to the watched streams, so
+  // everyone sees you among its listeners).
+  const roomMusic = useRemoteMusic(room);
   const listening = useMusicListening({
     currentRoom,
     connected,
-    music: remoteMusic,
+    music: roomMusic,
+    sticky: jamSticky,
     join: enterRoom,
     startAudio,
   });
-  // The music in your room as stage cards ("Ouvir" / "Parar de ouvir"), like the lives' cards.
-  const musicCards = useMemo<MusicCardItem[]>(
-    () =>
-      remoteMusic.map((item) => ({
-        participantId: item.participantId,
-        name: item.name,
-        avatarUrl: item.avatarUrl,
-        artUrl: item.artUrl,
-        nowPlaying: item.nowPlaying,
-        listening: listening.listening.includes(item.participantId),
-      })),
-    [remoteMusic, listening.listening],
-  );
+  const listeningJam = listening.listening.includes(JAM_BOT_IDENTITY);
+  // The room's Jam as a stage card ("Ouvir" / "Parar de ouvir"), like the lives' cards (never as
+  // a person).
+  const musicCards = useMemo<readonly MusicCardItem[]>(() => {
+    if (!currentJam) return NO_MUSIC_CARDS;
+    const track = currentJam.current?.item.track ?? null;
+    return [
+      {
+        participantId: JAM_BOT_IDENTITY,
+        artUrl: jamArtworkSrc(track?.artworkUrl),
+        line: track ? jamTrackLine(track) : 'Preparando a primeira música…',
+        listening: listeningJam,
+      },
+    ];
+  }, [currentJam, listeningJam]);
   const publishedWatching = useMemo(
     () => watchingWithMusic(watchedKeys, listening.listening),
     [watchedKeys, listening.listening],
   );
   usePublishWatching(room, connected, publishedWatching);
-  const serverMusic = useMemo(() => presenceMusic(snapshot), [snapshot]);
-  const elsewhereMusic = useMemo(
-    () => musicElsewhere(serverMusic, currentRoom, connected, user.id),
-    [serverMusic, currentRoom, connected, user.id],
-  );
-  const ownMusicActive = music.state.status === 'starting' || musicLive;
-  // Presence may lag behind livekit (and your own music) for a moment.
-  const musicCount = Math.max(serverMusic.length, remoteMusic.length + (musicLive ? 1 : 0));
+  const jamCount = Object.keys(jam.rooms).length;
   const [musicOpen, setMusicOpen] = useState(false);
-  // The drawer closes when the last music ends (the button is gone with it).
-  if (musicOpen && musicCount === 0 && !ownMusicActive) setMusicOpen(false);
+  // The drawer closes when the last Jam ends (the rooms' music buttons are gone with it).
+  if (musicOpen && jamCount === 0) setMusicOpen(false);
   const toggleMusic = useCallback(() => setMusicOpen((open) => !open), []);
   const closeMusic = useCallback(() => setMusicOpen(false), []);
   const selfProfile = useMemo(
     () => ({ id: user.id, name: user.displayName, avatarUrl: user.avatarUrl ?? null }),
     [user.id, user.displayName, user.avatarUrl],
   );
-  // Viewers by stream key (your camera's viewers are under `cameraKey(user.id)`, your music's
-  // listeners under `musicKey(user.id)`).
+
+  // A Jam starting in your room rings (Settings → Sons: its switch, the muted rooms and people).
+  useJamStartedSound(musicSoundContext);
+
+  // "Música" (bottom bar, drawer): the Jam's search dialog, for the room you are in. It closes
+  // when you leave that room or the Jam goes away. Opened from the drawer, the drawer stays open
+  // behind it (with the new song once it closes).
+  const [jamSearchRoom, setJamSearchRoom] = useState<RoomId | null>(null);
+  if (jamSearchRoom !== null && (!jam.available || jamSearchRoom !== currentRoom)) {
+    setJamSearchRoom(null);
+  }
+  const openJamSearch = useCallback(() => {
+    if (!currentRoom || !connected) return;
+    setJamSearchRoom(currentRoom);
+  }, [currentRoom, connected]);
+  const closeJamSearch = useCallback(() => setJamSearchRoom(null), []);
+  const openJamQueue = useCallback(() => {
+    setJamSearchRoom(null);
+    setMusicOpen(true);
+  }, []);
+  const { listenIn } = listening;
+  // The answer may come after the dialog closed: it only listens if you are still connected to
+  // that room (`listenIn` would enter it again otherwise).
+  const latestRoom = useRef<RoomId | null>(null);
+  useEffect(() => {
+    latestRoom.current = connected ? currentRoom : null;
+  }, [connected, currentRoom]);
+  // A song added from the dialog: a short notice, and the Jam starts playing for whoever chose it.
+  // One the server already had never shows "Baixando…".
+  const onJamAdded = useCallback(
+    (roomId: RoomId, item: JamItem, roomWasIdle: boolean) => {
+      noteJamAdded(roomId, item);
+      setJamSearchRoom((open) => (open === roomId ? null : open));
+      toast.show(jamAddedMessage(item.track.title, roomWasIdle), { tone: 'success' });
+      if (!listeningJam && latestRoom.current === roomId) listenIn(roomId, JAM_BOT_IDENTITY);
+    },
+    [noteJamAdded, toast, listeningJam, listenIn],
+  );
+  const jamPersonOf = useCallback(
+    (id: string) => jamPerson(id, profiles, selfProfile),
+    [profiles, selfProfile],
+  );
+  const jamElsewhere = useMemo(
+    () => jamsElsewhere(jam.rooms, rooms, currentRoom, connected),
+    [jam.rooms, rooms, currentRoom, connected],
+  );
+  // Viewers by stream key (your camera's viewers are under `cameraKey(user.id)`, the Jam's
+  // listeners under `musicKey(JAM_BOT_IDENTITY)`).
   const viewers = useMemo(() => {
     const livekitName = (id: string): string | undefined =>
       room.getParticipantByIdentity(id)?.name || undefined;
@@ -512,6 +534,36 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     }
     return resolved;
   }, [viewerIds, profiles, room]);
+  // Who listens to the room's Jam (you included): overlapped avatars, like a live's viewers.
+  const jamListeners = viewers.get(musicKey(JAM_BOT_IDENTITY)) ?? NO_VIEWERS;
+  // The Jam in the music drawer: your room's (controls) and the others' ("Entrar e ouvir").
+  const drawerJam = useMemo<MusicDrawerJam | null>(
+    () =>
+      jam.available
+        ? {
+            room: connected ? currentRoom : null,
+            state: currentJam,
+            elsewhere: jamElsewhere,
+            clockOffsetMs: jam.clockOffsetMs,
+            person: jamPersonOf,
+            uploads: jamUploads,
+            listeners: jamListeners,
+            onOpenSearch: openJamSearch,
+          }
+        : null,
+    [
+      jam.available,
+      jam.clockOffsetMs,
+      connected,
+      currentRoom,
+      currentJam,
+      jamElsewhere,
+      jamPersonOf,
+      jamUploads,
+      jamListeners,
+      openJamSearch,
+    ],
+  );
   const platform = getPlatform();
   const shortcutLabel = formatShortcut(settings?.shortcut ?? DEFAULT_SHORTCUT, platform);
 
@@ -623,35 +675,6 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     },
     [broadcast, toast],
   );
-
-  // A start the user cancels ("Parar música" while it starts) resolves silently: no success toast.
-  const musicStartSeq = useRef(0);
-  const startMusic = useCallback(
-    (roomId: RoomId, app: MusicAppId) => {
-      const seq = ++musicStartSeq.current;
-      startMusicTrack(roomId, app).then(
-        () => {
-          if (seq !== musicStartSeq.current) return;
-          setPicker(null);
-          toast.show(`Transmitindo música do ${MUSIC_APP_LABELS[app]}.`, { tone: 'success' });
-        },
-        (err: unknown) => {
-          toast.show(toErrorMessage(err, 'Não foi possível transmitir a música.'), {
-            tone: 'error',
-            durationMs: 7000,
-          });
-        },
-      );
-    },
-    [startMusicTrack, toast],
-  );
-
-  const stopMusic = useCallback(() => {
-    musicStartSeq.current += 1;
-    stopMusicTrack().catch((err: unknown) => {
-      toast.show(toErrorMessage(err, 'Não foi possível parar a música.'), { tone: 'error' });
-    });
-  }, [stopMusicTrack, toast]);
 
   const switchSource = useCallback(
     (request: BroadcastSwitchRequest) => {
@@ -769,16 +792,15 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       .catch(() => undefined);
   }, [pipOpen, connectionState, currentRoom, pipIds]);
 
-  // Leaving while live stops the broadcast, the music and the camera first (no "a conexão caiu"
-  // notice for a choice); the picture-in-picture closes with the room.
+  // Leaving while live stops the broadcast and the camera first (no "a conexão caiu" notice for a
+  // choice); the picture-in-picture closes with the room.
   const leaveRoom = useCallback(async () => {
     const status = broadcast.state.status;
     if (status === 'live' || status === 'starting') await broadcast.stop().catch(() => undefined);
-    if (musicLive) await stopMusicTrack().catch(() => undefined);
     if (cameraActive) await stopCameraTrack().catch(() => undefined);
     closePip();
     await leave();
-  }, [broadcast, musicLive, stopMusicTrack, stopCameraTrack, cameraActive, closePip, leave]);
+  }, [broadcast, stopCameraTrack, cameraActive, closePip, leave]);
 
   // Global shortcut / tray "Transmitir…" keep meaning start/stop.
   useStreamToggle({ streaming, onStart: openPicker, onStop: stopBroadcast });
@@ -841,10 +863,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   useHotkeys(
     {
       onToggleFullscreen,
-      // One Esc, one step back: music drawer, statistics panel, picker, fullscreen, destaque →
-      // grid.
+      // One Esc, one step back: Jam search, music drawer, statistics panel, picker, fullscreen,
+      // destaque → grid.
       onEscape: () => {
-        if (musicOpen) closeMusic();
+        if (jamSearchRoom !== null) closeJamSearch();
+        else if (musicOpen) closeMusic();
         else if (statsTarget) closeStats();
         else if (pickerOpen) closePicker();
         else if (fullscreen) changeFullscreen(false);
@@ -879,6 +902,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             snapshot={snapshot}
             currentRoom={currentRoom}
             watchedIds={watchedKeys}
+            jamRooms={jam.rooms}
             musicListening={listening.listening.length}
             musicOpen={musicOpen}
             collapsed={sidebarCollapsed}
@@ -936,20 +960,16 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             onToggleCamera={toggleCamera}
             onPickCamera={pickCamera}
             onCameraSettings={openCameraSettings}
-            music={music.state}
-            onStopMusic={stopMusic}
+            jamAvailable={jam.available}
+            jamOpen={jamSearchRoom !== null}
+            onOpenJam={openJamSearch}
           />
         }
         stageOverlay={
           <MusicDrawer
             open={musicOpen}
-            self={selfProfile}
-            own={music.state}
-            ownListeners={viewers.get(musicKey(user.id)) ?? NO_VIEWERS}
-            music={remoteMusic}
-            elsewhere={elsewhereMusic}
+            jam={drawerJam}
             listening={listening}
-            onStopOwn={stopMusic}
             onClose={closeMusic}
           />
         }
@@ -999,9 +1019,6 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       </AppShell>
       {picker === 'start' && settings && (
         <SourcePicker
-          music={music.state}
-          onStartMusic={startMusic}
-          onStopMusic={stopMusic}
           rooms={rooms}
           currentRoom={currentRoom}
           settings={settings}
@@ -1013,9 +1030,6 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       )}
       {picker === 'switch' && settings && broadcast.state.status === 'live' && (
         <SourcePicker
-          music={music.state}
-          onStartMusic={startMusic}
-          onStopMusic={stopMusic}
           rooms={rooms}
           currentRoom={broadcast.state.room}
           settings={settings}
@@ -1030,6 +1044,19 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             switchSource({ sourceId, sourceName, quality, audio: audioMode })
           }
           onEncoder={chooseEncoder}
+        />
+      )}
+      {jamSearchRoom !== null && (
+        <JamSearchModal
+          room={jamSearchRoom}
+          connected={connected}
+          state={jam.rooms[jamSearchRoom] ?? null}
+          clockOffsetMs={jam.clockOffsetMs}
+          person={jamPersonOf}
+          uploads={jamUploads}
+          onAdded={onJamAdded}
+          onOpenQueue={openJamQueue}
+          onClose={closeJamSearch}
         />
       )}
       {settingsOpen && settings && (

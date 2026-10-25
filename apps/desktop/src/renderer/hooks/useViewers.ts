@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isAuxiliaryIdentity } from '@concord/shared';
+import { isAuxiliaryIdentity, isJamBotIdentity } from '@concord/shared';
 import { ConnectionState, RoomEvent, type Room } from 'livekit-client';
 import {
   changesWatching,
@@ -23,7 +23,10 @@ const VIEWER_EVENTS = [
 function snapshot(room: Room): ViewersByLive {
   const participants: WatchingParticipant[] = [];
   for (const participant of room.remoteParticipants.values()) {
-    if (!isAuxiliaryIdentity(participant.identity)) participants.push(participant);
+    // Hidden windows and the jam bot never watch nor listen to anything.
+    const { identity } = participant;
+    if (!isAuxiliaryIdentity(identity) && !isJamBotIdentity(identity))
+      participants.push(participant);
   }
   participants.push(room.localParticipant);
   return collectViewers(participants);

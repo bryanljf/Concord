@@ -23,7 +23,7 @@ import {
 import { fitGrid } from '../lib/gridLayout';
 import type { StageLayout, StripItem, WatchedTile } from '../lib/stageLayout';
 import { liveCardsTitle, stageTitles } from '../lib/stageText';
-import type { StreamKind } from '../lib/streamKey';
+import { musicKey, type StreamKind } from '../lib/streamKey';
 import type { Viewer } from '../lib/viewers';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { Spinner } from './Spinner';
@@ -47,7 +47,10 @@ interface StageProps {
   streams: RemoteStream[];
   /** What goes where (computed by the Workspace, whose hotkeys and header use it too). */
   layout: StageLayout;
-  /** Who watches each remote stream, by stream key. */
+  /**
+   * Who watches each remote stream, by stream key (and who listens to the Jam, under
+   * `musicKey(JAM_BOT_IDENTITY)`: its card shows them).
+   */
   viewers: ReadonlyMap<string, readonly Viewer[]>;
   /** Who watches your own screen share. */
   localViewers: readonly Viewer[];
@@ -95,7 +98,7 @@ interface StageProps {
   onStopCamera(): void;
   /** "Escolher câmera…": Settings on the camera section. */
   onPickCamera(): void;
-  /** Music broadcasts in the room (yours excluded): cards with "Ouvir", like lives' cards. */
+  /** The room's Jam (none or one): a card with "Ouvir", like lives' cards. */
   musicCards: readonly MusicCardItem[];
   onListen(participantId: string): void;
   onStopListening(participantId: string): void;
@@ -440,6 +443,7 @@ export function Stage({
     <MusicCard
       item={item}
       size={size}
+      listeners={viewers.get(musicKey(item.participantId)) ?? NO_VIEWERS}
       onListen={() => onListen(item.participantId)}
       onStopListening={() => onStopListening(item.participantId)}
     />
@@ -460,8 +464,9 @@ export function Stage({
     );
   };
 
-  // Cards of lives and cameras nobody picked, plus the music in the room (yours excluded).
+  // Cards of lives and cameras nobody picked, plus the room's Jam.
   const cameraCards = layout.cards.filter((key) => byKey.get(key)?.kind === 'camera').length;
+  const jamCard = musicCards.length > 0;
   const cardsSection = (
     <section className="stage__cards" aria-labelledby="stage-cards-title">
       <header className="stage__cards-header">
@@ -470,7 +475,7 @@ export function Stage({
             {
               screens: layout.cards.length - cameraCards,
               cameras: cameraCards,
-              music: musicCards.length,
+              jam: jamCard,
             },
             currentRoom,
           )}
@@ -491,7 +496,7 @@ export function Stage({
       </ul>
     </section>
   );
-  // With something on the stage, the music cards wait in the strip (like the lives' cards).
+  // With something on the stage, the Jam's card waits in the strip (like the lives' cards).
   const musicOnStage = layout.main.kind === 'cards' || layout.main.kind === 'empty';
   const stripMusic = musicOnStage || fullscreen ? [] : musicCards;
 

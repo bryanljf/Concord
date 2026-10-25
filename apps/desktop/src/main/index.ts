@@ -10,10 +10,11 @@ import { parseCliArgs } from './cli';
 import { createDiscordWatcher } from './discord-watcher';
 import { createFakeAutoUpdater } from './fake-updater';
 import { raiseGpuPriority } from './gpu-priority';
+import { DISK_CACHE_MAX_BYTES, startHousekeeping } from './housekeeping';
 import { registerIpc } from './ipc';
+import { createJam, jamSessionOwner } from './jam';
 import { log } from './log';
 import { createNotifier } from './notifications';
-import { createNowPlaying } from './now-playing';
 import { createPipManager } from './pip';
 import { createPopoutManager } from './popout';
 import { PresenceClient } from './presence-client';
@@ -49,6 +50,8 @@ if (cli.userDataDir) {
   app.setPath('userData', cli.userDataDir);
   app.setPath('sessionData', cli.userDataDir);
 }
+// Chromium's HTTP cache otherwise grows to hundreds of MB; covers and avatars need little.
+app.commandLine.appendSwitch('disk-cache-size', String(DISK_CACHE_MAX_BYTES));
 
 if (!app.requestSingleInstanceLock()) {
   logger.info('another instance is running; exiting');
@@ -94,6 +97,14 @@ function bootstrap(): void {
     client: presence,
     notifier,
   });
+  // The Jam's events ride the presence SSE; its uploads belong to the logged-in account.
+  const jam = createJam({ api, store: presence.jam });
+  let jamOwner = jamSessionOwner(session.get());
+  session.onChange((current) => {
+    const owner = jamSessionOwner(current);
+    if (owner !== jamOwner) jam.cancelUploads();
+    jamOwner = owner;
+  });
 
   const windows = createWindowRegistry();
   const window = createMainWindow({
@@ -114,14 +125,22 @@ function bootstrap(): void {
   const streaming = createStreamingStore();
   const capture = createCaptureService({ windows });
   const processAudio = createProcessAudioBridge(createProcessAudioEngine());
-  // Second entry of the main build (electron.vite.config.ts), next to this bundle; it only
-  // starts when a window first asks what a music app plays.
-  const nowPlaying = createNowPlaying({ workerPath: join(__dirname, 'now-playing-worker.js') });
+  // Nothing left at rest that is not needed (old installers, yt-dlp leftovers…); background only,
+  // and the updater's checks wait for its own cache to be cleaned.
+  const housekeeping = startHousekeeping({
+    platform: process.platform,
+    resourcesPath: app.isPackaged ? process.resourcesPath : null,
+    appData: app.getPath('appData'),
+    localAppData: process.env.LOCALAPPDATA ?? join(app.getPath('home'), 'AppData', 'Local'),
+    currentVersion: app.getVersion(),
+    tasks: [{ name: 'yt-dlp cleanup', run: () => jam.cleanUp() }],
+  });
   // `--fake-update` (dev only): the real status machine on a simulated electron-updater.
   const fakeUpdate = app.isPackaged ? undefined : cli.fakeUpdate;
   const updater = createUpdater({
     isPackaged: app.isPackaged || fakeUpdate !== undefined,
     currentVersion: app.getVersion(),
+    whenReady: housekeeping.updaterCacheCleaned,
     // `quitAndInstall` closes every window first: without this, close-to-tray would cancel it.
     onBeforeInstall: () => {
       quitting = true;
@@ -180,7 +199,7 @@ function bootstrap(): void {
     windowDrag,
     updater,
     processAudio,
-    nowPlaying,
+    jam,
   });
   capture.install();
   bindAutostart(settings);
@@ -215,8 +234,9 @@ function bootstrap(): void {
     controller.stop();
     discord.stop();
     presence.disconnect('no_session');
+    // Kills any yt-dlp still running (it would outlive the app otherwise).
+    jam.destroy();
     void processAudio.stopAll();
-    nowPlaying.destroy();
     windowDrag.destroy();
     popout.destroy();
     pip.destroy();

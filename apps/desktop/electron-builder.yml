@@ -26,11 +26,6 @@ asarUnpack:
   - '**/node_modules/@concord/process-audio/**'
   # Native addon with its prebuilt .node binary (loaded through `bindings`).
   - '**/node_modules/loopback-capture/**'
-  # "Now playing" (Windows media controls), loaded by the out/main/now-playing-worker.js utility
-  # process: the adapter, the napi-rs loader and its per-platform binary package
-  # (@coooookies/windows-smtc-monitor-win32-x64-msvc).
-  - '**/node_modules/@concord/now-playing/**'
-  - '**/node_modules/@coooookies/windows-smtc-monitor*/**'
   # FFI for the GPU priority call (src/main/gpu-priority.ts): koffi finds its binary in the sibling
   # @koromix/koffi-win32-x64 package.
   - '**/node_modules/koffi/**'
@@ -44,8 +39,7 @@ extraResources:
     filter:
       - '**/*.png'
 
-# @concord/process-audio, @concord/now-playing and koffi ship prebuilt binaries; nothing is
-# compiled while packaging.
+# @concord/process-audio and koffi ship prebuilt binaries; nothing is compiled while packaging.
 npmRebuild: false
 
 win:
@@ -61,8 +55,14 @@ nsis:
   # Per-user install (no admin prompt), under %LOCALAPPDATA%\Programs\Concord.
   perMachine: false
   allowToChangeInstallationDirectory: false
+  # housekeeping.ts reads the version back from this name (pending update in the updater cache).
   artifactName: Concord-Setup-${version}.${ext}
   shortcutName: Concord
+  # Uninstalling removes %APPDATA%\Concord (settings, key, yt-dlp, caches). Never during an
+  # update: the new installer runs the old uninstaller with --updated, which skips it.
+  deleteAppDataOnUninstall: true
+  # customUnInstall: also removes electron-updater's cache in %LOCALAPPDATA% (not during updates).
+  include: resources/installer.nsh
 
 # electron-updater reads this (as app-update.yml next to the asar) to find releases.
 # GitHub user that hosts the repository; keep it in

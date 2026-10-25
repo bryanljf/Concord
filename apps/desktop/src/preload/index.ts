@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type {
+  JamEvent,
+  JamItem,
+  JamSnapshot,
+  JamTrack,
   PresenceEvent,
   RoomId,
   ServerInfoResponse,
@@ -9,7 +13,7 @@ import type {
 import type {
   CaptureSource,
   ConcordApi,
-  MusicAppStatus,
+  JamUploadStatus,
   NavigateTarget,
   PipState,
   PipTarget,
@@ -150,12 +154,18 @@ const api: ConcordApi = {
   stopProcessAudio: (captureId) => invoke<void>(IPC.PROCESS_AUDIO_STOP, captureId),
   onProcessAudioData: (listener) =>
     subscribe2<string, Float32Array>(EVENTS.PROCESS_AUDIO_DATA, listener),
-  onProcessAudioEnded: (listener) =>
-    subscribe2<string, 'app_closed'>(EVENTS.PROCESS_AUDIO_ENDED, listener),
 
-  getMusicAppStatus: (app) => invoke<MusicAppStatus>(IPC.GET_MUSIC_APP_STATUS, app),
-  onMusicAppStatus: (listener) => subscribe<MusicAppStatus>(EVENTS.MUSIC_APP_STATUS, listener),
-  getMusicArt: (artId) => invoke<string | null>(IPC.GET_MUSIC_ART, artId),
+  getJam: () => invoke<JamSnapshot>(IPC.GET_JAM),
+  onJamEvent: (listener) => subscribe<JamEvent>(EVENTS.JAM_EVENT, listener),
+  searchJam: (query) => invoke<JamTrack[]>(IPC.SEARCH_JAM, query),
+  prefetchJam: (videoIds) => invoke<void>(IPC.PREFETCH_JAM, videoIds),
+  addToJam: (room, videoId) => invoke<JamItem>(IPC.ADD_TO_JAM, room, videoId),
+  removeFromJam: (room, itemId) => invoke<void>(IPC.REMOVE_FROM_JAM, room, itemId),
+  skipJam: (room, itemId) => invoke<void>(IPC.SKIP_JAM, room, itemId),
+  pauseJam: (room) => invoke<void>(IPC.PAUSE_JAM, room),
+  resumeJam: (room) => invoke<void>(IPC.RESUME_JAM, room),
+  getJamUploads: () => invoke<JamUploadStatus[]>(IPC.GET_JAM_UPLOADS),
+  onJamUploadStatus: (listener) => subscribe<JamUploadStatus>(EVENTS.JAM_UPLOAD_STATUS, listener),
 };
 
 /** Main passes `--concord-window=<kind>` through `webPreferences.additionalArguments`. */

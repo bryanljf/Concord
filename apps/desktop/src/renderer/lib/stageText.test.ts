@@ -37,22 +37,28 @@ describe('liveCardsTitle', () => {
   });
 });
 
-describe('liveCardsTitle with music', () => {
-  it('counts the people broadcasting music alone', () => {
-    expect(liveCardsTitle({ screens: 0, cameras: 0, music: 1 }, 'sala-1')).toBe(
-      '1 pessoa transmitindo música em Sala 1',
-    );
-    expect(liveCardsTitle({ screens: 0, cameras: 0, music: 2 }, 'sala-1')).toBe(
-      '2 pessoas transmitindo música em Sala 1',
+describe('liveCardsTitle with the Jam', () => {
+  it('names the Jam alone', () => {
+    expect(liveCardsTitle({ screens: 0, cameras: 0, jam: true }, 'sala-1')).toBe(
+      'Jam tocando em Sala 1',
     );
   });
 
-  it('lists every kind when mixed', () => {
-    expect(liveCardsTitle({ screens: 1, cameras: 0, music: 1 }, 'sala-1')).toBe(
-      '1 transmissão ao vivo e 1 música em Sala 1',
+  it('adds the Jam last when mixed', () => {
+    expect(liveCardsTitle({ screens: 1, cameras: 0, jam: true }, 'sala-1')).toBe(
+      '1 transmissão ao vivo e a Jam em Sala 1',
     );
-    expect(liveCardsTitle({ screens: 2, cameras: 1, music: 3 }, 'sala-1')).toBe(
-      '2 transmissões ao vivo, 1 câmera e 3 músicas em Sala 1',
+    expect(liveCardsTitle({ screens: 0, cameras: 2, jam: true }, 'sala-2')).toBe(
+      '2 câmeras e a Jam em Sala 2',
+    );
+    expect(liveCardsTitle({ screens: 2, cameras: 1, jam: true }, 'sala-1')).toBe(
+      '2 transmissões ao vivo, 1 câmera e a Jam em Sala 1',
+    );
+  });
+
+  it('keeps the titles without the Jam unchanged', () => {
+    expect(liveCardsTitle({ screens: 2, cameras: 0, jam: false }, 'sala-1')).toBe(
+      '2 pessoas ao vivo em Sala 1',
     );
   });
 });

@@ -6,6 +6,10 @@ import {
   encodeWatching,
   diffViewers,
   resolveViewers,
+  STACKED_VIEWERS,
+  viewerStack,
+  viewersEmptyText,
+  viewersHeading,
   viewersLabel,
   WATCHING_ATTRIBUTE,
   type ViewersByLive,
@@ -86,6 +90,48 @@ describe('viewersLabel', () => {
     [['Ana', 'Bia', 'Caio'], '3 pessoas assistindo: Ana, Bia e Caio'],
   ])('%j -> %s', (names, expected) => {
     expect(viewersLabel(names.map((name) => ({ name })))).toBe(expected);
+  });
+
+  it.each<[string[], string]>([
+    [[], 'Ninguém ouvindo'],
+    [['Ana'], '1 pessoa ouvindo: Ana'],
+    [['Ana', 'Bia', 'Caio'], '3 pessoas ouvindo: Ana, Bia e Caio'],
+  ])('listening %j -> %s', (names, expected) => {
+    expect(
+      viewersLabel(
+        names.map((name) => ({ name })),
+        'listening',
+      ),
+    ).toBe(expected);
+  });
+});
+
+describe('viewersHeading / viewersEmptyText', () => {
+  it('says watching by default and listening for music', () => {
+    expect(viewersHeading(3)).toBe('Assistindo — 3');
+    expect(viewersHeading(2, 'listening')).toBe('Ouvindo — 2');
+    expect(viewersEmptyText()).toBe('Ninguém assistindo ainda.');
+    expect(viewersEmptyText('listening')).toBe('Ninguém ouvindo ainda.');
+  });
+});
+
+describe('viewerStack', () => {
+  const people = ['ana', 'bia', 'caio', 'dani', 'eva'];
+
+  it('shows the first three, in order, and counts the others', () => {
+    expect(viewerStack(people)).toEqual({ shown: ['ana', 'bia', 'caio'], extra: 2 });
+    expect(STACKED_VIEWERS).toBe(3);
+  });
+
+  it('shows everyone when they fit, with no "+N"', () => {
+    expect(viewerStack(people.slice(0, 3))).toEqual({ shown: ['ana', 'bia', 'caio'], extra: 0 });
+    expect(viewerStack(['me'])).toEqual({ shown: ['me'], extra: 0 });
+    expect(viewerStack([])).toEqual({ shown: [], extra: 0 });
+  });
+
+  it('honors another limit and never a negative one', () => {
+    expect(viewerStack(people, 1)).toEqual({ shown: ['ana'], extra: 4 });
+    expect(viewerStack(people, -1)).toEqual({ shown: [], extra: 5 });
   });
 });
 

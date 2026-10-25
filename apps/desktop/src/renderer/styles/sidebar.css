@@ -256,29 +256,25 @@
     0 0 0 3px var(--live);
 }
 
-/* Webcam on / music broadcast: indicators only (neither counts as "AO VIVO"). */
-.participant__camera,
-.participant__music {
+/* Webcam on: an indicator only (it never counts as "AO VIVO"). */
+.participant__camera {
   display: inline-flex;
   flex: none;
   color: var(--text-muted);
 }
 
-.participant:hover .participant__camera,
-.participant:hover .participant__music {
+.participant:hover .participant__camera {
   color: var(--text-normal);
 }
 
 /* Right-aligned so the tooltip never runs past the scrolling sidebar's edge. */
-.participant__camera[data-tooltip]::after,
-.participant__music[data-tooltip]::after {
+.participant__camera[data-tooltip]::after {
   right: 0;
   left: auto;
   transform: translate(0, 4px);
 }
 
-.participant__camera[data-tooltip]:hover::after,
-.participant__music[data-tooltip]:hover::after {
+.participant__camera[data-tooltip]:hover::after {
   transform: translate(0, 0);
 }
 
@@ -402,10 +398,15 @@
   height: 36px;
 }
 
-/* Someone broadcasts music: just the headphones beside the icon (the drawer opens expanded). */
+/* The room has a Jam: the headphones over the playing bars beside the icon, no counter (the
+   drawer opens expanded). Both fit the column's 12 px. */
 .room-icon__music {
   display: flex;
   flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 12px;
   margin-left: 2px;
   padding: 0;
   border: none;
@@ -418,6 +419,12 @@
 .room-icon__music:focus-visible {
   outline: none;
   color: var(--text-strong);
+}
+
+.room-icon__music .music-eq {
+  gap: 1px;
+  width: 10px;
+  height: 7px;
 }
 
 /* Who is in a collapsed room: a card right of the column (portal, position set in RoomIcon). */
@@ -497,4 +504,28 @@
   font-weight: 800;
   letter-spacing: 0.04em;
   line-height: 1.3;
+}
+
+/* The room's Jam under its name in the collapsed room's popover. */
+.room-popover__jam {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 4px;
+  color: var(--online);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.room-popover__jam svg {
+  flex: none;
+}
+
+.room-popover__jam-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

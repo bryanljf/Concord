@@ -89,15 +89,58 @@ export function resolveViewers(
   });
 }
 
-/** "Ninguém assistindo" / "1 pessoa assistindo: Ana" / "3 pessoas assistindo: Ana, Bia e Caio". */
-export function viewersLabel(viewers: readonly Pick<Viewer, 'name'>[]): string {
-  if (viewers.length === 0) return 'Ninguém assistindo';
+/**
+ * What a people list is about: watching a live or a camera (`concord.watching` `<id>`,
+ * `<id>#camera`), or listening to a music (`<id>#music`; the Jam's is `@jam#music`).
+ */
+export type AudienceKind = 'watching' | 'listening';
+
+const AUDIENCE_VERBS: Readonly<Record<AudienceKind, { gerund: string; heading: string }>> = {
+  watching: { gerund: 'assistindo', heading: 'Assistindo' },
+  listening: { gerund: 'ouvindo', heading: 'Ouvindo' },
+};
+
+/**
+ * "Ninguém assistindo" / "1 pessoa assistindo: Ana" / "3 pessoas assistindo: Ana, Bia e Caio";
+ * "ouvindo" for a music's listeners.
+ */
+export function viewersLabel(
+  viewers: readonly Pick<Viewer, 'name'>[],
+  kind: AudienceKind = 'watching',
+): string {
+  const { gerund } = AUDIENCE_VERBS[kind];
+  if (viewers.length === 0) return `Ninguém ${gerund}`;
   const names = viewers.map((viewer) => viewer.name);
   const list =
     names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names.at(-1) ?? ''}`;
-  const count =
-    viewers.length === 1 ? '1 pessoa assistindo' : `${viewers.length} pessoas assistindo`;
+  const count = viewers.length === 1 ? `1 pessoa ${gerund}` : `${viewers.length} pessoas ${gerund}`;
   return `${count}: ${list}`;
+}
+
+/** Heading of the list shown on hover: "Assistindo — 3" / "Ouvindo — 3". */
+export function viewersHeading(count: number, kind: AudienceKind = 'watching'): string {
+  return `${AUDIENCE_VERBS[kind].heading} — ${count}`;
+}
+
+/** The list shown on hover while nobody is there: "Ninguém assistindo ainda." / "…ouvindo…". */
+export function viewersEmptyText(kind: AudienceKind = 'watching'): string {
+  return `Ninguém ${AUDIENCE_VERBS[kind].gerund} ainda.`;
+}
+
+/** Avatars shown slightly overlapped next to the count; the others add up to "+N". */
+export const STACKED_VIEWERS = 3;
+
+export interface ViewerStack<T> {
+  /** The first ones, in the list's order (you among them like anyone else). */
+  shown: T[];
+  /** How many more ("+2"); 0 when everyone shows. */
+  extra: number;
+}
+
+/** The overlapped avatars of a people list: the first `max` and how many more there are. */
+export function viewerStack<T>(viewers: readonly T[], max = STACKED_VIEWERS): ViewerStack<T> {
+  const shown = viewers.slice(0, Math.max(0, max));
+  return { shown, extra: viewers.length - shown.length };
 }
 
 export interface ViewerChanges {

@@ -9,11 +9,7 @@ vi.mock('electron', () => ({
 import type { WebContents } from 'electron';
 import type { ProcessAudioTarget } from '../preload/api';
 import { EVENTS } from '../preload/channels';
-import type {
-  ProcessAudioDataListener,
-  ProcessAudioEndedListener,
-  ProcessAudioEngine,
-} from './audio';
+import type { ProcessAudioDataListener, ProcessAudioEngine } from './audio';
 import {
   createProcessAudioBridge,
   expectCaptureId,
@@ -25,7 +21,6 @@ import { IpcValidationError, UserFacingError } from './validation';
 interface RunningCapture {
   target: ProcessAudioTarget;
   onData: ProcessAudioDataListener;
-  onEnded: ProcessAudioEndedListener | undefined;
 }
 
 function makeEngine(supported = true) {
@@ -33,17 +28,11 @@ function makeEngine(supported = true) {
   let nextId = 0;
   const engine: ProcessAudioEngine = {
     support: () => ({ supported, reason: supported ? null : 'Sem suporte neste Windows.' }),
-    start: vi.fn(
-      async (
-        target: ProcessAudioTarget,
-        onData: ProcessAudioDataListener,
-        onEnded?: ProcessAudioEndedListener,
-      ) => {
-        const captureId = `cap-${++nextId}`;
-        running.set(captureId, { target, onData, onEnded });
-        return { captureId, format: { sampleRate: 48_000, channels: 2 } };
-      },
-    ),
+    start: vi.fn(async (target: ProcessAudioTarget, onData: ProcessAudioDataListener) => {
+      const captureId = `cap-${++nextId}`;
+      running.set(captureId, { target, onData });
+      return { captureId, format: { sampleRate: 48_000, channels: 2 } };
+    }),
     stop: vi.fn(async (captureId: string) => {
       running.delete(captureId);
     }),
@@ -63,12 +52,6 @@ function makeEngine(supported = true) {
     running,
     push(captureId: string, chunk: Float32Array) {
       running.get(captureId)?.onData(captureId, chunk);
-    },
-    /** What the engine does when the captured app closes: stop, then report. */
-    end(captureId: string) {
-      const capture = running.get(captureId);
-      running.delete(captureId);
-      capture?.onEnded?.(captureId, 'app_closed');
     },
   };
 }
@@ -93,15 +76,14 @@ function makeSender() {
 }
 
 const WINDOW: ProcessAudioTarget = { kind: 'source', sourceId: 'window:42:0' };
-const SPOTIFY: ProcessAudioTarget = { kind: 'app', app: 'spotify' };
+const SCREEN: ProcessAudioTarget = { kind: 'source', sourceId: 'screen:0:0' };
 
 describe('parseProcessAudioTarget', () => {
-  it('accepts sources and supported music apps', () => {
-    expect(parseProcessAudioTarget({ kind: 'source', sourceId: 'screen:0:0' })).toEqual({
-      kind: 'source',
-      sourceId: 'screen:0:0',
-    });
-    expect(parseProcessAudioTarget({ kind: 'app', app: 'spotify', extra: 1 })).toEqual(SPOTIFY);
+  it('accepts window and screen sources', () => {
+    expect(parseProcessAudioTarget({ kind: 'source', sourceId: 'screen:0:0', extra: 1 })).toEqual(
+      SCREEN,
+    );
+    expect(parseProcessAudioTarget(WINDOW)).toEqual(WINDOW);
   });
 
   it('rejects anything else', () => {
@@ -110,8 +92,8 @@ describe('parseProcessAudioTarget', () => {
       null,
       { kind: 'source', sourceId: 'nope' },
       { kind: 'source' },
-      { kind: 'app', app: 'deezer' },
-      { kind: 'app', app: 'toString' },
+      { kind: 'app', app: 'player' },
+      { kind: 'app', sourceId: 'window:42:0' },
       { kind: 'process', pid: 4 },
     ];
     for (const raw of bad) expect(() => parseProcessAudioTarget(raw)).toThrow(IpcValidationError);
@@ -153,7 +135,7 @@ describe('createProcessAudioBridge', () => {
     await expect(bridge.start(makeSender().sender, 'window:42:0')).rejects.toThrow(
       IpcValidationError,
     );
-    await expect(bridge.start(makeSender().sender, { kind: 'app', app: 'winamp' })).rejects.toThrow(
+    await expect(bridge.start(makeSender().sender, { kind: 'app', app: 'player' })).rejects.toThrow(
       IpcValidationError,
     );
   });
@@ -167,11 +149,7 @@ describe('createProcessAudioBridge', () => {
       captureId: 'cap-1',
       format: { sampleRate: 48_000, channels: 2 },
     });
-    expect(fake.engine.start).toHaveBeenCalledWith(
-      WINDOW,
-      expect.any(Function),
-      expect.any(Function),
-    );
+    expect(fake.engine.start).toHaveBeenCalledWith(WINDOW, expect.any(Function));
 
     const chunk = new Float32Array([0.1, -0.1]);
     fake.push('cap-1', chunk);
@@ -183,19 +161,19 @@ describe('createProcessAudioBridge', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it('runs the screen audio and the music at once; stopping one keeps the other', async () => {
+  it('runs several captures at once; stopping one keeps the other', async () => {
     const fake = makeEngine();
     const bridge = createProcessAudioBridge(fake.engine);
     const { sender, send } = makeSender();
-    const screen = await bridge.start(sender, WINDOW);
-    const music = await bridge.start(sender, SPOTIFY);
+    const first = await bridge.start(sender, WINDOW);
+    const second = await bridge.start(sender, SCREEN);
     expect(fake.engine.stop).not.toHaveBeenCalled();
 
-    await bridge.stop(sender, screen.captureId);
-    expect(fake.engine.stop).toHaveBeenCalledExactlyOnceWith(screen.captureId);
+    await bridge.stop(sender, first.captureId);
+    expect(fake.engine.stop).toHaveBeenCalledExactlyOnceWith(first.captureId);
     const chunk = new Float32Array([0.3]);
-    fake.push(music.captureId, chunk);
-    expect(send).toHaveBeenLastCalledWith(EVENTS.PROCESS_AUDIO_DATA, music.captureId, chunk);
+    fake.push(second.captureId, chunk);
+    expect(send).toHaveBeenLastCalledWith(EVENTS.PROCESS_AUDIO_DATA, second.captureId, chunk);
   });
 
   it('only lets the owning window stop a capture; unknown ids are a no-op', async () => {
@@ -203,23 +181,11 @@ describe('createProcessAudioBridge', () => {
     const bridge = createProcessAudioBridge(fake.engine);
     const owner = makeSender();
     const other = makeSender();
-    const { captureId } = await bridge.start(owner.sender, SPOTIFY);
+    const { captureId } = await bridge.start(owner.sender, SCREEN);
     await bridge.stop(other.sender, captureId);
     await bridge.stop(owner.sender, 'cap-404');
     expect(fake.engine.stop).not.toHaveBeenCalled();
     await expect(bridge.stop(owner.sender, 42)).rejects.toThrow(IpcValidationError);
-  });
-
-  it('tells the owner when the engine ends a capture on its own', async () => {
-    const fake = makeEngine();
-    const bridge = createProcessAudioBridge(fake.engine);
-    const { sender, send } = makeSender();
-    const { captureId } = await bridge.start(sender, SPOTIFY);
-    fake.end(captureId);
-    expect(send).toHaveBeenCalledWith(EVENTS.PROCESS_AUDIO_ENDED, captureId, 'app_closed');
-    // The renderer's own stop afterwards is harmless.
-    await bridge.stop(sender, captureId);
-    expect(fake.engine.stop).not.toHaveBeenCalled();
   });
 
   it("stops a window's captures when it is destroyed, reloaded or crashes", async () => {
@@ -228,13 +194,13 @@ describe('createProcessAudioBridge', () => {
 
     const closed = makeSender();
     await bridge.start(closed.sender, WINDOW);
-    await bridge.start(closed.sender, SPOTIFY);
+    await bridge.start(closed.sender, SCREEN);
     closed.destroy();
     await vi.waitFor(() => expect(fake.engine.stop).toHaveBeenCalledTimes(2));
 
     const reloaded = makeSender();
     const kept = makeSender();
-    await bridge.start(reloaded.sender, SPOTIFY);
+    await bridge.start(reloaded.sender, SCREEN);
     const other = await bridge.start(kept.sender, WINDOW);
     reloaded.emitter.emit('did-navigate');
     await vi.waitFor(() => expect(fake.engine.stop).toHaveBeenCalledTimes(3));
@@ -249,7 +215,7 @@ describe('createProcessAudioBridge', () => {
     const bridge = createProcessAudioBridge(fake.engine);
     const { sender, emitter } = makeSender();
     const first = await bridge.start(sender, WINDOW);
-    const second = await bridge.start(sender, SPOTIFY);
+    const second = await bridge.start(sender, SCREEN);
     expect(emitter.listenerCount('destroyed')).toBe(1);
     await bridge.stop(sender, first.captureId);
     expect(emitter.listenerCount('destroyed')).toBe(1);
@@ -263,12 +229,12 @@ describe('createProcessAudioBridge', () => {
     const fake = makeEngine();
     const bridge = createProcessAudioBridge(fake.engine);
     const owner = makeSender();
-    vi.mocked(fake.engine.start).mockImplementationOnce(async (target, onData, onEnded) => {
+    vi.mocked(fake.engine.start).mockImplementationOnce(async (target, onData) => {
       owner.destroy();
-      fake.running.set('cap-late', { target, onData, onEnded });
+      fake.running.set('cap-late', { target, onData });
       return { captureId: 'cap-late', format: { sampleRate: 48_000, channels: 2 } };
     });
-    await expect(bridge.start(owner.sender, SPOTIFY)).rejects.toThrow(UserFacingError);
+    await expect(bridge.start(owner.sender, WINDOW)).rejects.toThrow(UserFacingError);
     expect(fake.engine.stop).toHaveBeenCalledWith('cap-late');
   });
 
@@ -283,7 +249,7 @@ describe('createProcessAudioBridge', () => {
     const fake = makeEngine();
     const bridge = createProcessAudioBridge(fake.engine);
     await bridge.start(makeSender().sender, WINDOW);
-    await bridge.start(makeSender().sender, SPOTIFY);
+    await bridge.start(makeSender().sender, SCREEN);
     await bridge.stopAll();
     expect(fake.engine.stopAll).toHaveBeenCalledTimes(1);
     expect(fake.running.size).toBe(0);

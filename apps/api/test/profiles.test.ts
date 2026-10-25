@@ -236,6 +236,16 @@ describe('ProfileStore', () => {
     expect((await ProfileStore.load(path)).get('alice')?.nickname).toBe('Lice');
   });
 
+  it('keeps only the latest copy of a corrupt file', async () => {
+    await mkdir(join(dir, 'data'));
+    await writeFile(path, '{ first');
+    await ProfileStore.load(path, fakeLogger(), () => 1);
+    await writeFile(path, '{ second');
+    await ProfileStore.load(path, fakeLogger(), () => 2);
+    expect(await readdir(join(dir, 'data'))).toEqual(['profiles.json.corrupt-2']);
+    expect(await readFile(`${path}.corrupt-2`, 'utf8')).toBe('{ second');
+  });
+
   it('notifies listeners only on effective changes', async () => {
     const store = new ProfileStore();
     const listener = vi.fn();

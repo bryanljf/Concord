@@ -30,6 +30,32 @@ jobs:
     # The public URL is deliberately not written here (public repo): it comes from a secret.
     environment: production
     steps:
+      # The jam bot is never compiled on the VM (a cold Go build there takes ~10 min of its single
+      # OCPU): it is cross-compiled here, from the commit that passed CI, and sent over SSH; the
+      # VM's image only copies apps/jam-bot/dist/jam-bot-linux-arm64 (untracked, so the deploy
+      # script's git reset keeps it). workflow_run has no head_sha on a manual run: github.sha then.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/jam-bot/go.mod
+          cache-dependency-path: apps/jam-bot/go.sum
+
+      - name: Build the jam bot (linux/arm64, static)
+        working-directory: apps/jam-bot
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          set -euo pipefail
+          go build -trimpath -ldflags "-s -w" -o jam-bot-linux-arm64 .
+          ls -l jam-bot-linux-arm64
+          sha256sum jam-bot-linux-arm64
+
       - name: Install SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
@@ -44,6 +70,31 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/concord_oracle
           chmod 600 ~/.ssh/concord_oracle
           printf '%s\n' "$ORACLE_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # Streamed into a temporary file, checked against the local hash, then renamed over the old
+      # binary (atomic), so a build on the VM never sees a half-written file.
+      - name: Upload the jam bot binary
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USER: ${{ secrets.ORACLE_USER }}
+          ORACLE_SSH_PORT: ${{ secrets.ORACLE_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          port="${ORACLE_SSH_PORT:-22}"
+          user="${ORACLE_USER:-ubuntu}"
+          binary=apps/jam-bot/jam-bot-linux-arm64
+          sum="$(sha256sum "$binary" | cut -d ' ' -f 1)"
+          ssh -i ~/.ssh/concord_oracle -p "$port" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$user@$ORACLE_HOST" \
+            "set -eu
+            mkdir -p ~/concord/apps/jam-bot/dist
+            cd ~/concord/apps/jam-bot/dist
+            cat > .jam-bot-linux-arm64.upload
+            echo '$sum  .jam-bot-linux-arm64.upload' | sha256sum --check --quiet
+            chmod 755 .jam-bot-linux-arm64.upload
+            mv -f .jam-bot-linux-arm64.upload jam-bot-linux-arm64" \
+            < "$binary"
 
       - name: Deploy Concord
         env:

@@ -113,7 +113,9 @@ function makeAutoUpdater() {
   };
 }
 
-function makePackaged(overrides: { initialDelayMs?: number; intervalMs?: number } = {}) {
+function makePackaged(
+  overrides: { initialDelayMs?: number; intervalMs?: number; whenReady?: Promise<unknown> } = {},
+) {
   const auto = makeAutoUpdater();
   const onBeforeInstall = vi.fn();
   const updater = createUpdater({
@@ -152,6 +154,10 @@ describe('createUpdater (packaged)', () => {
     const { raw, updater } = makePackaged();
     expect(raw.autoDownload).toBe(true);
     expect(raw.autoInstallOnAppQuit).toBe(true);
+    // No previous installer is kept on disk to diff against.
+    expect((raw as { disableDifferentialDownload?: boolean }).disableDifferentialDownload).toBe(
+      true,
+    );
     expect(raw.logger).not.toBeNull();
     expect(updater.getStatus()).toEqual({ state: 'idle' });
     expect(raw.on.mock.calls[0]?.[0]).toBe('error');
@@ -186,6 +192,25 @@ describe('createUpdater (packaged)', () => {
       return null;
     });
     expect(await updater.check()).toEqual({ state: 'up_to_date', version: '0.1.0' });
+  });
+
+  it('check() waits for the start-up cleanup of the updater cache', async () => {
+    let finishCleanup!: () => void;
+    const whenReady = new Promise<void>((resolve) => {
+      finishCleanup = resolve;
+    });
+    const { raw, updater } = makePackaged({ whenReady });
+    const checked = updater.check();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(raw.checkForUpdates).not.toHaveBeenCalled();
+    finishCleanup();
+    await checked;
+    expect(raw.checkForUpdates).toHaveBeenCalledTimes(1);
+
+    // A cleanup that failed anyway must not keep the updater from working.
+    const failed = makePackaged({ whenReady: Promise.reject(new Error('boom')) });
+    await failed.updater.check();
+    expect(failed.raw.checkForUpdates).toHaveBeenCalledTimes(1);
   });
 
   it('check() turns a rejection into an error status instead of throwing', async () => {

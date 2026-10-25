@@ -1,9 +1,12 @@
 # =============================================================================================
-#  Concord em produção na VM Oracle (Fase 5) — PREPARADO, AINDA NÃO EXECUTADO
+#  Concord em produção na VM Oracle (Fase 5) — no ar desde 2026-10-13
 # =============================================================================================
-# Escrito sem Docker disponível: nenhum `docker compose` daqui foi executado ainda. O passo a
-# passo (pré-checagem da VM, DNS, firewall, Docker, .env, users.json, validação e, obrigatório,
-# conferir que o Minecraft continua no ar) está em infra/README-deploy.md.
+# O passo a passo (pré-checagem da VM, DNS, firewall, Docker, .env, users.json, validação e,
+# obrigatório, conferir que o Minecraft continua no ar) está em infra/README-deploy.md.
+# O serviço jam-bot foi escrito sem Docker disponível: o primeiro build e o primeiro `up` dele
+# acontecem no deploy. A VM não compila Go: o workflow Deploy Oracle compila o binário
+# linux/arm64 no GitHub e o envia para apps/jam-bot/dist/ (fora do git) antes do `up`; aqui só
+# se monta uma imagem de ~23 MB (distroless ~2 MB + binário estático ~21 MB) que o copia.
 # Toda ação na VM exige confirmação do usuário antes.
 #
 # Subir, a partir da raiz do repositório clonado na VM:
@@ -11,10 +14,17 @@
 # (o compose lê infra/.env sozinho: é o .env da pasta deste arquivo; nele deve estar ativo o
 # bloco B do infra/.env.example.)
 #
-# Serviços e limites: no total ≤ 1,5 CPU e ≤ 1,4 GB, ao lado do Minecraft.
+# Serviços e limites: no total ≤ 1,75 CPU e ≤ 1,5 GB, ao lado do Minecraft.
 #   livekit  SFU WebRTC             rede do host   1,0 CPU / 1 GB
 #   api      concord-api            rede do host   0,25 CPU / 256 MB   só 127.0.0.1:3000
+#   jam-bot  toca a Jam no LiveKit  rede do host   0,25 CPU / 128 MB   só 127.0.0.1:3001
 #   caddy    HTTPS (Let's Encrypt)  rede do host   0,25 CPU / 128 MB   portas 80 e 443 do host
+#
+# Logs: json-file com rotação em todos (x-logging abaixo): 3 arquivos de 10 MB, ~30 MB por
+# serviço. Sem isso o log do api crescia ~55 MB/dia. Mudar essas opções RECRIA todos os
+# containers no deploy seguinte, o LiveKit inclusive (quem estiver online reconecta em alguns
+# segundos): faça esse deploy quando ninguém estiver ao vivo. O resto da limpeza (imagens sem tag,
+# cache de build) está no infra/scripts/deploy-oracle.sh; resumo em infra/README-deploy.md.
 #
 # Rede — quem fala com quem:
 #   - livekit usa network_mode: host: o WebRTC precisa das portas UDP 50000-50200 e TCP 7881
@@ -25,6 +35,16 @@
 #     (LIVEKIT_API_URL=http://127.0.0.1:7880) ficam no loopback. Numa rede bridge o api teria de
 #     falar com o host via host.docker.internal, e o firewall da imagem Oracle (REJECT no fim do
 #     INPUT) recusa esse tráfego (EHOSTUNREACH 172.17.0.1:7880).
+#   - jam-bot também usa network_mode: host e escuta SÓ em 127.0.0.1:3001: só o api fala com ele
+#     (JAM_BOT_URL), com o JAM_BOT_TOKEN quando definido. Ele entra em cada sala como um
+#     participante: o api lhe entrega o token do LiveKit e a URL ws://127.0.0.1:7880 (derivada
+#     de LIVEKIT_API_URL), e a mídia pode seguir pelo IP interno da VM, que o LiveKit também
+#     anuncia (advertise_internal_ip no livekit.yaml), sem depender de hairpin NAT no IP
+#     público. Não precisa de porta aberta, nunca fala com o YouTube e não recebe o env_file:
+#     não vê nenhum segredo do .env.
+#   - O áudio da Jam fica no volume jam-cache, no MESMO caminho nos dois containers
+#     (/var/lib/concord-jam, JAM_CACHE_DIR): o api (uid 1000) grava, o jam-bot (outro uid) só lê,
+#     inclusive enquanto o envio ainda chega (ele começa a tocar com ~128 KB do arquivo).
 #   - caddy também usa network_mode: host: assim o Caddyfile funciona como está
 #     (reverse_proxy para 127.0.0.1:3000 e 127.0.0.1:7880 do host) e ele escuta direto nas
 #     portas 80/443 (TCP e, para HTTP/3, UDP 443) do host; por isso não há `ports:` nele.
@@ -33,12 +53,20 @@
 #     fora deste arquivo, `docker stop $(docker ps -q)` ou `docker system prune` na VM.
 name: concord
 
+# Rotação dos logs dos containers (o padrão do Docker é json-file sem limite).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   livekit:
     image: livekit/livekit-server:v1.13.9
     command: ['--config', '/etc/livekit.yaml']
     network_mode: host
     restart: unless-stopped
+    logging: *logging
     cpus: '1.0'
     mem_limit: 1g
     environment:
@@ -53,10 +81,13 @@ services:
       dockerfile: apps/api/Dockerfile
     image: concord-api:local
     restart: unless-stopped
+    logging: *logging
     cpus: '0.25'
     mem_limit: 256m
     network_mode: host
-    # Bloco B do infra/.env: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, ROOMS, DOMAIN.
+    # Bloco B do infra/.env: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, ROOMS, DOMAIN,
+    # Discord e, opcionais, JAM_BOT_TOKEN (o mesmo valor chega ao jam-bot), JAM_CACHE_MAX_MB e
+    # JAM_CACHE_TTL_HOURS.
     env_file: .env
     # Fixadas aqui porque dependem de como o container é montado (vencem o env_file):
     environment:
@@ -66,18 +97,65 @@ services:
       USERS_FILE: /data/users.json
       PROFILES_FILE: /var/lib/concord/profiles.json # gravado pelo api (volume abaixo)
       LIVEKIT_API_URL: http://127.0.0.1:7880
+      JAM_BOT_URL: http://127.0.0.1:3001 # jam-bot (rede do host, só loopback); liga a Jam
+      JAM_CACHE_DIR: /var/lib/concord-jam # áudio da Jam (volume jam-cache, lido pelo jam-bot)
+      JAM_STATE_FILE: /var/lib/concord/jam-state.json # filas da Jam (volume api-data)
     volumes:
       - ./users.json:/data/users.json:ro
-      # Nomes/avatares do Discord e apelidos. Volume nomeado: sobrevive a rebuilds e o dono (node)
-      # vem da pasta criada no Dockerfile. Não apagar à toa (os apelidos se perdem).
+      # Nomes/avatares do Discord, apelidos e filas da Jam. Volume nomeado: sobrevive a rebuilds e
+      # o dono (node) vem da pasta criada no Dockerfile. Não apagar à toa (os apelidos se perdem).
       - api-data:/var/lib/concord
+      # Áudio da Jam enviado pelos apps. Só cache (até JAM_CACHE_MAX_MB, padrão 512, e no máximo
+      # JAM_CACHE_TTL_HOURS fora da fila, padrão 3 h); o dono (node) também vem da pasta criada no
+      # Dockerfile.
+      - jam-cache:/var/lib/concord-jam
     depends_on:
       - livekit
+      - jam-bot
+
+  jam-bot:
+    # Só copia apps/jam-bot/dist/jam-bot-linux-<arquitetura>, que precisa existir antes do build
+    # (na VM, o deploy o envia; à mão, veja infra/README-deploy.md).
+    build:
+      context: ..
+      dockerfile: apps/jam-bot/Dockerfile
+    image: concord-jam-bot:local
+    network_mode: host
+    restart: unless-stopped
+    logging: *logging
+    init: true
+    cpus: '0.25'
+    mem_limit: 128m
+    # Sem env_file de propósito: o bot não pode ver os outros segredos do .env (LiveKit, Discord,
+    # sessão); os tokens do LiveKit chegam prontos do api. Só o token compartilhado vem do .env,
+    # por interpolação (vazio = sem autenticação).
+    environment:
+      JAM_BOT_LISTEN: '127.0.0.1:3001' # só loopback: o api é o único cliente
+      JAM_CACHE_DIR: /var/lib/concord-jam
+      JAM_BOT_TOKEN: '${JAM_BOT_TOKEN:-}'
+    volumes:
+      # O cache que o api grava, só para leitura. nocopy: um volume vazio é inicializado a partir
+      # da imagem de quem o monta (inclusive o dono da pasta), e o jam-bot sobe antes do api;
+      # assim a pasta (dono node) vem sempre da imagem do api, nunca da do bot.
+      - type: volume
+        source: jam-cache
+        target: /var/lib/concord-jam
+        read_only: true
+        volume:
+          nocopy: true
+    healthcheck:
+      # A imagem (distroless) não tem shell nem curl: o próprio binário consulta o /healthz.
+      test: ['CMD', '/jam-bot', 'healthcheck']
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   caddy:
     image: caddy:2
     network_mode: host
     restart: unless-stopped
+    logging: *logging
     cpus: '0.25'
     mem_limit: 128m
     environment:
@@ -91,5 +169,6 @@ services:
 
 volumes:
   api-data:
+  jam-cache:
   caddy_data:
   caddy_config:

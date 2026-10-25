@@ -83,104 +83,9 @@
   --bar-expand: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Music broadcast: shaped like the buttons, green (never the red of "ao vivo"). Just the note;
-   what it plays and "Parar música" slide out on hover or keyboard focus, like the buttons' labels
-   (a mouse click inside must not keep it open once the pointer leaves). */
-.bottom-bar__music {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  min-width: 0;
-  height: 38px;
-  padding: 0 11px;
-  border-radius: var(--radius-sm);
-  background: rgba(35, 165, 89, 0.22);
-  color: var(--text-strong);
-  font-size: 13px;
-  white-space: nowrap;
-  cursor: default;
-  transition:
-    padding var(--bar-expand),
-    background-color var(--transition);
-}
-
-.bottom-bar__music:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.bottom-bar__music-icon {
-  flex: none;
-  color: var(--online);
-}
-
-.bottom-bar__music--paused .bottom-bar__music-icon {
-  color: var(--text-muted);
-}
-
-.bottom-bar__music-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition:
-    max-width var(--bar-expand),
-    opacity 160ms ease,
-    margin-left var(--bar-expand);
-}
-
-.bottom-bar__music:hover,
-.bottom-bar__music:focus-visible,
-.bottom-bar__music:has(:focus-visible),
-.bottom-bar__music--expanded {
-  padding: 0 6px 0 12px;
-  background: rgba(35, 165, 89, 0.3);
-}
-
-.bottom-bar__music:hover .bottom-bar__music-more,
-.bottom-bar__music:focus-visible .bottom-bar__music-more,
-.bottom-bar__music:has(:focus-visible) .bottom-bar__music-more,
-.bottom-bar__music--expanded .bottom-bar__music-more {
-  max-width: 320px;
-  margin-left: 8px;
-  opacity: 1;
-}
-
-.bottom-bar__music-text {
-  max-width: 240px;
-  font-weight: 600;
-}
-
-.bottom-bar__music-stop {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--text-normal);
-  cursor: pointer;
-  transition:
-    background-color var(--transition),
-    color var(--transition);
-}
-
-.bottom-bar__music-stop:hover,
-.bottom-bar__music-stop:focus-visible {
-  outline: none;
-  background: var(--live);
-  color: var(--text-on-accent);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .bar-btn,
-  .bar-btn__label,
-  .bottom-bar__music,
-  .bottom-bar__music-more {
+  .bar-btn__label {
     transition: none;
   }
 }
@@ -238,4 +143,21 @@
 .camera-split--on .camera-split__menu:hover:not(:disabled),
 .camera-split--on .camera-split__menu[aria-expanded='true'] {
   background: rgba(218, 55, 60, 0.42);
+}
+
+/* "Música" (the Jam's search): a bar button in the music's green (never the red of "ao vivo"). */
+.btn.bottom-bar__jam {
+  background: rgba(35, 165, 89, 0.22);
+  color: var(--text-strong);
+}
+
+.btn.bottom-bar__jam:hover:not(:disabled),
+.btn.bottom-bar__jam:focus-visible,
+.btn.bottom-bar__jam[aria-expanded='true'] {
+  background: rgba(35, 165, 89, 0.3);
+}
+
+.bottom-bar__jam-icon {
+  flex: none;
+  color: var(--online);
 }

@@ -1,5 +1,6 @@
 import {
   applyPresenceEvent,
+  PRESENCE_JAM_QUERY,
   SSE_HEARTBEAT_MS,
   type PresenceEvent,
   type PresenceSnapshot,
@@ -16,6 +17,8 @@ import {
   UNAUTHORIZED_MESSAGE,
   unexpectedStatusMessage,
 } from './api-client';
+import { isJamPayload, parseJamEvent } from './jam-events';
+import { createJamStore, type JamStore } from './jam/store';
 import { log } from './log';
 import { parsePresenceEvent } from './presence-events';
 import { createSseParser } from './sse-parser';
@@ -57,6 +60,8 @@ export interface PresenceClientOptions {
   /** Give up on a connection attempt that has not answered this long. */
   connectTimeoutMs?: number;
   backoff?: (attempt: number) => number;
+  /** Where the jam events of the same stream go (default: a store of its own). */
+  jam?: JamStore;
 }
 
 export type PresenceEventListener = (event: PresenceEvent) => void;
@@ -70,13 +75,18 @@ class StallSignal extends Error {
 }
 
 /**
- * Keeps one `GET /api/presence` SSE connection alive while `connect()`ed, applying every
- * event to a local `PresenceSnapshot` and re-emitting it. Reconnects with exponential backoff
- * on any failure except 401, which stops retrying (`retryInMs: 0`) until `reconnect()`.
+ * Keeps one `GET /api/presence?jam=1` SSE connection alive while `connect()`ed, applying every
+ * event to a local `PresenceSnapshot` and re-emitting it; the jam events of the same stream go
+ * to `jam`. Reconnects with exponential backoff on any failure except 401, which stops retrying
+ * (`retryInMs: 0`) until `reconnect()`.
  */
 export class PresenceClient {
+  /** The rooms' jams, fed by this stream (the server resends a snapshot on every connection). */
+  readonly jam: JamStore;
   private status: PresenceConnectionStatus = { state: 'idle', reason: 'no_session' };
   private snapshot: PresenceSnapshot = EMPTY_SNAPSHOT;
+  /** Server the jam store holds data from: switching servers drops it right away. */
+  private jamServer: string | null = null;
   private attempt = 0;
   /** True between `connect()` and `disconnect()` (or a fatal error). */
   private active = false;
@@ -97,6 +107,7 @@ export class PresenceClient {
     this.stallTimeoutMs = options.stallTimeoutMs ?? 2 * SSE_HEARTBEAT_MS;
     this.connectTimeoutMs = options.connectTimeoutMs ?? 10_000;
     this.backoff = options.backoff ?? backoffDelay;
+    this.jam = options.jam ?? createJamStore();
   }
 
   getStatus(): PresenceConnectionStatus {
@@ -153,6 +164,8 @@ export class PresenceClient {
       this.snapshot = EMPTY_SNAPSHOT;
       this.emitEvent({ type: 'snapshot', data: EMPTY_SNAPSHOT });
     }
+    this.jam.reset();
+    this.jamServer = null;
     if (this.status.state !== 'idle' || this.status.reason !== reason) {
       this.setStatus({ state: 'idle', reason });
     }
@@ -222,7 +235,8 @@ export class PresenceClient {
     }, this.connectTimeoutMs);
     let res: Response;
     try {
-      res = await this.fetchImpl(`${base}/api/presence`, {
+      // Old servers ignore the query (no jam events): the jam then stays unavailable.
+      res = await this.fetchImpl(`${base}/api/presence?${PRESENCE_JAM_QUERY}`, {
         headers: {
           Authorization: `Bearer ${key}`,
           Accept: 'text/event-stream',
@@ -259,6 +273,11 @@ export class PresenceClient {
     }
 
     this.attempt = 0;
+    if (this.jamServer !== base) {
+      // Another server's jam must not linger (it may not even have one).
+      this.jam.reset();
+      this.jamServer = base;
+    }
     this.setStatus({ state: 'connected' });
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -295,6 +314,12 @@ export class PresenceClient {
       json = JSON.parse(payload);
     } catch {
       logger.warn('ignoring non-JSON SSE payload');
+      return;
+    }
+    if (isJamPayload(json)) {
+      const jamEvent = parseJamEvent(json);
+      if (jamEvent) this.jam.apply(jamEvent);
+      else logger.warn('ignoring malformed jam event');
       return;
     }
     const event = parsePresenceEvent(json);

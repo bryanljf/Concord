@@ -407,13 +407,72 @@ export function MaximizeIcon(props: IconProps) {
   );
 }
 
-/** A pair of beamed notes: music broadcast. */
+/** A pair of beamed notes: music (the Jam). */
 export function MusicIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="M9 18V5l12-2v13" />
       <circle cx="6" cy="18" r="3" />
       <circle cx="18" cy="16" r="3" />
+    </Icon>
+  );
+}
+
+/** A triangle pointing right: resume the Jam. */
+export function PlayIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4.5v15a.5.5 0 0 0 .77.42l11.5-7.5a.5.5 0 0 0 0-.84L7.77 4.08A.5.5 0 0 0 7 4.5z" />
+    </Icon>
+  );
+}
+
+/** Two bars: pause the Jam for everyone. */
+export function PauseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="6" y="4.5" width="4" height="15" rx="1" />
+      <rect x="14" y="4.5" width="4" height="15" rx="1" />
+    </Icon>
+  );
+}
+
+/** A triangle against a bar: skip to the next song. */
+export function SkipForwardIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 4.5v15a.5.5 0 0 0 .78.42l10.4-7.5a.5.5 0 0 0 0-.84L5.78 4.08A.5.5 0 0 0 5 4.5z" />
+      <path d="M19 5v14" />
+    </Icon>
+  );
+}
+
+/** A plus: add a song. */
+export function PlusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </Icon>
+  );
+}
+
+/** A magnifying glass: the music search. */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </Icon>
+  );
+}
+
+/** Two chain links: a pasted YouTube link. */
+export function LinkIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </Icon>
   );
 }

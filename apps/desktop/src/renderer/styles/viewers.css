@@ -1,0 +1,148 @@
+/* Who is watching a live or listening to a music (components/stream/ViewerList.tsx): icon +
+   count + slightly overlapped avatars; hover/focus lists everyone. */
+.viewers {
+  /* The ring that cuts each avatar out of the one before it: the color behind the list. */
+  --viewers-ring: rgba(0, 0, 0, 0.8);
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text-normal);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+.viewers:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.viewers--compact {
+  gap: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+
+/* On the app's panels and cards (the Jam's player and stage card): no pill, muted text, the
+   avatars cut out of the panel's color (`--viewers-surface`, the player's by default). */
+.viewers--surface {
+  --viewers-ring: var(--viewers-surface, var(--bg-tertiary));
+  padding: 2px 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: color var(--transition);
+}
+
+.viewers--surface:hover,
+.viewers--surface:focus-visible {
+  color: var(--text-normal);
+}
+
+.viewers__stack {
+  display: inline-flex;
+  padding-left: 4px;
+}
+
+.viewers__stack > * {
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--viewers-ring);
+}
+
+.viewers__more {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-strong);
+  font-size: 10px;
+}
+
+.viewers__popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 200;
+  min-width: 180px;
+  max-width: 260px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  /* The cards center their text; the list never follows. */
+  text-align: left;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition:
+    opacity var(--transition),
+    transform var(--transition);
+}
+
+/* Inside a scroll box (the music drawer, the stage's cards) the list opens downwards: what goes
+   past the bottom scrolls, what went past the top would be cut. */
+.viewers--below .viewers__popover {
+  top: calc(100% + 8px);
+  bottom: auto;
+  transform: translateY(-4px);
+}
+
+/* At the right of a row: the list lines up with the right edge. */
+.viewers--end .viewers__popover {
+  right: 0;
+  left: auto;
+}
+
+.viewers:hover .viewers__popover,
+.viewers:focus-visible .viewers__popover {
+  opacity: 1;
+  transform: none;
+}
+
+.viewers__title,
+.viewers__empty {
+  margin: 0 0 6px;
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.viewers__empty {
+  margin: 0;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.viewers__list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.viewers__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -5,6 +5,10 @@
  * The renderer only talks to LiveKit directly (media), using tokens obtained here.
  */
 import type {
+  JamEvent,
+  JamItem,
+  JamSnapshot,
+  JamTrack,
   PresenceEvent,
   PresenceSnapshot,
   RoomId,
@@ -50,7 +54,7 @@ export interface Settings {
   pipTileWidth: number;
   /** Top-left corner of the picture-in-picture window; null = top-right corner of the screen. */
   pipPosition: { x: number; y: number } | null;
-  /** Chime when someone in your room starts broadcasting music. */
+  /** Chime when a Jam starts in your room (someone else's song). */
   musicSounds: boolean;
   /** The rooms sidebar is reduced to a narrow column of room icons. */
   sidebarCollapsed: boolean;
@@ -163,12 +167,11 @@ export interface ProcessAudioFormat {
   channels: number;
 }
 
-/** What a process audio capture records. */
-export type ProcessAudioTarget =
-  /** A desktopCapturer window/screen id (the screen share's audio). */
-  | { kind: 'source'; sourceId: string }
-  /** A music app's whole process tree (the separate music track). */
-  | { kind: 'app'; app: MusicAppId };
+/** What a process audio capture records: a desktopCapturer window/screen (the live's audio). */
+export interface ProcessAudioTarget {
+  kind: 'source';
+  sourceId: string;
+}
 
 export interface ProcessAudioCapture {
   /** Tags this capture's PCM chunks and stops it. */
@@ -176,35 +179,22 @@ export interface ProcessAudioCapture {
   format: ProcessAudioFormat;
 }
 
-// --- Music apps ----------------------------------------------------------------------
+// --- Jam (YouTube Music queue per room) -------------------------------------------------
 
-/** Apps whose music can be broadcast (Spotify for now). */
-export type MusicAppId = 'spotify';
-
-/** What a music app is playing, from the Windows media controls (SMTC). */
-export interface NowPlaying {
-  app: MusicAppId;
+/** This app's part in a jam song it added: downloading it from YouTube and sending it. */
+export interface JamUploadStatus {
+  itemId: string;
+  room: RoomId;
+  /** Song title, for toasts. */
   title: string;
-  artist: string;
-  album: string;
-  state: 'playing' | 'paused' | 'stopped';
-  /** An advertisement is playing (no artist/album): the UI shows "Anúncio". */
-  ad: boolean;
-  /** Position at `at`; extrapolate while playing (`lib/music.ts`). */
-  positionMs: number;
-  durationMs: number;
-  /** `Date.now()` when `positionMs` was true. */
-  at: number;
-  /** Hash of the cover art (`getMusicArt`); null when the app published none. */
-  artId: string | null;
-}
-
-export interface MusicAppStatus {
-  app: MusicAppId;
-  /** The app's process is running. */
-  running: boolean;
-  /** Null while it has no media session (not played yet, or stopped for a while). */
-  nowPlaying: NowPlaying | null;
+  /**
+   * `preparing`: fetching or updating the downloader (yt-dlp) first; `downloading`: from
+   * YouTube; `uploading`: to the server; `done`: the server has it; `error`: gave up (main
+   * already removed the song from the queue).
+   */
+  state: 'preparing' | 'downloading' | 'uploading' | 'done' | 'error';
+  /** pt-BR and safe to show; set with `error`, null otherwise. */
+  message: string | null;
 }
 
 export interface ConcordApi {
@@ -332,25 +322,45 @@ export interface ConcordApi {
   // --- Process audio (Phase 3b) ---------------------------------------------------
   getProcessAudioSupport(): Promise<ProcessAudioSupport>;
   /**
-   * Starts one capture; several can run at once (the screen share's and the music's), each
-   * owned by the window that started it. Window source: only that window's process tree. Screen
-   * source: everything except Discord's process tree. Music app: that app's process tree
-   * (rejects with code `app_not_running` when it is closed). PCM arrives through
+   * Starts one capture, owned by the window that started it. Window source: only that window's
+   * process tree. Screen source: everything except Discord's process tree. PCM arrives through
    * `onProcessAudioData` tagged with the returned `captureId`, as interleaved float32 frames.
    */
   startProcessAudio(target: ProcessAudioTarget): Promise<ProcessAudioCapture>;
   stopProcessAudio(captureId: string): Promise<void>;
   onProcessAudioData(listener: (captureId: string, chunk: Float32Array) => void): () => void;
-  /** A capture ended on its own: the captured app was closed (main stopped it already). */
-  onProcessAudioEnded(listener: (captureId: string, reason: 'app_closed') => void): () => void;
 
-  // --- Music apps (what they play) -------------------------------------------------
-  /** Whether the app runs and what it plays (Windows media controls), right now. */
-  getMusicAppStatus(app: MusicAppId): Promise<MusicAppStatus>;
-  /** Pushed whenever a supported music app starts, closes or changes what it plays. */
-  onMusicAppStatus(listener: (status: MusicAppStatus) => void): () => void;
-  /** Cover art for `NowPlaying.artId` as a `data:image/jpeg` URL (≤ 160 px); null if unknown. */
-  getMusicArt(artId: string): Promise<string | null>;
+  // --- Jam (YouTube Music queue per room; events ride the presence SSE) ---------------
+  /** Every room's jam, as last received (`available: false` until the server says so). */
+  getJam(): Promise<JamSnapshot>;
+  onJamEvent(listener: (event: JamEvent) => void): () => void;
+  /**
+   * YouTube Music songs for `query` (`GET /api/jam/search`); rejects with a pt-BR message. Main
+   * also starts prefetching the top result (unless the server already has it).
+   */
+  searchJam(query: string): Promise<JamTrack[]>;
+  /**
+   * Starts downloading these songs in the background (memory only, a few at most, dropped after
+   * a few minutes unless added), so adding one of them is near-instant. Fire and forget: call it
+   * when a result is hovered/focused or a pasted link is recognized.
+   */
+  prefetchJam(videoIds: string[]): Promise<void>;
+  /**
+   * Adds a song to the room's queue and resolves with the queued item. When the server needs
+   * its audio, main downloads it (yt-dlp, anonymous: no cookies, no account) and uploads it in
+   * the background, reporting through `onJamUploadStatus`. Rejects with a pt-BR message.
+   */
+  addToJam(room: RoomId, videoId: string): Promise<JamItem>;
+  /** Removes an upcoming song; removing the one playing skips it. */
+  removeFromJam(room: RoomId, itemId: string): Promise<void>;
+  /** Skips `itemId` only if it is still the one playing. */
+  skipJam(room: RoomId, itemId: string): Promise<void>;
+  /** Pauses / resumes the room's jam for everyone. */
+  pauseJam(room: RoomId): Promise<void>;
+  resumeJam(room: RoomId): Promise<void>;
+  /** Latest status of each song this app is sending (or sent in the last minutes). */
+  getJamUploads(): Promise<JamUploadStatus[]>;
+  onJamUploadStatus(listener: (status: JamUploadStatus) => void): () => void;
 }
 
 declare global {

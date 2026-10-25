@@ -4,49 +4,32 @@
  * module is the only thing the rest of the main process talks to, so it can degrade gracefully
  * (`support()` explains why in pt-BR) when the native module is absent or Windows is too old.
  *
- * Several captures run at once (the screen share's audio and the music track), one native
- * instance each, identified by a `captureId`.
+ * Several captures may run at once, one native instance each, identified by a `captureId`.
  */
 import { randomUUID } from 'node:crypto';
 import type { NativeCapture, ProcessAudioNative } from '@concord/process-audio';
 import type {
-  MusicAppId,
   ProcessAudioCapture,
   ProcessAudioSupport,
   ProcessAudioTarget,
 } from '../../preload/api';
 import { log } from '../log';
-import { MUSIC_APPS } from '../music-apps';
-import { chooseRootPid, findDiscordRootPid } from './discord-process';
+import { findDiscordRootPid } from './discord-process';
 import { parseCaptureSourceId } from './source-id';
-import {
-  getWindowOwnerPid,
-  listProcessesByName,
-  listProcessesQuick,
-  type ProcessInfo,
-} from './win-process';
+import { getWindowOwnerPid } from './win-process';
 
 const logger = log('audio');
 
 /** Interleaved float32 PCM of one capture. */
 export type ProcessAudioDataListener = (captureId: string, chunk: Float32Array) => void;
-/** Why a capture ended without being asked to. */
-export type ProcessAudioEndReason = 'app_closed';
-/** Called after the engine already stopped the capture on its own. */
-export type ProcessAudioEndedListener = (captureId: string, reason: ProcessAudioEndReason) => void;
 
 export interface ProcessAudioEngine {
   support(): ProcessAudioSupport;
   /**
    * Starts a new capture next to any running one. Window sources (`window:<hwnd>:0`) capture only
-   * the owning process tree; screens capture everything except Discord's process tree; music
-   * apps capture the app's process tree and end on their own (`onEnded`) when it closes.
+   * the owning process tree; screens capture everything except Discord's process tree.
    */
-  start(
-    target: ProcessAudioTarget,
-    onData: ProcessAudioDataListener,
-    onEnded?: ProcessAudioEndedListener,
-  ): Promise<ProcessAudioCapture>;
+  start(target: ProcessAudioTarget, onData: ProcessAudioDataListener): Promise<ProcessAudioCapture>;
   /** Stops one capture; unknown or already stopped ids are ignored. */
   stop(captureId: string): Promise<void>;
   stopAll(): Promise<void>;
@@ -62,10 +45,6 @@ export type ProcessAudioErrorCode =
   | 'window_process_unknown'
   /** Screen capture without Discord running: nothing to exclude, so the caller should use loopback. */
   | 'discord_not_running'
-  /** Music app capture while the app is closed. */
-  | 'app_not_running'
-  /** The process list could not be read to find the music app. */
-  | 'app_process_unknown'
   | 'native_failure';
 
 /** `message` is pt-BR and safe to show in the UI; `code` lets callers decide on a fallback. */
@@ -89,13 +68,7 @@ export const MESSAGES = {
   windowProcessUnknown: 'Não foi possível identificar o processo da janela selecionada.',
   discordNotRunning:
     'O Discord não está aberto, então não há chamada para excluir da captura. Use a opção de áudio do sistema.',
-  appNotRunning: (label: string): string => `O ${label} não está aberto.`,
-  appProcessUnknown: (label: string): string =>
-    `Não foi possível verificar se o ${label} está aberto.`,
 } as const;
-
-/** How often an app capture checks that the captured app is still open. */
-export const APP_POLL_INTERVAL_MS = 5_000;
 
 /** pt-BR explanations for the HRESULTs Windows is likely to return from the activation. */
 const HRESULT_MESSAGES: Readonly<Record<number, string>> = {
@@ -129,11 +102,6 @@ export interface ProcessAudioEngineDeps {
   windowOwnerPid: (hwnd: number) => Promise<number>;
   /** Root pid of Discord's process tree, null when Discord is not running. */
   discordRootPid: () => Promise<number | null>;
-  /** Processes named `names`, with parent pids when possible (picks a music app's root). */
-  listProcesses: (names: readonly string[]) => Promise<ProcessInfo[]>;
-  /** Cheap listing polled while an app capture runs (is its root pid still alive?). */
-  listProcessesQuick: (names: readonly string[]) => Promise<ProcessInfo[]>;
-  appPollIntervalMs: number;
   createCaptureId: () => string;
 }
 
@@ -155,15 +123,6 @@ function loadNativeModule(): ProcessAudioNative | null {
 interface CaptureTarget {
   pid: number;
   mode: 'include' | 'exclude';
-  /** Set for music app captures, which are watched until the app closes. */
-  app: MusicAppId | null;
-}
-
-interface ActiveCapture {
-  readonly id: string;
-  readonly native: NativeCapture;
-  readonly target: CaptureTarget;
-  poll: ReturnType<typeof setInterval> | null;
 }
 
 export function createProcessAudioEngine(
@@ -175,16 +134,13 @@ export function createProcessAudioEngine(
     loadNative: loadNativeModule,
     windowOwnerPid: getWindowOwnerPid,
     discordRootPid: findDiscordRootPid,
-    listProcesses: listProcessesByName,
-    listProcessesQuick,
-    appPollIntervalMs: APP_POLL_INTERVAL_MS,
     createCaptureId: randomUUID,
     ...overrides,
   };
 
   /** `undefined` until the first use; `null` when the module is unavailable. */
   let native: ProcessAudioNative | null | undefined;
-  const captures = new Map<string, ActiveCapture>();
+  const captures = new Map<string, NativeCapture>();
 
   function getNative(): ProcessAudioNative | null {
     if (native === undefined) {
@@ -206,27 +162,7 @@ export function createProcessAudioEngine(
     return { supported: true, reason: null };
   }
 
-  async function resolveApp(app: MusicAppId): Promise<CaptureTarget> {
-    const definition = MUSIC_APPS[app];
-    let processes: ProcessInfo[];
-    try {
-      processes = await deps.listProcesses(definition.processNames);
-    } catch (err) {
-      logger.warn(`could not list the ${definition.label} processes`, err);
-      throw new ProcessAudioError(
-        'app_process_unknown',
-        MESSAGES.appProcessUnknown(definition.label),
-      );
-    }
-    const pid = chooseRootPid(processes, definition.processNames);
-    if (pid === null) {
-      throw new ProcessAudioError('app_not_running', MESSAGES.appNotRunning(definition.label));
-    }
-    return { pid, mode: 'include', app };
-  }
-
   async function resolveTarget(target: ProcessAudioTarget): Promise<CaptureTarget> {
-    if (target.kind === 'app') return resolveApp(target.app);
     const source = parseCaptureSourceId(target.sourceId);
     if (!source) throw new ProcessAudioError('invalid_source', MESSAGES.invalidSource);
     if (source.kind === 'window') {
@@ -234,74 +170,30 @@ export function createProcessAudioEngine(
       if (pid <= 0) {
         throw new ProcessAudioError('window_process_unknown', MESSAGES.windowProcessUnknown);
       }
-      return { pid, mode: 'include', app: null };
+      return { pid, mode: 'include' };
     }
     const pid = await deps.discordRootPid();
     if (pid === null)
       throw new ProcessAudioError('discord_not_running', MESSAGES.discordNotRunning);
-    return { pid, mode: 'exclude', app: null };
+    return { pid, mode: 'exclude' };
   }
 
   /** Idempotent: the entry leaves the map at once, so a second call finds nothing to stop. */
   async function stopCapture(captureId: string): Promise<void> {
-    const entry = captures.get(captureId);
-    if (!entry) return;
+    const capture = captures.get(captureId);
+    if (!capture) return;
     captures.delete(captureId);
-    if (entry.poll) clearInterval(entry.poll);
     try {
-      await entry.native.stop();
+      await capture.stop();
       logger.info(`process audio capture ${captureId} stopped`);
     } catch (err) {
       logger.warn(`native stop of ${captureId} failed`, err);
     }
   }
 
-  /**
-   * Polls whether the captured app's root process is still listed. A closed (or restarted) app
-   * leaves the capture silent forever, so it is stopped and reported. Listing failures keep the
-   * capture running (fail-open), logged once.
-   */
-  function watchApp(
-    entry: ActiveCapture,
-    app: MusicAppId,
-    onEnded: ProcessAudioEndedListener | undefined,
-  ): ReturnType<typeof setInterval> {
-    const definition = MUSIC_APPS[app];
-    let checking = false;
-    let failing = false;
-    const check = async (): Promise<void> => {
-      let processes: ProcessInfo[];
-      try {
-        processes = await deps.listProcessesQuick(definition.processNames);
-        failing = false;
-      } catch (err) {
-        if (!failing) logger.warn(`could not check whether ${definition.label} is open`, err);
-        failing = true;
-        return;
-      }
-      if (captures.get(entry.id) !== entry) return;
-      if (processes.some((process) => process.pid === entry.target.pid)) return;
-      logger.info(`${definition.label} was closed; ending capture ${entry.id}`);
-      await stopCapture(entry.id);
-      try {
-        onEnded?.(entry.id, 'app_closed');
-      } catch (err) {
-        logger.warn('process audio ended listener failed', err);
-      }
-    };
-    return setInterval(() => {
-      if (checking) return;
-      checking = true;
-      void check().finally(() => {
-        checking = false;
-      });
-    }, deps.appPollIntervalMs);
-  }
-
   async function startCapture(
     target: ProcessAudioTarget,
     onData: ProcessAudioDataListener,
-    onEnded: ProcessAudioEndedListener | undefined,
   ): Promise<ProcessAudioCapture> {
     const status = support();
     const mod = getNative();
@@ -320,11 +212,9 @@ export function createProcessAudioEngine(
       logger.warn('native start failed', err);
       throw new ProcessAudioError('native_failure', describeNativeFailure(err));
     }
-    const entry: ActiveCapture = { id: captureId, native: next, target: resolved, poll: null };
-    captures.set(captureId, entry);
-    if (resolved.app) entry.poll = watchApp(entry, resolved.app, onEnded);
+    captures.set(captureId, next);
     logger.info(`process audio capture ${captureId} started`, {
-      target: target.kind === 'app' ? `app:${target.app}` : target.sourceId,
+      target: target.sourceId,
       pid: resolved.pid,
       mode: resolved.mode,
       ...format,

@@ -4,27 +4,19 @@ import { EVENTS } from '../preload/channels';
 import type { ProcessAudioEngine } from './audio';
 import { expectSourceId } from './capture';
 import { log } from './log';
-import {
-  expectMusicAppId,
-  expectString,
-  IpcValidationError,
-  isRecord,
-  UserFacingError,
-} from './validation';
+import { expectString, IpcValidationError, isRecord, UserFacingError } from './validation';
 
 const logger = log('process-audio');
 
-/** More than this per window is a renderer bug (it normally holds the screen's and the music's). */
+/** More than this per window is a renderer bug (it normally holds one: the live's audio). */
 export const MAX_CAPTURES_PER_WINDOW = 4;
 
 const CAPTURE_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
-/** `startProcessAudio` argument: a desktopCapturer source or a supported music app. */
+/** `startProcessAudio` argument: a desktopCapturer window or screen source. */
 export function parseProcessAudioTarget(raw: unknown): ProcessAudioTarget {
-  if (!isRecord(raw)) throw new IpcValidationError('target');
-  if (raw.kind === 'source') return { kind: 'source', sourceId: expectSourceId(raw.sourceId) };
-  if (raw.kind === 'app') return { kind: 'app', app: expectMusicAppId(raw.app) };
-  throw new IpcValidationError('target');
+  if (!isRecord(raw) || raw.kind !== 'source') throw new IpcValidationError('target');
+  return { kind: 'source', sourceId: expectSourceId(raw.sourceId) };
 }
 
 export function expectCaptureId(value: unknown, name = 'captureId'): string {
@@ -36,9 +28,8 @@ export function expectCaptureId(value: unknown, name = 'captureId'): string {
 /**
  * IPC-facing side of per-process audio capture: several captures at once, each owned by the
  * window that started it. PCM chunks go to that window only, tagged with the capture id
- * (`PROCESS_AUDIO_DATA`), and so does `PROCESS_AUDIO_ENDED` when the engine ends a capture on its
- * own. A window that closes, crashes or reloads loses its captures (the renderer that held them
- * is gone).
+ * (`PROCESS_AUDIO_DATA`). A window that closes, crashes or reloads loses its captures (the renderer
+ * that held them is gone).
  */
 export interface ProcessAudioBridge {
   support(): ProcessAudioSupport;
@@ -113,17 +104,9 @@ export function createProcessAudioBridge(engine: ProcessAudioEngine): ProcessAud
       if ((owners.get(sender)?.captures.size ?? 0) >= MAX_CAPTURES_PER_WINDOW) {
         throw new UserFacingError('Há capturas de áudio demais ao mesmo tempo nesta janela.');
       }
-      const capture = await engine.start(
-        target,
-        (captureId, chunk) => {
-          if (!sender.isDestroyed()) sender.send(EVENTS.PROCESS_AUDIO_DATA, captureId, chunk);
-        },
-        (captureId, reason) => {
-          forget(captureId);
-          logger.info(`${captureId} ended on its own (${reason})`);
-          if (!sender.isDestroyed()) sender.send(EVENTS.PROCESS_AUDIO_ENDED, captureId, reason);
-        },
-      );
+      const capture = await engine.start(target, (captureId, chunk) => {
+        if (!sender.isDestroyed()) sender.send(EVENTS.PROCESS_AUDIO_DATA, captureId, chunk);
+      });
       if (sender.isDestroyed()) {
         // The window went away while the target was being resolved: nobody to deliver to.
         await engine.stop(capture.captureId);
@@ -132,9 +115,8 @@ export function createProcessAudioBridge(engine: ProcessAudioEngine): ProcessAud
       const owner = ownerFor(sender);
       owner.captures.add(capture.captureId);
       ownerOf.set(capture.captureId, owner);
-      const what = target.kind === 'app' ? `app:${target.app}` : target.sourceId;
       logger.info(
-        `started ${capture.captureId} for ${what} (${capture.format.sampleRate} Hz, ${capture.format.channels} ch)`,
+        `started ${capture.captureId} for ${target.sourceId} (${capture.format.sampleRate} Hz, ${capture.format.channels} ch)`,
       );
       return capture;
     },

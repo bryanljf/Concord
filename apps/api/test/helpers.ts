@@ -47,6 +47,15 @@ export function testConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
       apiKey: API_KEY,
       apiSecret: API_SECRET,
     },
+    jam: {
+      botUrl: undefined,
+      botToken: undefined,
+      cacheDir: 'unused/jam-cache',
+      cacheMaxBytes: 512 * 1024 * 1024,
+      cacheTtlMs: 3 * 3_600_000,
+      stateFile: 'unused/jam-state.json',
+      livekitUrl: 'wss://concord.example',
+    },
     ...overrides,
   };
 }

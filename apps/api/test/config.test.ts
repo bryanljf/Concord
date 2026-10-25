@@ -1,6 +1,13 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ConfigError, deriveLiveKitApiUrl, loadConfig, parseRooms } from '../src/config';
+import { JAM_CACHE_TTL_MS } from '@concord/shared';
+import {
+  ConfigError,
+  deriveLiveKitApiUrl,
+  deriveLiveKitWsUrl,
+  loadConfig,
+  parseRooms,
+} from '../src/config';
 
 const base = {
   LIVEKIT_URL: 'wss://concord.example',
@@ -40,6 +47,15 @@ describe('loadConfig', () => {
         apiKey: 'key',
         apiSecret: 'secret',
       },
+      jam: {
+        botUrl: undefined,
+        botToken: undefined,
+        cacheDir: resolve('/srv/concord/apps/api', '../../infra/jam-cache'),
+        cacheMaxBytes: 512 * 1024 * 1024,
+        cacheTtlMs: JAM_CACHE_TTL_MS,
+        stateFile: resolve('/srv/concord/apps/api', '../../infra/jam-state.json'),
+        livekitUrl: 'wss://concord.example',
+      },
     });
   });
 
@@ -57,6 +73,12 @@ describe('loadConfig', () => {
       SERVER_REGION: 'Casa',
       LIVEKIT_LOCAL_URL: 'ws://127.0.0.1:7880',
       LIVEKIT_API_URL: 'http://127.0.0.1:7880',
+      JAM_BOT_URL: 'http://127.0.0.1:3001/',
+      JAM_BOT_TOKEN: ' bot-secret ',
+      JAM_CACHE_DIR: '/var/lib/concord-jam',
+      JAM_CACHE_MAX_MB: '256',
+      JAM_CACHE_TTL_HOURS: '12',
+      JAM_STATE_FILE: '/var/lib/concord/jam-state.json',
     };
     expect(loadConfig(env, '/srv')).toEqual({
       host: '0.0.0.0',
@@ -82,7 +104,50 @@ describe('loadConfig', () => {
         apiKey: 'key',
         apiSecret: 'secret',
       },
+      jam: {
+        botUrl: 'http://127.0.0.1:3001',
+        botToken: 'bot-secret',
+        cacheDir: resolve('/srv', '/var/lib/concord-jam'),
+        cacheMaxBytes: 256 * 1024 * 1024,
+        cacheTtlMs: 12 * 3_600_000,
+        stateFile: resolve('/srv', '/var/lib/concord/jam-state.json'),
+        // Derived from LIVEKIT_API_URL: the bot reaches LiveKit the way the api does.
+        livekitUrl: 'ws://127.0.0.1:7880',
+      },
     });
+  });
+
+  it('lets JAM_LIVEKIT_URL override the URL the jam bot joins with', () => {
+    expect(loadConfig({ ...base, JAM_LIVEKIT_URL: 'ws://livekit:7880/' }).jam.livekitUrl).toBe(
+      'ws://livekit:7880',
+    );
+  });
+
+  it('keeps unused songs 3 hours by default; JAM_CACHE_TTL_HOURS=0 keeps them until evicted', () => {
+    expect(JAM_CACHE_TTL_MS).toBe(3 * 3_600_000);
+    expect(loadConfig(base).jam.cacheTtlMs).toBe(3 * 3_600_000);
+    expect(loadConfig({ ...base, JAM_CACHE_TTL_HOURS: ' ' }).jam.cacheTtlMs).toBe(3 * 3_600_000);
+    expect(loadConfig({ ...base, JAM_CACHE_TTL_HOURS: '1' }).jam.cacheTtlMs).toBe(3_600_000);
+    expect(loadConfig({ ...base, JAM_CACHE_TTL_HOURS: '0' }).jam.cacheTtlMs).toBe(0);
+  });
+
+  it('ignores the former JAM_CACHE_TTL_DAYS', () => {
+    expect(loadConfig({ ...base, JAM_CACHE_TTL_DAYS: '7' }).jam.cacheTtlMs).toBe(JAM_CACHE_TTL_MS);
+  });
+
+  it.each([
+    ['JAM_CACHE_TTL_HOURS', '-1'],
+    ['JAM_CACHE_TTL_HOURS', '1.5'],
+    ['JAM_CACHE_TTL_HOURS', '3h'],
+    ['JAM_CACHE_TTL_HOURS', 'week'],
+    ['JAM_BOT_URL', 'ftp://bot'],
+    ['JAM_BOT_URL', 'not a url'],
+    ['JAM_LIVEKIT_URL', 'http://livekit:7880'],
+    ['JAM_CACHE_MAX_MB', '0'],
+    ['JAM_CACHE_MAX_MB', '1.5'],
+    ['JAM_CACHE_MAX_MB', 'lots'],
+  ])('rejects %s=%j', (name, value) => {
+    expect(() => loadConfig({ ...base, [name]: value })).toThrow(ConfigError);
   });
 
   it.each(['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'])('requires %s', (name) => {
@@ -111,6 +176,20 @@ describe('parseRooms', () => {
 
   it.each(['', ' , ', 'geral,sala com espaço', '-x', 'a'.repeat(33)])('rejects %j', (raw) => {
     expect(() => parseRooms(raw)).toThrow(ConfigError);
+  });
+});
+
+describe('deriveLiveKitWsUrl', () => {
+  it.each([
+    ['http://127.0.0.1:7880', 'ws://127.0.0.1:7880'],
+    ['https://concord.example/', 'wss://concord.example'],
+    ['ws://localhost:7880', 'ws://localhost:7880'],
+  ])('maps %s to %s', (input, expected) => {
+    expect(deriveLiveKitWsUrl(input)).toBe(expected);
+  });
+
+  it.each(['not a url', 'ftp://concord.example'])('rejects %j', (input) => {
+    expect(() => deriveLiveKitWsUrl(input)).toThrow(ConfigError);
   });
 });
 

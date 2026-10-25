@@ -32,3 +32,38 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  # The jam bot (Go). Deploy Oracle only runs after a fully green CI, so this job also gates it.
+  jam-bot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/jam-bot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/jam-bot/go.mod
+          cache-dependency-path: apps/jam-bot/go.sum
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Not gofmt-formatted (run gofmt -w .):" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build ./...
+
+      # The production VM is linux/arm64 (Ampere A1) and the image is distroless static.
+      - name: Cross-build for the VM (linux/arm64, static)
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: '0'
+        run: go build -o /dev/null .

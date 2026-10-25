@@ -73,12 +73,23 @@ original).
   e use o botão direito nela para tela cheia, disposição ou para deixá-la de ficar por cima de
   tudo. Jogos em **tela cheia exclusiva** ficam por cima dela: use **tela cheia sem bordas**. Ela
   não aparece nas suas transmissões nem em capturas de tela.
-- **Música**: para transmitir o seu Spotify, abra **Transmitir → Música** com o Spotify tocando.
-  Dá para transmitir só a música ou junto com a tela. Para ouvir a música de alguém, clique no
-  ícone de **fone** ao lado do número de pessoas da sala e em **Ouvir** (uma música por vez). Se a
-  música não aparecer, ative no Spotify **Configurações → Exibir sobreposição na área de trabalho
-  ao usar as teclas de mídia**. Transmitindo a **tela inteira** com áudio, o Spotify também vai no
-  áudio da tela; quem ouve pode silenciar um dos dois.
+- **Jam** (música): uma fila de músicas da sala, do YouTube Music, que todo mundo da sala ouve
+  junto e sem anúncios. Dentro de uma sala, clique no botão verde **Música** da barra de baixo (ao
+  lado de Transmitir e da câmera): abre a busca no meio da tela. Digite o nome da música (ou cole
+  um link do YouTube ou do YouTube Music) e escolha uma das opções: se nada estiver tocando ela
+  começa em poucos segundos, senão entra na fila, e você já passa a ouvir. Enquanto uma Jam toca,
+  a linha da sala mostra um **fone** com barrinhas animadas; clique nele para abrir o painel de
+  música da sala, com a música atual, a fila, **Ouvir**/**Parar de ouvir** e o seu volume, que é
+  só seu; quem está ouvindo aparece em avatares empilhados, como os espectadores de uma live.
+  Qualquer pessoa na sala pode **pausar** e **retomar** para todos, **pular** a que está
+  tocando ou **remover** uma da fila. Cabem até 50 músicas na fila, de até 20 minutos cada. Quando
+  você adiciona uma música, o seu Concord baixa o áudio do YouTube **pela sua internet**, de forma
+  anônima (sem conta nem login no YouTube ou no Google), e manda para o servidor enquanto baixa:
+  ela começa a tocar em poucos segundos, e as que alguém tocou nas últimas 3 horas começam na
+  hora. Para adiantar, o Concord já vai baixando o primeiro resultado da busca e as opções em que
+  você passa o mouse (alguns MB cada, só na memória e descartados em poucos minutos se você não
+  adicionar). Na primeira vez ele baixa antes o programa que faz isso (o yt-dlp, uns 31 MB), que
+  ele mesmo apaga se você passar 30 dias sem usar a Jam.
 - **Transmitir**: botão **Transmitir**, item **Transmitir…** da bandeja ou o atalho. Escolha uma
   janela (só aquele programa) ou uma tela inteira, a **resolução** (480p, 720p, 1080p ou 1440p) e
   os **quadros por segundo** (15, 30 ou 60); o padrão fica em **Configurações → Transmissão**.
@@ -87,8 +98,9 @@ original).
   e a CPU fica livre para o jogo); o padrão é a CPU. Vale a partir da próxima transmissão. O
   **áudio do aplicativo** vai junto **sem a call do Discord**. Durante a live o
   mesmo botão vira **Trocar fonte**: troca a janela ou a tela sem derrubar quem está assistindo.
-- **Som de aviso**: quando alguém entra ao vivo **na sala em que você está**, toca um som curto.
-  Em **Configurações → Sons** dá para silenciar salas ou pessoas.
+- **Som de aviso**: quando alguém entra ao vivo **na sala em que você está**, toca um som curto;
+  outro avisa quando uma Jam começa na sua sala. Em **Configurações → Sons** dá para silenciar
+  salas ou pessoas e desligar o som da Jam.
 - **Fechar a janela (X) não fecha o app**: ele continua na bandeja, gastando quase nada. Para
   sair de verdade, use **Sair** no menu da bandeja (botão direito no ícone perto do relógio).
 
@@ -106,10 +118,13 @@ Para apagar também suas preferências e o login, exclua a pasta `%APPDATA%\Conc
 
 ## Problemas comuns
 
-| O que aparece                             | O que fazer                                                                                                 |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| "Esta conta não está autorizada"          | Sua conta Discord ainda não foi liberada: mande o seu ID do Discord para o administrador.                   |
-| "Não foi possível conectar ao servidor …" | Confira se o endereço do servidor é o que o administrador passou e avise-o se continuar.                    |
-| Não ouço uma live                         | No destaque só a live destacada tem som: clique na miniatura dela. Confira também o volume e o mudo.        |
-| Uma live trava ou perde quadros           | Botão direito nela → **Estatísticas da transmissão** → **Copiar diagnóstico** e mande para o administrador. |
-| A atualização não chega                   | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima.       |
+| O que aparece                                   | O que fazer                                                                                                                                                          |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Esta conta não está autorizada"                | Sua conta Discord ainda não foi liberada: mande o seu ID do Discord para o administrador.                                                                            |
+| "Não foi possível conectar ao servidor …"       | Confira se o endereço do servidor é o que o administrador passou e avise-o se continuar.                                                                             |
+| Não ouço uma live                               | No destaque só a live destacada tem som: clique na miniatura dela. Confira também o volume e o mudo.                                                                 |
+| Uma live trava ou perde quadros                 | Botão direito nela → **Estatísticas da transmissão** → **Copiar diagnóstico** e mande para o administrador.                                                          |
+| A Jam não aparece                               | O servidor está com a Jam desligada no momento: avise o administrador.                                                                                               |
+| A música some da fila logo depois de adicionada | O download não deu certo (internet, vídeo bloqueado ou indisponível, música com mais de 20 minutos): o app mostra o motivo. Tente de novo ou outra versão da música. |
+| A música para no meio e sai da fila             | Quase sempre a internet de quem a adicionou caiu enquanto ela ainda era enviada. Adicione de novo.                                                                   |
+| A atualização não chega                         | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima.                                                                |

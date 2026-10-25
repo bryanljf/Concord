@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isAuxiliaryIdentity } from '@concord/shared';
+import { isAuxiliaryIdentity, isJamBotIdentity } from '@concord/shared';
 import {
   RoomEvent,
   Track,
@@ -91,7 +91,11 @@ function toStream(
  */
 export function collectRemoteStreams(room: Room): RemoteStream[] {
   const participants = [...room.remoteParticipants.values()]
-    .filter((participant) => !isAuxiliaryIdentity(participant.identity))
+    // The jam bot only plays music: never a person on the stage.
+    .filter(
+      (participant) =>
+        !isAuxiliaryIdentity(participant.identity) && !isJamBotIdentity(participant.identity),
+    )
     .sort((a, b) => {
       const joinedA = a.joinedAt?.getTime() ?? 0;
       const joinedB = b.joinedAt?.getTime() ?? 0;

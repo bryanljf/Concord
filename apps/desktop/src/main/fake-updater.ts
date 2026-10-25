@@ -34,6 +34,7 @@ export function createFakeAutoUpdater(version: string, relaunch: () => void): Ap
   const fake = {
     autoDownload: true,
     autoInstallOnAppQuit: true,
+    disableDifferentialDownload: false,
     logger: null as unknown,
     on(event: string, listener: (...args: unknown[]) => void) {
       events.on(event, listener);

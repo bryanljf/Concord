@@ -166,7 +166,7 @@ describe('camera and picture-in-picture settings', () => {
 });
 
 describe('music settings', () => {
-  it('plays the music chime by default', () => {
+  it('plays the Jam chime by default', () => {
     expect(defaultSettings().musicSounds).toBe(true);
   });
 

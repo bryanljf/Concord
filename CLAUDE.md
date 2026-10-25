@@ -12,6 +12,7 @@ pnpm install              # Node 22+ (.nvmrc = 22), pnpm 12
 pnpm dev                  # Electron (apps/desktop) via electron-vite
 pnpm dev:api              # Fastify em http://127.0.0.1:3000 (carrega infra/.env se existir)
 pnpm dev:livekit          # livekit-server local (binário oficial em infra/local/bin, baixado pelo start.ps1)
+pnpm dev:jam-bot          # jam-bot (Go) em 127.0.0.1:3001; o api usa com JAM_BOT_URL
 pnpm lint                 # eslint + prettier --check
 pnpm format               # prettier --write
 pnpm typecheck            # tsc em todos os pacotes
@@ -30,6 +31,7 @@ Dentro do VS Code, limpe `ELECTRON_RUN_AS_NODE` antes de iniciar o Electron manu
 - `packages/process-audio` — adaptador do addon `loopback-capture` (áudio por processo no Windows, binário pré-compilado); carregado em runtime pelo main, fora do bundle e fora do asar.
 - `apps/api` — concord-api (Fastify 5). `src/app.ts` monta o app (testável via `inject`), `src/index.ts` só dá `listen`.
 - `apps/desktop` — Electron 44 + electron-vite + React 19. `src/main` (processo principal: bandeja, presença SSE, settings), `src/preload` (ponte IPC; o contrato é `api.d.ts`), `src/renderer` (UI).
+- `apps/jam-bot` — Go: toca a fila da Jam de cada sala no LiveKit (Opus original, estéreo, sem re-encode). Player burro comandado pelo api; contrato em `API.md`. Fora do pnpm: `go vet/test` no job `jam-bot` do CI, e o binário linux/arm64 é compilado no GitHub e enviado pelo deploy (a VM nunca compila Go).
 - `infra/` — `livekit.yaml` compartilhado, `local/` (hospedagem no PC Windows), docker-compose, exemplos de `.env`/`users.json`.
 
 ## Convenções
@@ -41,7 +43,9 @@ Dentro do VS Code, limpe `ELECTRON_RUN_AS_NODE` antes de iniciar o Electron manu
 - Nunca commitar `.env`, `infra/users.json` ou chaves LiveKit. Manter `.env.example` e `users.example.json` atualizados.
 - Sem push, repo remoto, release ou ação na VM de produção sem pedir confirmação.
 - Se algo da spec se mostrar inviável, parar e propor em vez de improvisar.
+- Tudo que o Concord grava (caches, downloads, temporários, logs, uploads, artefatos de build), nos PCs ou na VM, precisa de limite ou rotina de limpeza na mesma mudança.
+- Jam: o yt-dlp roda sempre anônimo (sem cookies nem conta); o IP da VM é bloqueado pelo YouTube para baixar (a busca funciona), por isso quem baixa é o app de quem pediu.
 
 ## Pins importantes
 
-TS 6.0.x (typescript-eslint exige < 6.1), Vite 7.x (electron-vite 5 exige ≤ 7), Electron 44, Fastify 5, Vitest 5, livekit-server-sdk 2.19, livekit-client 2.22, LiveKit server v1.13.9.
+TS 6.0.x (typescript-eslint exige < 6.1), Vite 7.x (electron-vite 5 exige ≤ 7), Electron 44, Fastify 5, Vitest 5, livekit-server-sdk 2.19, livekit-client 2.22, LiveKit server v1.13.9, youtubei.js 18.3.0. Go 1.27 com server-sdk-go v2.19.0 e ebml-go v0.19.4 (`apps/jam-bot/go.mod`).

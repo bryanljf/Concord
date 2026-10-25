@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { ROOM_ID_PATTERN, type RoomId } from '@concord/shared';
+import { JAM_CACHE_TTL_MS, ROOM_ID_PATTERN, type RoomId } from '@concord/shared';
 
 export interface LiveKitConfig {
   /** URL (ws:// or wss://) handed to clients in the token response. */
@@ -13,6 +13,27 @@ export interface LiveKitConfig {
   apiUrl: string;
   apiKey: string;
   apiSecret: string;
+}
+
+/** The Jam (a YouTube Music queue per room), played into LiveKit by the jam bot. */
+export interface JamConfig {
+  /** `JAM_BOT_URL`: base URL of the bot's internal API; undefined means the Jam is unavailable. */
+  botUrl: string | undefined;
+  /** `JAM_BOT_TOKEN`: Bearer token the bot requires, if any. */
+  botToken: string | undefined;
+  /** Absolute path of the audio cache (`<videoId>.webm`); the bot reads the very same path. */
+  cacheDir: string;
+  /** Cache size above which the least recently used songs are deleted. */
+  cacheMaxBytes: number;
+  /**
+   * `JAM_CACHE_TTL_HOURS` (default 3): songs not enqueued nor played for this long are deleted;
+   * 0 keeps them (size limit only).
+   */
+  cacheTtlMs: number;
+  /** Absolute path of the file the queues are persisted to, so they survive api restarts. */
+  stateFile: string;
+  /** LiveKit URL (ws:// or wss://) the bot joins the rooms with. */
+  livekitUrl: string;
 }
 
 export interface ApiConfig {
@@ -36,6 +57,7 @@ export interface ApiConfig {
     sessionTtlSeconds: number;
   };
   livekit: LiveKitConfig;
+  jam: JamConfig;
   /** `SERVER_NAME` / `SERVER_REGION`: override the detected instance name and region. */
   server?: { name?: string; region?: string };
 }
@@ -138,8 +160,85 @@ export function deriveLiveKitApiUrl(livekitUrl: string): string {
   return url.toString().replace(/\/$/, '');
 }
 
+/** Turns the LiveKit server API URL (http/https) into the WebSocket URL the jam bot joins with. */
+export function deriveLiveKitWsUrl(apiUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(apiUrl);
+  } catch {
+    throw new ConfigError(`LIVEKIT_API_URL is not a valid URL: "${apiUrl}"`);
+  }
+  switch (url.protocol) {
+    case 'http:':
+      url.protocol = 'ws:';
+      break;
+    case 'https:':
+      url.protocol = 'wss:';
+      break;
+    case 'ws:':
+    case 'wss:':
+      break;
+    default:
+      throw new ConfigError('LIVEKIT_API_URL must start with http://, https://, ws:// or wss://');
+  }
+  return url.toString().replace(/\/$/, '');
+}
+
+function parseUrl(raw: string, name: string, protocols: readonly string[]): string {
+  try {
+    if (!protocols.includes(new URL(raw).protocol)) throw new Error();
+  } catch {
+    const schemes = protocols.map((protocol) => protocol.replace(':', '://'));
+    throw new ConfigError(`${name} must be a valid URL starting with ${schemes.join(' or ')}`);
+  }
+  return raw.replace(/\/+$/, '');
+}
+
+const DEFAULT_JAM_CACHE_MAX_MB = 512;
+const HOUR_MS = 3_600_000;
+
+function parseMegabytes(raw: string | undefined, name: string, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback * 1024 * 1024;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new ConfigError(`${name} must be a positive number of megabytes, got "${raw}"`);
+  }
+  return value * 1024 * 1024;
+}
+
+/** Whole hours as milliseconds; 0 is allowed (it disables what the setting limits). */
+function parseHours(raw: string | undefined, name: string, fallbackMs: number): number {
+  if (raw === undefined || raw.trim() === '') return fallbackMs;
+  const hours = Number(raw);
+  if (!Number.isSafeInteger(hours) || hours < 0) {
+    throw new ConfigError(`${name} must be a whole number of hours (0 disables it), got "${raw}"`);
+  }
+  return hours * HOUR_MS;
+}
+
+function loadJamConfig(env: Env, cwd: string, livekitApiUrl: string): JamConfig {
+  const botUrl = env.JAM_BOT_URL?.trim();
+  const livekitUrl = env.JAM_LIVEKIT_URL?.trim();
+  return {
+    botUrl: botUrl ? parseUrl(botUrl, 'JAM_BOT_URL', ['http:', 'https:']) : undefined,
+    botToken: env.JAM_BOT_TOKEN?.trim() || undefined,
+    cacheDir: resolve(cwd, env.JAM_CACHE_DIR?.trim() || '../../infra/jam-cache'),
+    cacheMaxBytes: parseMegabytes(
+      env.JAM_CACHE_MAX_MB,
+      'JAM_CACHE_MAX_MB',
+      DEFAULT_JAM_CACHE_MAX_MB,
+    ),
+    cacheTtlMs: parseHours(env.JAM_CACHE_TTL_HOURS, 'JAM_CACHE_TTL_HOURS', JAM_CACHE_TTL_MS),
+    stateFile: resolve(cwd, env.JAM_STATE_FILE?.trim() || '../../infra/jam-state.json'),
+    livekitUrl: livekitUrl
+      ? parseUrl(livekitUrl, 'JAM_LIVEKIT_URL', ['ws:', 'wss:'])
+      : deriveLiveKitWsUrl(livekitApiUrl),
+  };
+}
+
 export function loadConfig(env: Env = process.env, cwd: string = process.cwd()): ApiConfig {
   const url = required(env, 'LIVEKIT_URL');
+  const livekitApiUrl = env.LIVEKIT_API_URL?.trim() || deriveLiveKitApiUrl(url);
   return {
     host: env.HOST?.trim() || '127.0.0.1',
     port: parsePort(env.PORT),
@@ -163,9 +262,10 @@ export function loadConfig(env: Env = process.env, cwd: string = process.cwd()):
     livekit: {
       url,
       localUrl: env.LIVEKIT_LOCAL_URL?.trim() || undefined,
-      apiUrl: env.LIVEKIT_API_URL?.trim() || deriveLiveKitApiUrl(url),
+      apiUrl: livekitApiUrl,
       apiKey: required(env, 'LIVEKIT_API_KEY'),
       apiSecret: required(env, 'LIVEKIT_API_SECRET'),
     },
+    jam: loadJamConfig(env, cwd, livekitApiUrl),
   };
 }

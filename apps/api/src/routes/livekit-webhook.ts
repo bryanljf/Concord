@@ -4,7 +4,7 @@ import type { ApiErrorResponse, HealthResponse } from '@concord/shared';
 import {
   isAuxiliaryParticipant,
   isCameraVideo,
-  isMusicAudio,
+  isJamBotParticipant,
   isScreenShareVideo,
   toParticipantIdentity,
 } from '../livekit';
@@ -19,7 +19,9 @@ export interface LivekitWebhookRoutesOptions {
 /**
  * Applies one verified LiveKit webhook event to the presence store. Events about auxiliary
  * identities (pop-out and PiP windows) are dropped: the person is already represented by their
- * main connection.
+ * main connection. So are the jam bot's: it is not a person (its music is the Jam's, announced by
+ * the jam events). Only screen-share and camera video tracks matter to presence; any other track
+ * is ignored.
  */
 export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, log: Logger): void {
   const room = event.room?.name;
@@ -35,6 +37,10 @@ export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, 
     );
     return;
   }
+  if (participant && isJamBotParticipant(participant)) {
+    log.debug({ event: event.event, room }, 'ignoring LiveKit webhook for the jam bot');
+    return;
+  }
   switch (event.event) {
     case 'participant_joined':
       if (participant) presence.join(room, toParticipantIdentity(participant));
@@ -47,8 +53,6 @@ export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, 
         presence.screenTrackPublished(room, toParticipantIdentity(participant), track.sid);
       } else if (participant && track && isCameraVideo(track)) {
         presence.cameraTrackPublished(room, toParticipantIdentity(participant), track.sid);
-      } else if (participant && track && isMusicAudio(track)) {
-        presence.musicTrackPublished(room, toParticipantIdentity(participant), track.sid);
       }
       break;
     case 'track_unpublished':
@@ -56,8 +60,6 @@ export function applyWebhookEvent(presence: PresenceStore, event: WebhookEvent, 
         presence.screenTrackUnpublished(room, participant.identity, track.sid);
       } else if (participant && track && isCameraVideo(track)) {
         presence.cameraTrackUnpublished(room, participant.identity, track.sid);
-      } else if (participant && track && isMusicAudio(track)) {
-        presence.musicTrackUnpublished(room, participant.identity, track.sid);
       }
       break;
     case 'room_finished':

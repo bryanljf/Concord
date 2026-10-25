@@ -83,7 +83,13 @@ export function isSameUpdateStatus(a: UpdateStatus, b: UpdateStatus): boolean {
 /** The slice of electron-updater's `autoUpdater` we use (injectable in tests). */
 export type AppUpdaterLike = Pick<
   AppUpdater,
-  'autoDownload' | 'autoInstallOnAppQuit' | 'logger' | 'on' | 'checkForUpdates' | 'quitAndInstall'
+  | 'autoDownload'
+  | 'autoInstallOnAppQuit'
+  | 'disableDifferentialDownload'
+  | 'logger'
+  | 'on'
+  | 'checkForUpdates'
+  | 'quitAndInstall'
 >;
 
 export interface UpdaterDeps {
@@ -93,6 +99,11 @@ export interface UpdaterDeps {
   /** Called right before `quitAndInstall`, so close-to-tray lets the windows close. */
   onBeforeInstall(): void;
   autoUpdater?: AppUpdaterLike;
+  /**
+   * Every check waits for it: the start-up cleanup of electron-updater's cache
+   * (`housekeeping.ts`) must never race a download. Must not reject.
+   */
+  whenReady?: Promise<unknown>;
   initialDelayMs?: number;
   intervalMs?: number;
 }
@@ -154,6 +165,9 @@ export function createUpdater(deps: UpdaterDeps): Updater {
   const updater = deps.autoUpdater ?? electronAutoUpdater;
   updater.autoDownload = true;
   updater.autoInstallOnAppQuit = true;
+  // Always the full installer: a differential download needs the previous installer kept in
+  // %LOCALAPPDATA% (~120 MB at rest), which the start-up housekeeping deletes.
+  updater.disableDifferentialDownload = true;
   updater.logger = {
     info: (message?: unknown) => logger.info(String(message)),
     warn: (message?: unknown) => logger.warn(String(message)),
@@ -171,6 +185,7 @@ export function createUpdater(deps: UpdaterDeps): Updater {
   updater.on('update-downloaded', (info) => apply({ type: 'downloaded', version: info.version }));
 
   async function check(): Promise<UpdateStatus> {
+    if (deps.whenReady) await deps.whenReady.catch(() => undefined);
     try {
       await updater.checkForUpdates();
     } catch (err) {

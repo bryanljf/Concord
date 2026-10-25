@@ -14,6 +14,18 @@ infra/users.json
 # written by the api (Discord names, avatars, nicknames)
 infra/profiles.json
 infra/profiles.json.*
+# written by the api in dev: jam audio cache (read by the jam bot) and the rooms' jam queues
+infra/jam-cache/
+infra/jam-state.json
+infra/jam-state.json.*
+
+# jam bot (Go) build output; apps/jam-bot/dist/ (the binary the deploy sends to the VM) is
+# already covered by dist/ above
+apps/jam-bot/bin/
+apps/jam-bot/jam-bot
+apps/jam-bot/*.exe
+apps/jam-bot/*.test
+apps/jam-bot/*.out
 
 # Terraform state and local variables can contain infrastructure identifiers or credentials.
 infra/terraform/.terraform/

@@ -10,8 +10,8 @@ import { EVENTS, IPC, type IpcChannel, type IpcResult } from '../preload/channel
 import type { ApiClient } from './api-client';
 import { ApiClientError } from './api-client';
 import { parseCaptureSelection, type CaptureService } from './capture';
+import type { JamService } from './jam';
 import { log } from './log';
-import type { NowPlayingService } from './now-playing';
 import type { PipManager } from './pip';
 import { parsePopoutTarget, type PopoutManager } from './popout';
 import type { PresenceClient } from './presence-client';
@@ -23,12 +23,15 @@ import { parseStreamingState, type StreamingStore } from './streaming';
 import type { Updater } from './updater';
 import {
   expectBoolean,
-  expectMusicAppId,
+  expectJamItemId,
+  expectJamQuery,
   expectNickname,
   expectOptionalTokenPurpose,
   expectPipResizeCorner,
   expectRoomId,
   expectString,
+  expectYouTubeVideoId,
+  expectYouTubeVideoIds,
   IpcValidationError,
   parsePipTarget,
   UserFacingError,
@@ -55,7 +58,7 @@ export interface IpcDeps {
   windowDrag: WindowDrag;
   updater: Updater;
   processAudio: ProcessAudioBridge;
-  nowPlaying: NowPlayingService;
+  jam: JamService;
 }
 
 /** Who is calling: always a registered window (anything else is denied before the handler). */
@@ -87,7 +90,8 @@ type Handler<T> = (context: IpcContext, ...args: unknown[]) => Promise<T> | T;
 
 export function registerIpc(deps: IpcDeps): () => void {
   const { settings, session, api, presence, windows, mainWindow } = deps;
-  const { capture, streaming, popout, pip, windowDrag, updater, processAudio, nowPlaying } = deps;
+  const { capture, streaming, popout, pip, windowDrag, updater, processAudio } = deps;
+  const { jam } = deps;
   const registered: IpcChannel[] = [];
 
   function handle<T>(channel: IpcChannel, handler: Handler<T>): void {
@@ -221,15 +225,37 @@ export function registerIpc(deps: IpcDeps): () => void {
   handle(IPC.PROCESS_AUDIO_START, (ctx, target) => processAudio.start(ctx.sender, target));
   handle(IPC.PROCESS_AUDIO_STOP, (ctx, captureId) => processAudio.stop(ctx.sender, captureId));
 
-  // --- Music apps (what they play) ---------------------------------------------------------
-  handle(IPC.GET_MUSIC_APP_STATUS, (ctx, app) => {
+  // --- Jam (reads from any window, changes from the main window only) -----------------------
+  handle(IPC.GET_JAM, () => jam.getState());
+  handle(IPC.GET_JAM_UPLOADS, () => jam.getUploads());
+  handle(IPC.SEARCH_JAM, (ctx, query) => {
     requireKind(ctx, 'main');
-    return nowPlaying.getStatus(expectMusicAppId(app));
+    return jam.search(expectJamQuery(query));
   });
-  // The artId may come from a listener's RPC: a malformed one is just unknown (null).
-  handle(IPC.GET_MUSIC_ART, (ctx, artId) => {
+  // Fire and forget: the downloads go on in the background.
+  handle(IPC.PREFETCH_JAM, (ctx, videoIds) => {
     requireKind(ctx, 'main');
-    return nowPlaying.getArt(expectString(artId, 'artId'));
+    jam.prefetch(expectYouTubeVideoIds(videoIds));
+  });
+  handle(IPC.ADD_TO_JAM, (ctx, room, videoId) => {
+    requireKind(ctx, 'main');
+    return jam.add(expectRoomId(room), expectYouTubeVideoId(videoId));
+  });
+  handle(IPC.REMOVE_FROM_JAM, (ctx, room, itemId) => {
+    requireKind(ctx, 'main');
+    return jam.remove(expectRoomId(room), expectJamItemId(itemId));
+  });
+  handle(IPC.SKIP_JAM, (ctx, room, itemId) => {
+    requireKind(ctx, 'main');
+    return jam.skip(expectRoomId(room), expectJamItemId(itemId));
+  });
+  handle(IPC.PAUSE_JAM, (ctx, room) => {
+    requireKind(ctx, 'main');
+    return jam.pause(expectRoomId(room));
+  });
+  handle(IPC.RESUME_JAM, (ctx, room) => {
+    requireKind(ctx, 'main');
+    return jam.resume(expectRoomId(room));
   });
 
   // --- Fire-and-forget --------------------------------------------------------------------
@@ -250,7 +276,8 @@ export function registerIpc(deps: IpcDeps): () => void {
     settings.onChange((next) => windows.broadcast(EVENTS.SETTINGS_CHANGED, next)),
     streaming.onChange((state) => windows.broadcast(EVENTS.STREAMING_STATE, state)),
     updater.onStatus((status) => windows.broadcast(EVENTS.UPDATE_STATUS, status)),
-    nowPlaying.onStatus((status) => windows.broadcast(EVENTS.MUSIC_APP_STATUS, status)),
+    jam.onEvent((event) => windows.broadcast(EVENTS.JAM_EVENT, event)),
+    jam.onUploadStatus((status) => windows.broadcast(EVENTS.JAM_UPLOAD_STATUS, status)),
   ];
   logger.info(`registered ${registered.length + 1} channels`);
 

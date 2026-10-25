@@ -1,0 +1,518 @@
+import { randomUUID } from 'node:crypto';
+import {
+  isJamEmpty,
+  JAM_QUEUE_MAX,
+  JAM_UPLOAD_TIMEOUT_MS,
+  jamPositionAt,
+  type JamItem,
+  type JamNowPlaying,
+  type JamSnapshot,
+  type JamState,
+  type JamTrack,
+  type RoomId,
+} from '@concord/shared';
+import { JamError } from './errors';
+
+/**
+ * The audio of a song nobody has sent yet. One per videoId (the cache is shared by every room):
+ * the first item that needs it uploads it, later duplicates (in any room) wait for the same file.
+ * It outlives its own item while duplicates still wait, so removing the first copy does not strand
+ * the others.
+ */
+export interface PendingUpload {
+  videoId: string;
+  /** The item whose requester's app sends the audio. */
+  itemId: string;
+  room: RoomId;
+  requestedBy: string;
+  /** Server clock: when the items still waiting for it leave the queue. */
+  deadline: number;
+  /** An upload is being received right now. */
+  receiving: boolean;
+}
+
+export interface JamUpdate {
+  type: 'jam_updated';
+  state: JamState;
+  serverTime: number;
+}
+
+export type JamStoreListener = (update: JamUpdate) => void;
+
+/** What `JAM_STATE_FILE` holds. */
+export interface PersistedJam {
+  version: 1;
+  rooms: JamState[];
+  uploads: PendingUpload[];
+}
+
+/**
+ * `data` without the ready songs (playing or queued) of `videoIds`: their audio is not on disk
+ * (an upload still streaming when the api stopped). Songs waiting for an upload stay.
+ */
+export function withoutReadySongs(data: PersistedJam, videoIds: ReadonlySet<string>): PersistedJam {
+  return {
+    ...data,
+    rooms: data.rooms.map((state) => ({
+      room: state.room,
+      current:
+        state.current && videoIds.has(state.current.item.track.videoId) ? null : state.current,
+      queue: state.queue.filter(
+        (item) => item.status !== 'ready' || !videoIds.has(item.track.videoId),
+      ),
+    })),
+  };
+}
+
+export interface EnqueueResult {
+  item: JamItem;
+  /** True when this requester's app must upload the audio. */
+  upload: boolean;
+}
+
+export interface JamStoreOptions {
+  now?: () => number;
+  newId?: () => string;
+  /** How long a song may wait for its audio (default JAM_UPLOAD_TIMEOUT_MS). */
+  uploadTimeoutMs?: number;
+}
+
+/**
+ * The jam of every room: what plays and what comes next, in memory and without I/O. Each change
+ * emits one `jam_updated` per room it touched, with the room's whole state.
+ *
+ * Playback always moves to the first `ready` song in queue order: songs still waiting for their
+ * audio keep their place and play once they are ready. A new song always starts playing, even
+ * when the previous one was paused.
+ */
+export class JamStore {
+  private readonly rooms = new Map<RoomId, JamState>();
+  private readonly uploads = new Map<string, PendingUpload>();
+  private readonly listeners = new Set<JamStoreListener>();
+  private readonly touched = new Set<RoomId>();
+  private readonly now: () => number;
+  private readonly newId: () => string;
+  private readonly uploadTimeoutMs: number;
+
+  constructor(options: JamStoreOptions = {}) {
+    this.now = options.now ?? Date.now;
+    this.newId = options.newId ?? randomUUID;
+    this.uploadTimeoutMs = options.uploadTimeoutMs ?? JAM_UPLOAD_TIMEOUT_MS;
+  }
+
+  subscribe(listener: JamStoreListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Reads (always copies)
+  // -------------------------------------------------------------------------
+
+  state(room: RoomId): JamState {
+    return structuredClone(this.rooms.get(room) ?? { room, current: null, queue: [] });
+  }
+
+  current(room: RoomId): JamNowPlaying | null {
+    const current = this.rooms.get(room)?.current;
+    return current ? structuredClone(current) : null;
+  }
+
+  isEmpty(room: RoomId): boolean {
+    return !this.rooms.has(room);
+  }
+
+  /** Rooms with something playing or queued. */
+  activeRooms(): RoomId[] {
+    return [...this.rooms.keys()];
+  }
+
+  snapshot(available: boolean): JamSnapshot {
+    const rooms: Record<RoomId, JamState> = {};
+    for (const [room, state] of this.rooms) rooms[room] = structuredClone(state);
+    return { available, rooms, serverTime: this.now() };
+  }
+
+  /** The item, playing or queued. */
+  item(room: RoomId, itemId: string): JamItem | undefined {
+    const state = this.rooms.get(room);
+    const item =
+      state?.current?.item.id === itemId
+        ? state.current.item
+        : state?.queue.find((queued) => queued.id === itemId);
+    return item ? structuredClone(item) : undefined;
+  }
+
+  /** Every videoId some room still plays or queues (their files must stay in the cache). */
+  referencedVideoIds(): Set<string> {
+    const ids = new Set<string>();
+    for (const state of this.rooms.values()) {
+      if (state.current) ids.add(state.current.item.track.videoId);
+      for (const item of state.queue) ids.add(item.track.videoId);
+    }
+    return ids;
+  }
+
+  pendingUploads(): PendingUpload[] {
+    return [...this.uploads.values()].map((upload) => ({ ...upload }));
+  }
+
+  // -------------------------------------------------------------------------
+  // Queue
+  // -------------------------------------------------------------------------
+
+  /** Rejects with `queue_full` when the room cannot take another song. */
+  assertQueueNotFull(room: RoomId): void {
+    if ((this.rooms.get(room)?.queue.length ?? 0) >= JAM_QUEUE_MAX)
+      throw new JamError('queue_full');
+  }
+
+  /**
+   * Adds a song to the end of the queue. `cached`: its audio is already on the server, so it is
+   * ready (and starts right away when nothing plays). Otherwise it waits for an upload: the
+   * first item of that videoId gets `upload: true`, later ones wait for the same file.
+   */
+  enqueue(room: RoomId, track: JamTrack, requestedBy: string, cached: boolean): EnqueueResult {
+    this.assertQueueNotFull(room);
+    const now = this.now();
+    const item: JamItem = {
+      id: this.newId(),
+      track: { ...track },
+      requestedBy,
+      addedAt: now,
+      status: cached ? 'ready' : 'downloading',
+    };
+    const upload = !cached && !this.uploads.has(track.videoId);
+    if (upload) {
+      this.uploads.set(track.videoId, {
+        videoId: track.videoId,
+        itemId: item.id,
+        room,
+        requestedBy,
+        deadline: now + this.uploadTimeoutMs,
+        receiving: false,
+      });
+    }
+    const state = this.ensure(room);
+    state.queue.push(item);
+    this.touch(room);
+    if (!state.current) this.startNext(room);
+    this.flush();
+    return { item: structuredClone(item), upload };
+  }
+
+  /**
+   * Removes a song. The one playing is skipped (playback moves on); an upcoming one just leaves
+   * the queue. Rejects with `item_not_found`.
+   */
+  remove(room: RoomId, itemId: string): void {
+    const state = this.rooms.get(room);
+    if (state?.current?.item.id === itemId) {
+      this.advance(room);
+    } else {
+      const index = state?.queue.findIndex((item) => item.id === itemId) ?? -1;
+      if (!state || index < 0) throw new JamError('item_not_found');
+      state.queue.splice(index, 1);
+      this.touch(room);
+      this.forgetUnwantedUploads();
+    }
+    this.flush();
+  }
+
+  /** Skips the song playing, only if it still is `itemId`; rejects with `stale` otherwise. */
+  skip(room: RoomId, itemId: string): void {
+    if (this.rooms.get(room)?.current?.item.id !== itemId) throw new JamError('stale');
+    this.advance(room);
+    this.flush();
+  }
+
+  /** The bot finished `itemId` (played to the end or gave up): playback moves on. */
+  finish(room: RoomId, itemId: string): boolean {
+    if (this.rooms.get(room)?.current?.item.id !== itemId) return false;
+    this.advance(room);
+    this.flush();
+    return true;
+  }
+
+  /** Empties the room (nobody there anymore). */
+  clear(room: RoomId): void {
+    if (!this.rooms.has(room)) return;
+    this.rooms.delete(room);
+    this.touch(room);
+    this.forgetUnwantedUploads();
+    this.flush();
+  }
+
+  // -------------------------------------------------------------------------
+  // Playback
+  // -------------------------------------------------------------------------
+
+  /** Pauses for everyone, freezing the position; a no-op when nothing plays or it is paused. */
+  pause(room: RoomId, userId: string): void {
+    const current = this.rooms.get(room)?.current;
+    if (!current || current.paused) return;
+    const now = this.now();
+    current.positionMs = jamPositionAt(current, now);
+    current.at = now;
+    current.paused = true;
+    current.pausedBy = userId;
+    this.touch(room);
+    this.flush();
+  }
+
+  /** Resumes from where it was paused; a no-op when nothing is paused. */
+  resume(room: RoomId): void {
+    const current = this.rooms.get(room)?.current;
+    if (!current || !current.paused) return;
+    current.at = this.now();
+    current.paused = false;
+    current.pausedBy = null;
+    this.touch(room);
+    this.flush();
+  }
+
+  /**
+   * Where the bot says `itemId` is, `paused` or playing, right now. Ignored unless it is still the
+   * song playing in the same paused state (otherwise the bot is about to be told otherwise).
+   */
+  setPosition(room: RoomId, itemId: string, positionMs: number, paused: boolean): void {
+    const current = this.rooms.get(room)?.current;
+    if (!current || current.item.id !== itemId || current.paused !== paused) return;
+    if (!Number.isFinite(positionMs) || positionMs < 0) return;
+    current.positionMs = Math.round(positionMs);
+    current.at = this.now();
+    this.touch(room);
+    this.flush();
+  }
+
+  // -------------------------------------------------------------------------
+  // Uploads
+  // -------------------------------------------------------------------------
+
+  /**
+   * Claims the upload of `itemId` for `userId`. Rejects with `item_not_found` (neither queued nor
+   * awaited), `not_requester` or `already_uploaded` (ready, waiting for someone else's upload,
+   * or being received already).
+   */
+  beginUpload(room: RoomId, itemId: string, userId: string): PendingUpload {
+    const upload = [...this.uploads.values()].find(
+      (candidate) => candidate.itemId === itemId && candidate.room === room,
+    );
+    const item = this.item(room, itemId);
+    if (!item && !upload) throw new JamError('item_not_found');
+    if ((item?.requestedBy ?? upload?.requestedBy) !== userId) throw new JamError('not_requester');
+    if (!upload || upload.receiving) throw new JamError('already_uploaded');
+    upload.receiving = true;
+    return { ...upload };
+  }
+
+  /** True while `upload` is still the one songs wait for (not timed out, not abandoned). */
+  isAwaited(upload: Pick<PendingUpload, 'videoId' | 'itemId'>): boolean {
+    return this.uploads.get(upload.videoId)?.itemId === upload.itemId;
+  }
+
+  /**
+   * The audio arrived: every song waiting for that videoId becomes ready (with the file's exact
+   * duration when known) and idle rooms start playing. False when nobody awaits it anymore.
+   */
+  completeUpload(upload: Pick<PendingUpload, 'videoId' | 'itemId'>, durationMs?: number): boolean {
+    if (!this.isAwaited(upload)) return false;
+    this.uploads.delete(upload.videoId);
+    for (const [room, state] of this.rooms) {
+      let changed = false;
+      for (const item of state.queue) {
+        if (item.track.videoId !== upload.videoId || item.status !== 'downloading') continue;
+        item.status = 'ready';
+        if (durationMs !== undefined && durationMs > 0) item.track.durationMs = durationMs;
+        changed = true;
+      }
+      if (!changed) continue;
+      this.touch(room);
+      if (!state.current) this.startNext(room);
+    }
+    this.flush();
+    return true;
+  }
+
+  /** The upload failed: every song waiting for it leaves the queue. */
+  failUpload(upload: Pick<PendingUpload, 'videoId' | 'itemId'>): void {
+    if (!this.isAwaited(upload)) return;
+    this.dropUpload(upload.videoId);
+    this.flush();
+  }
+
+  /**
+   * A song's audio turned out unusable after all (a streamed upload that failed once its songs
+   * were ready): every copy of it leaves, in every room, and the one playing moves on.
+   */
+  dropVideo(videoId: string): void {
+    this.uploads.delete(videoId);
+    for (const [room, state] of this.rooms) {
+      const queue = state.queue.filter((item) => item.track.videoId !== videoId);
+      if (queue.length !== state.queue.length) {
+        state.queue = queue;
+        this.touch(room);
+      }
+      if (state.current?.item.track.videoId === videoId) this.advance(room);
+    }
+    this.flush();
+  }
+
+  /** The exact duration of a song's audio (known once it is whole), for every copy of it. */
+  setDuration(videoId: string, durationMs: number): void {
+    if (!Number.isFinite(durationMs) || durationMs <= 0) return;
+    for (const [room, state] of this.rooms) {
+      const items = state.current ? [state.current.item, ...state.queue] : state.queue;
+      for (const item of items) {
+        if (item.track.videoId !== videoId || item.track.durationMs === durationMs) continue;
+        item.track.durationMs = durationMs;
+        this.touch(room);
+      }
+    }
+    this.flush();
+  }
+
+  /**
+   * Drops the songs whose audio did not arrive in time. One being received gets as long again
+   * before it is given up too.
+   */
+  expireUploads(): void {
+    const now = this.now();
+    for (const upload of [...this.uploads.values()]) {
+      const deadline = upload.receiving ? upload.deadline + this.uploadTimeoutMs : upload.deadline;
+      if (now >= deadline) this.dropUpload(upload.videoId);
+    }
+    this.flush();
+  }
+
+  // -------------------------------------------------------------------------
+  // Persistence
+  // -------------------------------------------------------------------------
+
+  toJSON(): PersistedJam {
+    return {
+      version: 1,
+      rooms: [...this.rooms.values()].map((state) => structuredClone(state)),
+      uploads: [...this.uploads.values()].map((upload) => ({ ...upload, receiving: false })),
+    };
+  }
+
+  /**
+   * Replaces everything with a persisted state (already validated) without emitting: nobody is
+   * listening yet when it is loaded. Songs waiting for an upload nobody will send are dropped.
+   */
+  load(data: PersistedJam): void {
+    this.rooms.clear();
+    this.uploads.clear();
+    for (const upload of data.uploads) {
+      this.uploads.set(upload.videoId, { ...upload, receiving: false });
+    }
+    for (const state of data.rooms) {
+      const queue = state.queue.filter(
+        (item) => item.status === 'ready' || this.uploads.has(item.track.videoId),
+      );
+      const loaded: JamState = { room: state.room, current: state.current, queue };
+      if (!loaded.current) {
+        const index = queue.findIndex((item) => item.status === 'ready');
+        if (index >= 0) {
+          const [item] = queue.splice(index, 1);
+          if (item) loaded.current = this.nowPlaying(item);
+        }
+      }
+      if (!isJamEmpty(loaded)) this.rooms.set(state.room, structuredClone(loaded));
+    }
+    this.forgetUnwantedUploads();
+    this.touched.clear();
+  }
+
+  // -------------------------------------------------------------------------
+  // Internals
+  // -------------------------------------------------------------------------
+
+  private ensure(room: RoomId): JamState {
+    let state = this.rooms.get(room);
+    if (!state) {
+      state = { room, current: null, queue: [] };
+      this.rooms.set(room, state);
+    }
+    return state;
+  }
+
+  private nowPlaying(item: JamItem): JamNowPlaying {
+    return { item, positionMs: 0, at: this.now(), paused: false, pausedBy: null };
+  }
+
+  /** Ends the song playing and starts the next ready one, if any. */
+  private advance(room: RoomId): void {
+    const state = this.rooms.get(room);
+    if (!state) return;
+    state.current = null;
+    this.touch(room);
+    this.startNext(room);
+  }
+
+  private startNext(room: RoomId): void {
+    const state = this.rooms.get(room);
+    if (!state || state.current) return;
+    const index = state.queue.findIndex((item) => item.status === 'ready');
+    if (index < 0) return;
+    const [item] = state.queue.splice(index, 1);
+    if (!item) return;
+    state.current = this.nowPlaying(item);
+    this.touch(room);
+  }
+
+  /** Forgets an upload and removes every song still waiting for it, in every room. */
+  private dropUpload(videoId: string): void {
+    this.uploads.delete(videoId);
+    for (const [room, state] of this.rooms) {
+      const queue = state.queue.filter(
+        (item) => item.track.videoId !== videoId || item.status !== 'downloading',
+      );
+      if (queue.length === state.queue.length) continue;
+      state.queue = queue;
+      this.touch(room);
+    }
+  }
+
+  /** Uploads no song waits for anymore are forgotten (a late PUT then gets item_not_found). */
+  private forgetUnwantedUploads(): void {
+    const waiting = new Set<string>();
+    for (const state of this.rooms.values()) {
+      for (const item of state.queue) {
+        if (item.status === 'downloading') waiting.add(item.track.videoId);
+      }
+    }
+    for (const videoId of [...this.uploads.keys()]) {
+      if (!waiting.has(videoId)) this.uploads.delete(videoId);
+    }
+  }
+
+  private touch(room: RoomId): void {
+    this.touched.add(room);
+  }
+
+  /** Emits each touched room once; rooms left empty are forgotten after their (empty) update. */
+  private flush(): void {
+    if (this.touched.size === 0) return;
+    const rooms = [...this.touched];
+    this.touched.clear();
+    const serverTime = this.now();
+    const updates: JamUpdate[] = [];
+    for (const room of rooms) {
+      const state = this.rooms.get(room);
+      if (state && isJamEmpty(state)) this.rooms.delete(room);
+      updates.push({
+        type: 'jam_updated',
+        state: structuredClone(state ?? { room, current: null, queue: [] }),
+        serverTime,
+      });
+    }
+    this.forgetUnwantedUploads();
+    for (const update of updates) {
+      for (const listener of this.listeners) listener(update);
+    }
+  }
+}

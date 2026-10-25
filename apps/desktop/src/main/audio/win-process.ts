@@ -191,16 +191,3 @@ export async function listProcessesByName(
     return matches(parseTasklistCsv(stdout));
   }
 }
-
-/**
- * Running processes named `names` from `tasklist` alone: no parent pids, but far cheaper than
- * starting PowerShell, so periodic checks use it (is the app still open, is a pid still alive).
- * Rejects when `tasklist` fails.
- */
-export async function listProcessesQuick(
-  names: readonly string[],
-  run: CommandRunner = runCommand,
-): Promise<ProcessInfo[]> {
-  const stdout = await run('tasklist', ['/FO', 'CSV', '/NH']);
-  return byName(names)(parseTasklistCsv(stdout));
-}

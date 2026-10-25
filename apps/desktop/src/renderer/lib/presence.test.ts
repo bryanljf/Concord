@@ -132,24 +132,15 @@ describe('presence profiles', () => {
 
 describe('roomIndicators', () => {
   it('is all off for an empty room', () => {
-    expect(roomIndicators([])).toEqual({ online: false, live: false, music: false });
+    expect(roomIndicators([])).toEqual({ online: false, live: false });
   });
 
   it('is online with people in it, live only when one of them streams', () => {
-    expect(roomIndicators([ana, eric])).toEqual({ online: true, live: false, music: false });
-    expect(roomIndicators([ana, beto])).toEqual({ online: true, live: true, music: false });
+    expect(roomIndicators([ana, eric])).toEqual({ online: true, live: false });
+    expect(roomIndicators([ana, beto])).toEqual({ online: true, live: true });
   });
 
-  it('shows music only for a music broadcast, never for a webcam', () => {
-    expect(roomIndicators([{ ...ana, camera: true }])).toEqual({
-      online: true,
-      live: false,
-      music: false,
-    });
-    expect(roomIndicators([ana, { ...eric, music: true }])).toEqual({
-      online: true,
-      live: false,
-      music: true,
-    });
+  it('never counts a webcam as live', () => {
+    expect(roomIndicators([{ ...ana, camera: true }])).toEqual({ online: true, live: false });
   });
 });

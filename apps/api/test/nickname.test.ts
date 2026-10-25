@@ -155,7 +155,6 @@ describe('PUT /api/me/nickname', () => {
           joinedAt: 1_000,
           avatarUrl: null,
           camera: false,
-          music: false,
         },
       },
     ]);

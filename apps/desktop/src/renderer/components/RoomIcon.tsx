@@ -1,18 +1,22 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
+import { roomLabel, type JamState, type PresenceParticipant, type RoomId } from '@concord/shared';
 import { pluralize } from '../lib/format';
+import { jamIndicatorLabel, jamPlaying } from '../lib/jam';
 import { roomIndicators } from '../lib/presence';
 import { roomShortLabel } from '../lib/roomShortLabel';
 import { Avatar } from './Avatar';
 import { CameraIcon, HeadphonesIcon } from './icons';
+import { Equalizer } from './music/Equalizer';
 
 interface RoomIconProps {
   room: RoomId;
   participants: PresenceParticipant[];
   current: boolean;
+  /** The room's Jam; null without one (or without the Jam). */
+  jam: JamState | null;
   onJoin(room: RoomId): void;
-  /** The headphones beside a room with music open and close the music drawer. */
+  /** The headphones beside a room with a Jam open and close the music drawer. */
   onToggleMusic(): void;
 }
 
@@ -38,19 +42,27 @@ function anchorOf(button: HTMLElement): Anchor {
 /**
  * A room in the collapsed sidebar, like a Discord server icon: its short label in a rounded
  * square, the current room marked by a pill on the column's left edge. A green dot when someone
- * is in it, a blinking red one when someone is live, headphones beside it while someone
- * broadcasts music. Hovering it (or reaching it with the keyboard) shows who is there; a click
+ * is in it, a blinking red one when someone is live, headphones with the playing bars beside it
+ * while it has a Jam. Hovering it (or reaching it with the keyboard) shows who is there; a click
  * joins it.
  */
-export function RoomIcon({ room, participants, current, onJoin, onToggleMusic }: RoomIconProps) {
+export function RoomIcon({
+  room,
+  participants,
+  current,
+  jam,
+  onJoin,
+  onToggleMusic,
+}: RoomIconProps) {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const popoverId = useId();
   const label = roomLabel(room);
-  const { online, live, music } = roomIndicators(participants);
+  const { online, live } = roomIndicators(participants);
+  const jamLabel = jamIndicatorLabel(jam);
   const details = [
     online ? pluralize(participants.length, 'pessoa', 'pessoas') : 'vazia',
     live ? 'ao vivo' : null,
-    music ? 'música' : null,
+    jamLabel ? 'Jam' : null,
   ]
     .filter((detail) => detail !== null)
     .join(', ');
@@ -98,20 +110,28 @@ export function RoomIcon({ room, participants, current, onJoin, onToggleMusic }:
       </button>
       {/* After the button: its hover and focus styles reach the pill with `~`. */}
       <span className="room-icon__pill" aria-hidden="true" />
-      {music && (
-        // Plain headphones (no button look), yet the way to the music drawer while collapsed.
+      {jamLabel && (
+        // Plain headphones over the playing bars (no button look, no counter), yet the way to
+        // the music drawer while collapsed.
         <button
           type="button"
           className="room-icon__music"
-          aria-label={`Música em ${label}: abrir o painel de música`}
-          title="Música"
+          aria-label={`Jam em ${label}: abrir o painel de música`}
+          title={jamLabel}
           onClick={onToggleMusic}
         >
           <HeadphonesIcon size={12} />
+          <Equalizer paused={!jamPlaying(jam)} />
         </button>
       )}
       {anchor && (
-        <RoomPopover id={popoverId} label={label} participants={participants} anchor={anchor} />
+        <RoomPopover
+          id={popoverId}
+          label={label}
+          participants={participants}
+          jamLabel={jamLabel}
+          anchor={anchor}
+        />
       )}
     </li>
   );
@@ -121,6 +141,8 @@ interface RoomPopoverProps {
   id: string;
   label: string;
   participants: readonly PresenceParticipant[];
+  /** "Jam: Get Lucky — Daft Punk" under the name; null without a Jam. */
+  jamLabel: string | null;
   anchor: Anchor;
 }
 
@@ -128,7 +150,7 @@ interface RoomPopoverProps {
  * The room's name and who is in it, right of the column. In a portal so the scrolling sidebar
  * cannot clip it; it never takes the focus nor the pointer.
  */
-function RoomPopover({ id, label, participants, anchor }: RoomPopoverProps) {
+function RoomPopover({ id, label, participants, jamLabel, anchor }: RoomPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Centered on the icon but kept inside the window; runs before paint on every render, since
@@ -145,6 +167,12 @@ function RoomPopover({ id, label, participants, anchor }: RoomPopoverProps) {
   return createPortal(
     <div ref={ref} id={id} className="room-popover" role="tooltip" style={{ left: anchor.left }}>
       <p className="room-popover__title">{label}</p>
+      {jamLabel && (
+        <p className="room-popover__jam">
+          <HeadphonesIcon size={14} />
+          <span className="room-popover__jam-text">{jamLabel}</span>
+        </p>
+      )}
       {participants.length === 0 ? (
         <p className="room-popover__empty">Ninguém aqui</p>
       ) : (
@@ -161,11 +189,6 @@ function RoomPopover({ id, label, participants, anchor }: RoomPopoverProps) {
               {participant.camera && (
                 <span className="room-popover__icon" role="img" aria-label="Câmera ligada">
                   <CameraIcon size={14} />
-                </span>
-              )}
-              {participant.music && (
-                <span className="room-popover__icon" role="img" aria-label="Transmitindo música">
-                  <HeadphonesIcon size={14} />
                 </span>
               )}
               {participant.streaming && <span className="room-popover__live">AO VIVO</span>}

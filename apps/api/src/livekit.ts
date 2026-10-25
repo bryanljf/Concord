@@ -11,6 +11,9 @@ import {
 import {
   auxiliaryIdentity,
   isAuxiliaryIdentity,
+  isJamBotIdentity,
+  JAM_BOT_IDENTITY,
+  JAM_BOT_NAME,
   TOKEN_TTL_SECONDS,
   type RoomId,
   type TokenPurpose,
@@ -26,22 +29,15 @@ export interface RoomToken {
 }
 
 /**
- * The regular participant: publishes screen-share video/audio, a webcam and an app's music, and
- * sets its own attributes (the lives it watches, so the others can list their viewers).
- * The Microphone source carries the music of an app (Spotify…), named `concord:music:<app>`: the
- * app never captures a microphone (voice stays on Discord); the source only keeps the music's
- * volume apart from the screen share's audio.
+ * The regular participant: publishes screen-share video/audio and a webcam, and sets its own
+ * attributes (the lives it watches, so the others can list their viewers). It never publishes a
+ * microphone: voice stays on Discord, and only the jam bot publishes under the Microphone source.
  */
 const MAIN_GRANT: Omit<VideoGrant, 'room'> = {
   roomJoin: true,
   canSubscribe: true,
   canPublish: true,
-  canPublishSources: [
-    TrackSource.SCREEN_SHARE,
-    TrackSource.SCREEN_SHARE_AUDIO,
-    TrackSource.CAMERA,
-    TrackSource.MICROPHONE,
-  ],
+  canPublishSources: [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO, TrackSource.CAMERA],
   canPublishData: true,
   canUpdateOwnMetadata: true,
 };
@@ -59,8 +55,8 @@ const POPOUT_GRANT: Omit<VideoGrant, 'room'> = {
 };
 
 /**
- * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share, camera
- * and music publish grants; `popout` / `pip` join as the auxiliary identity `<id>~<purpose>`,
+ * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share and
+ * camera publish grants; `popout` / `pip` join as the auxiliary identity `<id>~<purpose>`,
  * hidden and subscribe-only.
  * `name` is the display name LiveKit shows (the resolved profile name; defaults to users.json).
  */
@@ -78,6 +74,31 @@ export async function createRoomToken(
   });
   token.addGrant({ ...(purpose === 'main' ? MAIN_GRANT : POPOUT_GRANT), room });
   // The SDK derives `exp` from the wall clock inside toJwt(); mirror it at second precision.
+  const expiresAt = (Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS) * 1000;
+  return { token: await token.toJwt(), expiresAt };
+}
+
+/**
+ * The jam bot: publishes the room's jam as one audio track (Microphone source, named
+ * `concord:music:jam`) and nothing else; it never subscribes, sends data or edits its metadata.
+ */
+const JAM_BOT_GRANT: Omit<VideoGrant, 'room'> = {
+  roomJoin: true,
+  canSubscribe: false,
+  canPublish: true,
+  canPublishSources: [TrackSource.MICROPHONE],
+  canPublishData: false,
+  canUpdateOwnMetadata: false,
+};
+
+/** Issues the jam bot's join token for `room` (identity `@jam`, name `Jam`). */
+export async function createJamBotToken(livekit: LiveKitConfig, room: RoomId): Promise<RoomToken> {
+  const token = new AccessToken(livekit.apiKey, livekit.apiSecret, {
+    identity: JAM_BOT_IDENTITY,
+    name: JAM_BOT_NAME,
+    ttl: TOKEN_TTL_SECONDS,
+  });
+  token.addGrant({ ...JAM_BOT_GRANT, room });
   const expiresAt = (Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS) * 1000;
   return { token: await token.toJwt(), expiresAt };
 }
@@ -101,27 +122,14 @@ export function isCameraVideo(track: Pick<TrackInfo, 'source' | 'type'>): boolea
   return track.source === TrackSource.CAMERA && track.type === TrackType.VIDEO;
 }
 
-/** Name of an app's music track: `concord:music:<app>` (e.g. `concord:music:spotify`). */
-const MUSIC_TRACK_NAME_PREFIX = 'concord:music:';
-
-/**
- * An app's music, published under the Microphone source (never a real microphone). A track with
- * another name is not Concord's music; an unnamed one is still accepted, since only Concord
- * clients publish here.
- */
-export function isMusicAudio(
-  track: Pick<TrackInfo, 'source' | 'type'> & Partial<Pick<TrackInfo, 'name'>>,
-): boolean {
-  return (
-    track.source === TrackSource.MICROPHONE &&
-    track.type === TrackType.AUDIO &&
-    (!track.name || track.name.startsWith(MUSIC_TRACK_NAME_PREFIX))
-  );
-}
-
 /** Auxiliary identities (pop-out/PiP windows) are extra connections of a person, not presence. */
 export function isAuxiliaryParticipant(participant: Pick<ParticipantInfo, 'identity'>): boolean {
   return isAuxiliaryIdentity(participant.identity);
+}
+
+/** The jam bot is not a person: it never shows up in presence. */
+export function isJamBotParticipant(participant: Pick<ParticipantInfo, 'identity'>): boolean {
+  return isJamBotIdentity(participant.identity);
 }
 
 export function toParticipantIdentity(participant: ParticipantInfo): ParticipantIdentity {
@@ -137,20 +145,21 @@ function toParticipantState(participant: ParticipantInfo): ParticipantState {
     ...toParticipantIdentity(participant),
     screenTracks: participant.tracks.filter(isScreenShareVideo).map((track) => track.sid),
     cameraTracks: participant.tracks.filter(isCameraVideo).map((track) => track.sid),
-    musicTracks: participant.tracks.filter(isMusicAudio).map((track) => track.sid),
   };
 }
 
 /**
  * Reads the authoritative room/participant state from the LiveKit server, leaving auxiliary
- * identities out so a resync never surfaces them in presence.
+ * identities and the jam bot out so a resync never surfaces them in presence.
  */
 export async function fetchRoomState(roomService: RoomServiceLike): Promise<RoomState> {
   const rooms = await roomService.listRooms();
   const entries = await Promise.all(
     rooms.map(async (room) => {
       const participants = await roomService.listParticipants(room.name);
-      const members = participants.filter((participant) => !isAuxiliaryParticipant(participant));
+      const members = participants.filter(
+        (participant) => !isAuxiliaryParticipant(participant) && !isJamBotParticipant(participant),
+      );
       return [room.name, members.map(toParticipantState)] as const;
     }),
   );

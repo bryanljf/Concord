@@ -2,6 +2,7 @@ import { buildApp } from './app';
 import { UserStore, UsersFileError } from './auth';
 import { ConfigError, loadConfig, type ApiConfig } from './config';
 import { startDiscordSync } from './discord-sync';
+import { createJamService } from './jam/service';
 import { createRoomService } from './livekit';
 import type { Logger } from './logger';
 import { PresenceStore } from './presence-store';
@@ -61,7 +62,24 @@ const config = readConfig();
 const users = await readUsers(config.usersFile);
 const profiles = await readProfiles(config.profilesFile);
 const presence = new PresenceStore(config.rooms, createProfileResolver(users, profiles));
-const app = buildApp({ config, users, presence, profiles, logger: true });
+
+// The Jam logs through Fastify's logger once it exists (it is loaded before the app listens).
+let jamLogTarget: Logger = bootLog;
+const jamLog: Logger = {
+  debug: (obj, msg) => jamLogTarget.debug(obj, msg),
+  info: (obj, msg) => jamLogTarget.info(obj, msg),
+  warn: (obj, msg) => jamLogTarget.warn(obj, msg),
+  error: (obj, msg) => jamLogTarget.error(obj, msg),
+};
+const jam = createJamService({ config, presence, log: jamLog });
+const app = buildApp({ config, users, presence, profiles, jam, logger: true });
+jamLogTarget = app.log.child({ module: 'jam' });
+
+try {
+  await jam.start();
+} catch (err) {
+  app.log.error({ err }, 'could not start the jam; it starts empty');
+}
 
 try {
   await app.listen({ host: config.host, port: config.port });
@@ -99,6 +117,8 @@ app.log.info(
     usersFile: config.usersFile,
     profilesFile: config.profilesFile,
     discordSync: discordSync !== undefined,
+    jam: jam.available,
+    jamStateFile: jam.available ? config.jam.stateFile : undefined,
   },
   'concord-api pronto',
 );
@@ -112,6 +132,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   resync.stop();
   discordSync?.stop();
   usersWatcher.stop();
+  await jam.stop();
   await app.close();
   process.exit(0);
 }

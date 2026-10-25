@@ -52,8 +52,16 @@ export const IPC = {
   PROCESS_AUDIO_START: 'process-audio:start',
   /** Argument: the `captureId` to stop. */
   PROCESS_AUDIO_STOP: 'process-audio:stop',
-  GET_MUSIC_APP_STATUS: 'music:status',
-  GET_MUSIC_ART: 'music:art',
+  GET_JAM: 'jam:get',
+  SEARCH_JAM: 'jam:search',
+  /** Argument: the video ids to download ahead of time; resolves at once. */
+  PREFETCH_JAM: 'jam:prefetch',
+  ADD_TO_JAM: 'jam:add',
+  REMOVE_FROM_JAM: 'jam:remove',
+  SKIP_JAM: 'jam:skip',
+  PAUSE_JAM: 'jam:pause',
+  RESUME_JAM: 'jam:resume',
+  GET_JAM_UPLOADS: 'jam:uploads',
 } as const;
 
 /** Main → renderer pushes (`webContents.send`), one per `on*` method of `ConcordApi`. */
@@ -76,9 +84,9 @@ export const EVENTS = {
   UPDATE_STATUS: 'update:status',
   /** Owning window only: `(captureId, chunk)`. */
   PROCESS_AUDIO_DATA: 'process-audio:data',
-  /** Owning window only: `(captureId, reason)` after main ended a capture on its own. */
-  PROCESS_AUDIO_ENDED: 'process-audio:ended',
-  MUSIC_APP_STATUS: 'music:status-changed',
+  /** A validated `JamEvent` from the presence SSE (or the unavailable snapshot on disconnect). */
+  JAM_EVENT: 'jam:event',
+  JAM_UPLOAD_STATUS: 'jam:upload-status',
 } as const;
 
 /** `additionalArguments` flag that tells the preload which window it runs in. */

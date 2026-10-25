@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "types": ["node"],
-    "allowJs": true,
-    "checkJs": false
-  },
-  "include": ["index.d.ts", "index.js", "test/**/*.ts"]
-}
