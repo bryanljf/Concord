@@ -109,12 +109,22 @@ export interface JamState {
   current: JamNowPlaying | null;
   /** Upcoming songs in play order. */
   queue: JamItem[];
+  /**
+   * Songs already played in this jam (ended or skipped), most recent first, at most
+   * `JAM_HISTORY_MAX`. "Música anterior" plays `history[0]`; the app shows that button only when
+   * this is not empty. The history keeps the session alive while the bot lingers after playback
+   * ends. Optional for servers from before it (= []).
+   */
+  history?: JamItem[];
 }
+
+/** Songs remembered per room for "Música anterior". */
+export const JAM_HISTORY_MAX = 20;
 
 export interface JamSnapshot {
   /** False when the server runs without a jam bot: the app hides the Jam. */
   available: boolean;
-  /** Only rooms with something playing or queued. */
+  /** Rooms with something playing, queued, or retained in the current session history. */
   rooms: Record<RoomId, JamState>;
   /** Server clock when sent, so the app can correct its own clock for the progress bar. */
   serverTime: number;
@@ -124,7 +134,7 @@ export interface JamSnapshot {
 export type JamEvent =
   | { type: 'jam_snapshot'; data: JamSnapshot }
   | {
-      /** A room's whole jam, replaced. An empty one (nothing playing or queued) ended. */
+      /** A room's whole jam, replaced. An empty one (including no history) ended. */
       type: 'jam_updated';
       state: JamState;
       serverTime: number;
@@ -133,7 +143,7 @@ export type JamEvent =
 export type JamEventType = JamEvent['type'];
 
 export function isJamEmpty(state: JamState): boolean {
-  return state.current === null && state.queue.length === 0;
+  return state.current === null && state.queue.length === 0 && (state.history?.length ?? 0) === 0;
 }
 
 /** Applies a jam event to a snapshot, returning a new snapshot (pure). */
@@ -191,12 +201,15 @@ export function parseYouTubeVideoId(input: string): string | null {
 // ---------------------------------------------------------------------------
 //
 // GET    /api/jam/search?q=<query>                         → JamSearchResponse
+// GET    /api/jam/recent                                    → JamRecentResponse
 // GET    /api/jam                                          → JamSnapshot
 // POST   /api/rooms/:room/jam/queue           JamEnqueueRequest → JamEnqueueResponse
 // PUT    /api/rooms/:room/jam/items/:itemId/audio  (audio/webm body, may be chunked/streamed;
 //        requester only) → 204 once the whole body arrived (the song may already be playing)
 // DELETE /api/rooms/:room/jam/items/:itemId   (the current one = skip)              → 204
 // POST   /api/rooms/:room/jam/skip            JamSkipRequest                        → 204
+// POST   /api/rooms/:room/jam/seek            JamSeekRequest                        → 204
+// POST   /api/rooms/:room/jam/previous        JamPreviousRequest                    → 204
 // POST   /api/rooms/:room/jam/pause                                                 → 204
 // POST   /api/rooms/:room/jam/resume                                                → 204
 //
@@ -209,6 +222,21 @@ export interface JamSearchResponse {
   results: JamTrack[];
   /** Video ids among `results` whose audio the server already has: adding them is instant. */
   cached: string[];
+}
+
+/** A song whose audio the server still has (its cache keeps songs used in the last 3 h). */
+export interface JamRecentTrack extends JamTrack {
+  /** Server clock: when it last started playing (only songs that really played are listed). */
+  usedAt: number;
+}
+
+/**
+ * "Recentes": the songs that really played (any room) and are still in the server's audio cache,
+ * most recently played first.
+ * Adding one is instant (no download). Empty list: the app hides the button.
+ */
+export interface JamRecentResponse {
+  tracks: JamRecentTrack[];
 }
 
 export interface JamEnqueueRequest {
@@ -224,4 +252,25 @@ export interface JamEnqueueResponse {
 /** Skips only if `itemId` is still the one playing, so two quick skips skip one song. */
 export interface JamSkipRequest {
   itemId: string;
+}
+
+/**
+ * Moves the song playing to `positionMs` (clamped to the song), for everyone, only if `itemId` is
+ * still the one playing (409 `stale` otherwise). A paused song stays paused at the new position.
+ * Past what was uploaded so far, playback waits there until the upload catches up.
+ */
+export interface JamSeekRequest {
+  itemId: string;
+  positionMs: number;
+}
+
+/**
+ * Plays the previous song (`history[0]`) from the start, for everyone; the song playing goes back
+ * to the front of the queue (so "Pular" returns to it). `itemId` is the song playing as the app
+ * saw it (null when nothing plays): 409 `stale` if that changed, so two quick presses go back one
+ * song. Errors: 409 `no_previous` (empty history), 410 `previous_unavailable` (its audio left the
+ * server's cache; the song is dropped from the history).
+ */
+export interface JamPreviousRequest {
+  itemId: string | null;
 }

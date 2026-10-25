@@ -4,7 +4,14 @@
  * prefetching the songs about to be added, and the controls anyone in the room may use.
  * Electron-free: `index.ts` wires the real parts.
  */
-import type { JamEvent, JamItem, JamSnapshot, JamTrack, RoomId } from '@concord/shared';
+import type {
+  JamEvent,
+  JamItem,
+  JamRecentTrack,
+  JamSnapshot,
+  JamTrack,
+  RoomId,
+} from '@concord/shared';
 import type { JamUploadStatus, Session } from '../../preload/api';
 import { ApiClientError, type ApiClient } from '../api-client';
 import { log } from '../log';
@@ -28,10 +35,19 @@ export interface JamService {
    * skipping those the server already has or this app is already sending.
    */
   prefetch(videoIds: readonly string[]): void;
+  /** "Recentes": the songs the server still has (so never prefetched while they are listed). */
+  recent(): Promise<JamRecentTrack[]>;
   /** Enqueues and resolves with the item; its audio is sent in the background when needed. */
   add(room: RoomId, videoId: string): Promise<JamItem>;
   remove(room: RoomId, itemId: string): Promise<void>;
   skip(room: RoomId, itemId: string): Promise<void>;
+  /** Moves `itemId` to `positionMs` for everyone; a no-op once it is no longer the one playing. */
+  seek(room: RoomId, itemId: string, positionMs: number): Promise<void>;
+  /**
+   * Plays the previous song, `itemId` being the one playing (null: none); a no-op once that
+   * changed, so two quick presses go back one song.
+   */
+  previous(room: RoomId, itemId: string | null): Promise<void>;
   pause(room: RoomId): Promise<void>;
   resume(room: RoomId): Promise<void>;
   getUploads(): JamUploadStatus[];
@@ -44,7 +60,15 @@ export interface JamService {
 export interface JamServiceDeps {
   api: Pick<
     ApiClient,
-    'jamSearch' | 'jamEnqueue' | 'jamRemove' | 'jamSkip' | 'jamPause' | 'jamResume'
+    | 'jamSearch'
+    | 'jamRecent'
+    | 'jamEnqueue'
+    | 'jamRemove'
+    | 'jamSkip'
+    | 'jamSeek'
+    | 'jamPrevious'
+    | 'jamPause'
+    | 'jamResume'
   >;
   store: JamStore;
   uploads: JamUploads;
@@ -78,6 +102,8 @@ export function createJamService(deps: JamServiceDeps): JamService {
   const { api, store, uploads, prefetches, canDownload } = deps;
   /** What the last search said the server already has: adding those needs no download. */
   let cached: ReadonlySet<string> = new Set();
+  /** The server's cache as "Recentes" last listed it: no download needed for those either. */
+  let recentlyCached: ReadonlySet<string> = new Set();
 
   function prefetch(videoIds: readonly string[]): void {
     if (!prefetches || !canDownload) return;
@@ -85,7 +111,10 @@ export function createJamService(deps: JamServiceDeps): JamService {
     if (!snapshot.available) return;
     const wanted = videoIds.filter(
       (videoId) =>
-        !cached.has(videoId) && !uploads.isSending(videoId) && !serverHas(snapshot, videoId),
+        !cached.has(videoId) &&
+        !recentlyCached.has(videoId) &&
+        !uploads.isSending(videoId) &&
+        !serverHas(snapshot, videoId),
     );
     if (wanted.length > 0) prefetches.prefetch(wanted);
   }
@@ -110,6 +139,11 @@ export function createJamService(deps: JamServiceDeps): JamService {
       return results;
     },
     prefetch,
+    async recent() {
+      const tracks = await api.jamRecent();
+      recentlyCached = new Set(tracks.map((track) => track.videoId));
+      return tracks;
+    },
     async add(room, videoId) {
       if (!canDownload) throw new UserFacingError(JAM_PLATFORM_UNSUPPORTED_MESSAGE);
       const { item, upload } = await api.jamEnqueue(room, videoId);
@@ -132,6 +166,22 @@ export function createJamService(deps: JamServiceDeps): JamService {
       } catch (err) {
         // Someone skipped it first, or it ended: never skip the next song by accident.
         if (!hasCode(err, 'stale', 'item_not_found')) throw err;
+      }
+    },
+    async seek(room, itemId, positionMs) {
+      try {
+        await api.jamSeek(room, itemId, positionMs);
+      } catch (err) {
+        // The song changed meanwhile (skipped, ended): never move the next one by accident.
+        if (!hasCode(err, 'stale', 'item_not_found')) throw err;
+      }
+    },
+    async previous(room, itemId) {
+      try {
+        await api.jamPrevious(room, itemId);
+      } catch (err) {
+        // Someone went back or skipped first: never go back two songs by accident.
+        if (!hasCode(err, 'stale')) throw err;
       }
     },
     pause: (room) => api.jamPause(room),

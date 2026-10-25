@@ -108,6 +108,10 @@ export class FakeBot implements JamBot {
   readonly connectErrors: JamBotError[] = [];
   /** Holds every `play` until opened. */
   playGate: Gate | undefined;
+  /** Length of the files it plays (answered as `durationMs`). */
+  fileDurationMs = 200_000;
+  /** Where a `play` lands, from its offset (the real bot starts at the packet holding it). */
+  landing: (offsetMs: number) => number = (offsetMs) => offsetMs;
   probeResult: BotProbeResult = {
     durationMs: 199_500,
     channels: 2,
@@ -180,12 +184,14 @@ export class FakeBot implements JamBot {
         throw new JamBotError(422, 'invalid_audio', 'file not found');
       });
     }
+    // Like the real bot: nothing left after the offset of a whole file answers `ended` (no event).
+    const ended = !request.growing && request.offsetMs >= this.fileDurationMs;
     const status: BotRoomStatus = {
       room,
       itemId: request.itemId,
-      state: request.paused ? 'paused' : 'playing',
-      positionMs: request.offsetMs,
-      durationMs: 200_000,
+      state: ended ? 'ended' : request.paused ? 'paused' : 'playing',
+      positionMs: ended ? this.fileDurationMs : this.landing(request.offsetMs),
+      durationMs: this.fileDurationMs,
     };
     this.state.set(room, status);
     this.files.set(room, request.file);

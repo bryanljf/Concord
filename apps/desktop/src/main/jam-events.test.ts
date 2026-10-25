@@ -1,4 +1,4 @@
-import { JAM_QUEUE_MAX, type JamItem, type JamState } from '@concord/shared';
+import { JAM_HISTORY_MAX, JAM_QUEUE_MAX, type JamItem, type JamState } from '@concord/shared';
 import { describe, expect, it } from 'vitest';
 import {
   isJamPayload,
@@ -7,6 +7,7 @@ import {
   parseArtworkUrl,
   parseJamEvent,
   parseJamItem,
+  parseJamRecentTrack,
   parseJamTrack,
 } from './jam-events';
 
@@ -29,10 +30,14 @@ const item: JamItem = {
   status: 'ready',
 };
 
+/** A song already played. */
+const played: JamItem = { ...item, id: 'item-0', requestedBy: 'ana' };
+
 const state: JamState = {
   room: 'sala-1',
   current: { item, positionMs: 10_000, at: 50_000, paused: true, pausedBy: 'ana' },
   queue: [{ ...item, id: 'item-2', status: 'downloading' }],
+  history: [played],
 };
 
 describe('parseJamEvent', () => {
@@ -44,13 +49,32 @@ describe('parseJamEvent', () => {
     expect(parseJamEvent(snapshot)).toEqual(snapshot);
     const updated = { type: 'jam_updated', state, serverTime: 61_000 };
     expect(parseJamEvent(updated)).toEqual(updated);
-    // An ended jam: nothing playing, nothing queued.
+    // An ended jam: nothing playing, nothing queued, its history cleared.
     const ended = {
       type: 'jam_updated',
-      state: { room: 'sala-1', current: null, queue: [] },
+      state: { room: 'sala-1', current: null, queue: [], history: [] },
       serverTime: 1,
     };
     expect(parseJamEvent(ended)).toEqual(ended);
+  });
+
+  it('gives states from servers without a history an empty one', () => {
+    const { room, current, queue } = state;
+    const legacy = { room, current, queue };
+    expect(parseJamEvent({ type: 'jam_updated', state: legacy, serverTime: 1 })).toEqual({
+      type: 'jam_updated',
+      state: { ...legacy, history: [] },
+      serverTime: 1,
+    });
+    expect(
+      parseJamEvent({
+        type: 'jam_snapshot',
+        data: { available: true, rooms: { 'sala-1': legacy }, serverTime: 1 },
+      }),
+    ).toEqual({
+      type: 'jam_snapshot',
+      data: { available: true, rooms: { 'sala-1': { ...legacy, history: [] } }, serverTime: 1 },
+    });
   });
 
   it('drops unknown fields everywhere', () => {
@@ -66,6 +90,7 @@ describe('parseJamEvent', () => {
           extra: 'x',
           item: { ...item, extra: [], track: { ...track, x: 1 } },
         },
+        history: [{ ...played, extra: 1, track: { ...track, y: 2 } }],
       },
     });
     expect(event).toEqual({ type: 'jam_updated', state, serverTime: 2 });
@@ -110,6 +135,23 @@ describe('parseJamEvent', () => {
       serverTime: 1,
     });
     bad({ type: 'jam_updated', state: { ...state, current: 'playing' }, serverTime: 1 });
+    // A history, when sent, is a list of valid items.
+    bad({ type: 'jam_updated', state: { ...state, history: null }, serverTime: 1 });
+    bad({ type: 'jam_updated', state: { ...state, history: 'none' }, serverTime: 1 });
+    bad({ type: 'jam_updated', state: { ...state, history: [played, null] }, serverTime: 1 });
+    bad({
+      type: 'jam_updated',
+      state: { ...state, history: [{ ...played, id: '../x' }] },
+      serverTime: 1,
+    });
+    bad({
+      type: 'jam_snapshot',
+      data: {
+        available: true,
+        rooms: { 'sala-1': { ...state, history: [{ ...played, status: 'played' }] } },
+        serverTime: 1,
+      },
+    });
   });
 
   it('bounds the queue, the rooms and the strings', () => {
@@ -121,6 +163,21 @@ describe('parseJamEvent', () => {
       parseJamEvent({
         type: 'jam_updated',
         state: { ...state, queue: queue.slice(0, JAM_QUEUE_MAX) },
+        serverTime: 1,
+      }),
+    ).not.toBeNull();
+
+    const history = Array.from({ length: JAM_HISTORY_MAX + 1 }, (_, i) => ({
+      ...played,
+      id: `h${i}`,
+    }));
+    expect(
+      parseJamEvent({ type: 'jam_updated', state: { ...state, history }, serverTime: 1 }),
+    ).toBeNull();
+    expect(
+      parseJamEvent({
+        type: 'jam_updated',
+        state: { ...state, history: history.slice(0, JAM_HISTORY_MAX) },
         serverTime: 1,
       }),
     ).not.toBeNull();
@@ -161,6 +218,27 @@ describe('parseJamTrack', () => {
     expect(
       parseJamTrack({ ...track, artworkUrl: 'https://evil.example/a.jpg' })?.artworkUrl,
     ).toBeNull();
+  });
+});
+
+describe('parseJamRecentTrack', () => {
+  it('keeps a track and when the server last used it', () => {
+    expect(parseJamRecentTrack({ ...track, usedAt: 5_000, extra: 1 })).toEqual({
+      ...track,
+      usedAt: 5_000,
+    });
+    expect(parseJamRecentTrack({ ...track, usedAt: 0 })?.usedAt).toBe(0);
+  });
+
+  it('rejects a bad track or a bad usedAt', () => {
+    expect(parseJamRecentTrack(track)).toBeNull();
+    expect(parseJamRecentTrack({ ...track, usedAt: -1 })).toBeNull();
+    expect(parseJamRecentTrack({ ...track, usedAt: Number.NaN })).toBeNull();
+    expect(parseJamRecentTrack({ ...track, usedAt: Number.POSITIVE_INFINITY })).toBeNull();
+    expect(parseJamRecentTrack({ ...track, usedAt: '5000' })).toBeNull();
+    expect(parseJamRecentTrack({ ...track, videoId: 'short', usedAt: 1 })).toBeNull();
+    expect(parseJamRecentTrack({ ...track, durationMs: -1, usedAt: 1 })).toBeNull();
+    expect(parseJamRecentTrack(null)).toBeNull();
   });
 });
 

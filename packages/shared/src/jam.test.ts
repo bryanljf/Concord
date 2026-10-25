@@ -68,6 +68,21 @@ describe('applyJamEvent', () => {
     expect(ended.rooms).toEqual({});
   });
 
+  it('keeps a room with playback history while the session lingers', () => {
+    const history = { ...item, id: 'history-1' };
+    const lingering = applyJamEvent(empty, {
+      type: 'jam_updated',
+      state: { room: 'sala-1', current: null, queue: [], history: [history] },
+      serverTime: 9,
+    });
+    expect(lingering.rooms['sala-1']).toEqual({
+      room: 'sala-1',
+      current: null,
+      queue: [],
+      history: [history],
+    });
+  });
+
   it('keeps a room with only a queue', () => {
     const queued = applyJamEvent(empty, {
       type: 'jam_updated',

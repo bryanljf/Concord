@@ -1,7 +1,13 @@
 import { createServer, type IncomingHttpHeaders } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
-import { ApiClientError, createApiClient, normalizeServerUrl, parseUserInfo } from './api-client';
+import {
+  ApiClientError,
+  createApiClient,
+  JAM_RECENT_MAX,
+  normalizeServerUrl,
+  parseUserInfo,
+} from './api-client';
 
 describe('normalizeServerUrl', () => {
   it('keeps scheme, host and port only', () => {
@@ -359,6 +365,45 @@ describe('jam routes', () => {
     expect((await odd.api.jamSearch('x')).cached).toEqual([]);
   });
 
+  it('lists the recent songs, skipping malformed ones', async () => {
+    const recent = { ...track, usedAt: 5_000 };
+    const { api, calls } = capture(() =>
+      jsonResponse(200, {
+        tracks: [
+          { ...recent, extra: true },
+          { ...recent, usedAt: -1 },
+          { ...recent, usedAt: '5000' },
+          { ...track },
+          { ...recent, videoId: 'bad' },
+          { ...recent, title: 'B', usedAt: 0 },
+        ],
+      }),
+    );
+    expect(await api.jamRecent()).toEqual([recent, { ...recent, title: 'B', usedAt: 0 }]);
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3000/api/jam/recent');
+    expect(calls[0]?.init?.method).toBe('GET');
+    expect(headersOf(calls[0]?.init).Authorization).toBe('Bearer secret');
+  });
+
+  it('caps the recent songs and rejects a body without them', async () => {
+    const many = Array.from({ length: JAM_RECENT_MAX + 1 }, (_, i) => ({ ...track, usedAt: i }));
+    const capped = await capture(() => jsonResponse(200, { tracks: many })).api.jamRecent();
+    expect(capped).toHaveLength(JAM_RECENT_MAX);
+    expect(capped.at(-1)?.usedAt).toBe(JAM_RECENT_MAX - 1);
+    expect(await capture(() => jsonResponse(200, { tracks: [] })).api.jamRecent()).toEqual([]);
+
+    const missing = await failure(
+      capture(() => jsonResponse(200, { results: [] })).api.jamRecent(),
+    );
+    expect(missing.kind).toBe('bad_response');
+    const down = await failure(
+      capture(() => jsonResponse(503, { error: 'jam_unavailable', message: 'x' })).api.jamRecent(),
+    );
+    expect(down.message).toBe(
+      'A Jam está fora do ar no servidor agora. Tente de novo daqui a pouco.',
+    );
+  });
+
   it('enqueues a video and parses the item', async () => {
     const { api, calls } = capture(() => jsonResponse(200, { item, upload: true }));
     expect(await api.jamEnqueue('sala-1', '4D7u5KF7SP8')).toEqual({ item, upload: true });
@@ -494,6 +539,64 @@ describe('jam routes', () => {
     // No body: no JSON Content-Type for Fastify to choke on.
     expect(calls[2]?.init?.body).toBeUndefined();
     expect(headersOf(calls[2]?.init)['Content-Type']).toBeUndefined();
+  });
+
+  it('seeks the song playing', async () => {
+    const { api, calls } = capture(noContent);
+    await api.jamSeek('sala-1', 'item-1', 83_000);
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3000/api/rooms/sala-1/jam/seek');
+    expect(calls[0]?.init?.method).toBe('POST');
+    expect(headersOf(calls[0]?.init)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      itemId: 'item-1',
+      positionMs: 83_000,
+    });
+
+    // Another song by now: the code is kept for the service to let it go.
+    const stale = await failure(
+      capture(() => jsonResponse(409, { error: 'stale', message: 'x' })).api.jamSeek(
+        'sala-1',
+        'item-1',
+        0,
+      ),
+    );
+    expect(stale.status).toBe(409);
+    expect(stale.code).toBe('stale');
+    // Dragging the bar too often.
+    const limited = await failure(
+      capture(() => new Response('', { status: 429 })).api.jamSeek('sala-1', 'item-1', 0),
+    );
+    expect(limited.kind).toBe('rate_limited');
+  });
+
+  it('goes back to the previous song', async () => {
+    const { api, calls } = capture(noContent);
+    await api.jamPrevious('sala-1', 'item-1');
+    await api.jamPrevious('sala-1', null);
+    expect(calls.map((call) => `${call.init?.method} ${call.url}`)).toEqual([
+      'POST http://127.0.0.1:3000/api/rooms/sala-1/jam/previous',
+      'POST http://127.0.0.1:3000/api/rooms/sala-1/jam/previous',
+    ]);
+    expect(headersOf(calls[0]?.init)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ itemId: 'item-1' });
+    // Nothing playing: null is sent, not left out.
+    expect(calls[1]?.init?.body).toBe('{"itemId":null}');
+
+    const errorOf = async (status: number, error: string) =>
+      failure(
+        capture(() => jsonResponse(status, { error, message: 'x' })).api.jamPrevious(
+          'sala-1',
+          null,
+        ),
+      );
+    const none = await errorOf(409, 'no_previous');
+    expect(none.message).toBe('Não há música anterior nesta Jam.');
+    expect(none.code).toBe('no_previous');
+    const gone = await errorOf(410, 'previous_unavailable');
+    expect(gone.message).toBe('A música anterior não está mais disponível.');
+    expect(gone.status).toBe(410);
+    expect(gone.code).toBe('previous_unavailable');
+    expect((await errorOf(409, 'stale')).code).toBe('stale');
   });
 
   it('uses its own pt-BR message for every jam error code', async () => {

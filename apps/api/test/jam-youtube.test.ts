@@ -4,6 +4,9 @@ import {
   createYouTubeMusic,
   panelVideoToTrack,
   pickArtwork,
+  SEARCH_CACHE_MAX_ENTRIES,
+  SEARCH_CACHE_TTL_MS,
+  searchKey,
   songToTrack,
   TrackCache,
   YouTubeMusicError,
@@ -236,5 +239,76 @@ describe('createYouTubeMusic', () => {
     await expect(youtube.search('x')).rejects.toBeInstanceOf(YouTubeMusicError);
     source.upNext.mockImplementationOnce(() => new Promise(() => undefined));
     await expect(youtube.track('5NV6Rdv1a3I')).rejects.toThrow(/timed out/);
+  });
+});
+
+describe('search cache', () => {
+  it('answers a search typed again from memory, whatever its case or spacing', async () => {
+    const source = fakeSource([song('4D7u5KF7SP8')]);
+    const youtube = createYouTubeMusic({ source });
+    const first = await youtube.search('Daft Punk');
+    expect(await youtube.search('  daft   PUNK ')).toBe(first);
+    expect(source.searchSongs).toHaveBeenCalledTimes(1);
+    expect(searchKey('  Daft \t PUNK ')).toBe('daft punk');
+  });
+
+  it('asks again once the entry expired', async () => {
+    const clock = new FakeClock();
+    const source = fakeSource([song('4D7u5KF7SP8')]);
+    const youtube = createYouTubeMusic({ source, now: clock.now });
+    await youtube.search('get lucky');
+    clock.advance(SEARCH_CACHE_TTL_MS - 1);
+    await youtube.search('get lucky');
+    expect(source.searchSongs).toHaveBeenCalledTimes(1);
+    clock.advance(1);
+    await youtube.search('get lucky');
+    expect(source.searchSongs).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares one request between identical searches in flight', async () => {
+    const source = fakeSource([song('4D7u5KF7SP8')]);
+    let release = (): void => undefined;
+    source.searchSongs.mockImplementationOnce(
+      () => new Promise((resolve) => (release = () => resolve([song('4D7u5KF7SP8')]))),
+    );
+    const youtube = createYouTubeMusic({ source });
+    const a = youtube.search('get lucky');
+    const b = youtube.search('Get Lucky');
+    release();
+    expect(await a).toEqual(await b);
+    expect(source.searchSongs).toHaveBeenCalledTimes(1);
+  });
+
+  it('never remembers a failure', async () => {
+    const source = fakeSource([song('4D7u5KF7SP8')]);
+    source.searchSongs.mockRejectedValueOnce(new Error('network down'));
+    const youtube = createYouTubeMusic({ source });
+    await expect(youtube.search('get lucky')).rejects.toBeInstanceOf(YouTubeMusicError);
+    await expect(youtube.search('get lucky')).resolves.toHaveLength(1);
+    expect(source.searchSongs).toHaveBeenCalledTimes(2);
+  });
+
+  it('forgets the oldest searches past its size', async () => {
+    const source = fakeSource([song('4D7u5KF7SP8')]);
+    const youtube = createYouTubeMusic({ source });
+    for (let i = 0; i <= SEARCH_CACHE_MAX_ENTRIES; i += 1) await youtube.search(`query ${i}`);
+    await youtube.search(`query ${SEARCH_CACHE_MAX_ENTRIES}`);
+    expect(source.searchSongs).toHaveBeenCalledTimes(SEARCH_CACHE_MAX_ENTRIES + 1);
+    await youtube.search('query 0');
+    expect(source.searchSongs).toHaveBeenCalledTimes(SEARCH_CACHE_MAX_ENTRIES + 2);
+  });
+});
+
+describe('warmUp', () => {
+  it('opens the source ahead of the first search and never rejects', async () => {
+    const source = { ...fakeSource(), warmUp: vi.fn(async () => undefined) };
+    await createYouTubeMusic({ source }).warmUp?.();
+    expect(source.warmUp).toHaveBeenCalledTimes(1);
+    source.warmUp.mockRejectedValueOnce(new Error('offline'));
+    await expect(createYouTubeMusic({ source }).warmUp?.()).resolves.toBeUndefined();
+  });
+
+  it('is a no-op for a source without warm-up', async () => {
+    await expect(createYouTubeMusic({ source: fakeSource() }).warmUp?.()).resolves.toBeUndefined();
   });
 });

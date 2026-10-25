@@ -11,7 +11,9 @@ import {
   YOUTUBE_VIDEO_ID_PATTERN,
   type JamEnqueueResponse,
   type JamEvent,
+  type JamItem,
   type JamNowPlaying,
+  type JamRecentResponse,
   type JamSearchResponse,
   type JamSnapshot,
   type JamTrack,
@@ -56,7 +58,7 @@ export const JAM_CACHE_MAINTENANCE_MS = 10 * 60_000;
  * After a room's jam ends the bot stays in it, silent, this long before leaving: a song added
  * meanwhile starts without the bot joining LiveKit again.
  */
-export const JAM_BOT_LINGER_MS = 2 * 60_000;
+export const JAM_BOT_LINGER_MS = 5 * 60_000;
 
 /**
  * An upload that sends nothing for this long is given up (the bot also gives up on a file it
@@ -90,6 +92,15 @@ function viewState(state: BotRoomState): BotView['state'] {
 }
 
 /**
+ * A seek of `itemId` the bot has not confirmed yet. Until it does, what the bot says about that
+ * song's position is outdated: the next pass plays it again from the jam's position. A new object
+ * per seek, so an answer can tell whether it carried the latest one.
+ */
+interface PendingSeek {
+  itemId: string;
+}
+
+/**
  * An audio upload being received, into `temp` in the cache. Once its first
  * JAM_STREAM_START_BYTES are on disk and the bot finds a valid header there, it goes `live`: the
  * songs waiting for it are ready and play `temp` while it grows (`growing: true`). When the body
@@ -97,6 +108,8 @@ function viewState(state: BotRoomState): BotView['state'] {
  */
 interface UploadJob {
   upload: PendingUpload;
+  /** The song, as queued (for its info once stored). */
+  track: JamTrack | undefined;
   temp: string;
   /** `probing`: its first bytes are being checked; `live`: its songs are ready. */
   phase: 'receiving' | 'probing' | 'live';
@@ -252,6 +265,7 @@ export class JamService implements JamFeed {
   private readonly streamStartBytes: number;
   private readonly retryDelay: (failures: number) => number;
   private readonly botView = new Map<RoomId, BotView>();
+  private readonly seeks = new Map<RoomId, PendingSeek>();
   private readonly syncing = new Map<RoomId, Promise<void>>();
   private readonly dirty = new Set<RoomId>();
   private readonly syncFailures = new Map<RoomId, number>();
@@ -266,6 +280,8 @@ export class JamService implements JamFeed {
   private readonly jobs = new Set<UploadJob>();
   /** Live uploads (their songs play the growing file), by videoId. */
   private readonly streams = new Map<string, UploadJob>();
+  /** Songs that started playing while their upload streamed: when, for their info once stored. */
+  private readonly startedStreaming = new Map<string, number>();
   private readonly timers = new Set<NodeJS.Timeout>();
   private maintaining: Promise<void> = Promise.resolve();
   private writer: JamStateWriter | undefined;
@@ -289,6 +305,9 @@ export class JamService implements JamFeed {
       now: this.now,
       newId: options.newId,
       uploadTimeoutMs: this.uploadTimeoutMs,
+      // A song that just played may play again ("Música anterior"): its audio was just used.
+      onHistory: (videoId) => void options.cache.touch(videoId),
+      onStart: (item) => this.noteStarted(item),
     });
     this.store.subscribe((update) => this.onUpdate(update));
   }
@@ -306,10 +325,12 @@ export class JamService implements JamFeed {
   }
 
   /**
-   * Loads the persisted jam, prepares the cache and starts following the bot. Without a bot it
-   * does nothing (and leaves the state file alone).
+   * Warms YouTube Music up, then loads the persisted jam, prepares the cache and starts following
+   * the bot. Without a bot it only warms up (and leaves the state file alone).
    */
   async start(): Promise<void> {
+    // Search works with or without a bot: get YouTube Music ready for the first one.
+    void this.options.youtube.warmUp?.();
     const bot = this.options.bot;
     if (!bot) return;
     try {
@@ -363,7 +384,7 @@ export class JamService implements JamFeed {
     this.connects.clear();
     for (const timer of this.timers) clearTimeout(timer);
     this.timers.clear();
-    await this.writer?.flush();
+    await Promise.all([this.writer?.flush(), this.options.cache.idle()]);
   }
 
   // -------------------------------------------------------------------------
@@ -387,6 +408,15 @@ export class JamService implements JamFeed {
       throw new JamError('search_failed');
     }
     return { results, cached: await this.cachedAmong(results) };
+  }
+
+  /**
+   * "Recentes": the songs that started playing (in any room) and whose audio the server still
+   * has, the last to start first; adding one needs no download. Empty without a bot.
+   */
+  async recent(): Promise<JamRecentResponse> {
+    if (!this.available) return { tracks: [] };
+    return { tracks: await this.options.cache.recent() };
   }
 
   /**
@@ -436,6 +466,7 @@ export class JamService implements JamFeed {
     const upload = this.store.beginUpload(room, itemId, userId);
     const job: UploadJob = {
       upload,
+      track: this.store.track(upload.videoId),
       temp: this.options.cache.tempFile(),
       phase: 'receiving',
       receiving: true,
@@ -489,6 +520,41 @@ export class JamService implements JamFeed {
     await this.whenSynced(room);
   }
 
+  /**
+   * Moves the song playing to `positionMs` (clamped to the song) for everyone, only if it still is
+   * `itemId` (`stale` otherwise); a paused song stays paused there. The jam moves at once, then the
+   * bot plays the same file again from there (the upload's, as it grows, while it streams: past
+   * what arrived so far it waits for the rest) and where it really landed is adopted. A position
+   * within JAM_SEEK_TOLERANCE_MS of the current one changes nothing.
+   */
+  async seek(userId: string, room: RoomId, itemId: string, positionMs: number): Promise<void> {
+    this.assertCanChange(room, userId);
+    // The update this emits asks for a bot pass, which runs on a later tick: marked by then.
+    if (this.store.seek(room, itemId, positionMs)) this.seeks.set(room, { itemId });
+    await this.whenSynced(room);
+  }
+
+  /**
+   * "Música anterior": plays the latest song of the history from the start, for everyone; the
+   * song playing (still `itemId`, null when nothing plays; `stale` otherwise) goes back to the
+   * front of the queue. `no_previous` with an empty history; `previous_unavailable` when that
+   * song's audio left the cache (it leaves the history too).
+   */
+  async previous(userId: string, room: RoomId, itemId: string | null): Promise<void> {
+    this.assertCanChange(room, userId);
+    const previous = this.store.previousOf(room, itemId);
+    const { videoId } = previous.track;
+    // Its upload may still stream in (it played as it arrived): as good as cached.
+    if (!this.streams.has(videoId) && !(await this.options.cache.exists(videoId))) {
+      this.log.warn({ room, videoId }, 'the previous jam song left the cache, forgetting it');
+      this.store.forgetPrevious(room, previous.id);
+      throw new JamError('previous_unavailable');
+    }
+    // Checked again: the jam may have moved on while the cache was looked at.
+    this.store.playPrevious(room, itemId, previous.id);
+    await this.whenSynced(room);
+  }
+
   // -------------------------------------------------------------------------
   // Housekeeping
   // -------------------------------------------------------------------------
@@ -533,16 +599,17 @@ export class JamService implements JamFeed {
     }
   }
 
-  /** Resolves once no bot update nor early connection is in flight (tests). */
+  /** Resolves once no bot update, early connection nor song info write is in flight (tests). */
   async settled(): Promise<void> {
     for (;;) {
       const pending = [...this.syncing.values()];
       for (const attempt of this.connects.values()) {
         if (attempt.running) pending.push(attempt.running);
       }
-      if (pending.length === 0) return;
+      if (pending.length === 0) break;
       await Promise.all(pending);
     }
+    await this.options.cache.idle();
   }
 
   /**
@@ -558,10 +625,11 @@ export class JamService implements JamFeed {
           keep.add(job.upload.videoId);
           temps.add(job.temp);
         }
-        const { expired, evicted, temps: deleted } = await this.options.cache.maintain(keep, temps);
-        if (expired.length + evicted.length + deleted > 0) {
+        const result = await this.options.cache.maintain(keep, temps);
+        const { expired, evicted, temps: deleted, orphans } = result;
+        if (expired.length + evicted.length + deleted + orphans > 0) {
           this.log.info(
-            { expired: expired.length, evicted: evicted.length, temps: deleted },
+            { expired: expired.length, evicted: evicted.length, temps: deleted, orphans },
             'jam cache trimmed',
           );
         }
@@ -603,12 +671,15 @@ export class JamService implements JamFeed {
     return ids.filter((_id, index) => here[index]);
   }
 
-  /** Drops the restored ready songs whose audio is not on disk (their upload was streaming). */
+  /**
+   * Drops the restored ready songs (history included) whose audio is not on disk (their upload
+   * was streaming).
+   */
   private async withAudioOnDisk(data: PersistedJam): Promise<PersistedJam> {
     const ready = new Set<string>();
     for (const state of data.rooms) {
       if (state.current) ready.add(state.current.item.track.videoId);
-      for (const item of state.queue) {
+      for (const item of [...state.queue, ...(state.history ?? [])]) {
         if (item.status === 'ready') ready.add(item.track.videoId);
       }
     }
@@ -735,6 +806,7 @@ export class JamService implements JamFeed {
     }
     // Ready (idle rooms start playing it); the answer does not wait for the bot.
     this.store.completeUpload(upload, durationMs);
+    await this.noteStored(job, durationMs);
     void this.maintainCache();
   }
 
@@ -769,8 +841,32 @@ export class JamService implements JamFeed {
       renamed();
     }
     this.store.setDuration(videoId, durationMs);
+    await this.noteStored(job, durationMs);
     await this.tellBotFile('complete', job.temp);
     void this.maintainCache();
+  }
+
+  /**
+   * A song started playing: its info ("Recentes") says so. Its audio may still be streaming in:
+   * then the info is written once it is stored.
+   */
+  private noteStarted(item: JamItem): void {
+    const now = this.now();
+    if (this.streams.has(item.track.videoId)) this.startedStreaming.set(item.track.videoId, now);
+    void this.options.cache.noteUse(item.track, { playedAt: now });
+  }
+
+  /**
+   * An upload became the song's audio: its info gets the file's exact duration, and is created if
+   * the song started playing while it streamed (one never played has none: not "recent").
+   */
+  private async noteStored(job: UploadJob, durationMs: number): Promise<void> {
+    const { videoId } = job.upload;
+    const playedAt = this.startedStreaming.get(videoId);
+    this.startedStreaming.delete(videoId);
+    const track = this.store.track(videoId) ?? job.track;
+    if (!track) return;
+    await this.options.cache.noteUse({ ...track, durationMs }, { playedAt, exact: true });
   }
 
   /**
@@ -781,6 +877,7 @@ export class JamService implements JamFeed {
   private async failLive(job: UploadJob): Promise<void> {
     const { videoId } = job.upload;
     if (this.streams.get(videoId) === job) this.streams.delete(videoId);
+    this.startedStreaming.delete(videoId);
     this.log.warn(
       { videoId, reason: job.failure?.message },
       'a jam upload failed after its song was ready, dropping it',
@@ -874,13 +971,22 @@ export class JamService implements JamFeed {
     if (!bot) return false;
     const current = this.store.current(room);
     const view = this.botView.get(room);
-    if (!this.store.isEmpty(room)) {
+    // A seek of a song no longer playing has nothing left to do.
+    if (this.seeks.has(room) && this.seeks.get(room)?.itemId !== current?.item.id) {
+      this.seeks.delete(room);
+    }
+    if (!this.store.isIdle(room)) {
       this.idleSince.delete(room);
       this.leaveNow.delete(room);
     }
     if (!current) return this.syncSilent(room, view);
     const itemId = current.item.id;
-    if (view?.itemId !== itemId || view.state === 'idle' || view.state === 'unknown') {
+    if (
+      this.seeks.has(room) ||
+      view?.itemId !== itemId ||
+      view.state === 'idle' ||
+      view.state === 'unknown'
+    ) {
       return this.play(room, current);
     }
     if (current.paused === (view.state === 'paused')) return false;
@@ -895,8 +1001,17 @@ export class JamService implements JamFeed {
       return true;
     }
     this.botView.set(room, { itemId: status.itemId, state: viewState(status.state) });
-    this.store.setPosition(room, itemId, status.positionMs, status.state === 'paused');
+    this.adoptPosition(room, itemId, status.positionMs, status.state === 'paused');
     return true;
+  }
+
+  /**
+   * Where the bot says `itemId` is, adopted unless a seek of it has yet to reach the bot (the
+   * position the bot reports is about to change).
+   */
+  private adoptPosition(room: RoomId, itemId: string, positionMs: number, paused: boolean): void {
+    if (this.seeks.get(room)?.itemId === itemId) return;
+    this.store.setPosition(room, itemId, positionMs, paused);
   }
 
   /**
@@ -911,7 +1026,7 @@ export class JamService implements JamFeed {
       this.leaveNow.delete(room);
       return false;
     }
-    if (this.store.isEmpty(room)) {
+    if (this.store.isIdle(room)) {
       const now = this.now();
       const since = this.idleSince.get(room) ?? now;
       this.idleSince.set(room, since);
@@ -920,6 +1035,7 @@ export class JamService implements JamFeed {
         this.botView.delete(room);
         this.idleSince.delete(room);
         this.leaveNow.delete(room);
+        this.store.clear(room);
         return true;
       }
     }
@@ -939,12 +1055,14 @@ export class JamService implements JamFeed {
 
   /**
    * Has the bot play `current` from where it is: the song's file, or the temporary file of its
-   * upload while that still streams (`growing`).
+   * upload while that still streams (`growing`). Its answer confirms the seek it carries, if any;
+   * after a newer seek it is outdated (the next pass sends that one).
    */
   private async play(room: RoomId, current: JamNowPlaying): Promise<boolean> {
     const bot = this.assertAvailable();
     const itemId = current.item.id;
     const { videoId } = current.item.track;
+    const seek = this.seeks.get(room); // already in `current`
     await this.options.cache.touch(videoId); // starts playing: just used
     const token = await this.options.botToken(room);
     let job = this.streams.get(videoId);
@@ -979,12 +1097,16 @@ export class JamService implements JamFeed {
       // The bot cannot play this file (missing, or not valid audio): drop the song.
       this.log.warn({ err, room, itemId, videoId }, 'the jam bot rejected a song, skipping it');
       // A broken file is forgotten; a growing one is up to its upload.
-      if (err.code === 'invalid_audio' && !job) await this.options.cache.discard(file);
-      this.store.finish(room, itemId);
+      if (err.code === 'invalid_audio' && !job) await this.options.cache.discardSong(videoId);
+      this.store.finish(room, itemId, 'failed');
       return true;
     }
     this.botView.set(room, { itemId, state: viewState(status.state) });
-    if (status.state === 'ended' || status.state === 'error') this.store.finish(room, itemId);
+    if (this.seeks.get(room) !== seek) return true;
+    this.seeks.delete(room);
+    if (status.state === 'ended')
+      this.store.finish(room, itemId); // nothing after the offset
+    else if (status.state === 'error') this.store.finish(room, itemId, 'failed');
     else this.store.setPosition(room, itemId, status.positionMs, status.state === 'paused');
     return true;
   }
@@ -1018,7 +1140,7 @@ export class JamService implements JamFeed {
   private wantsBotAhead(room: RoomId): boolean {
     return (
       !this.stopped &&
-      !this.store.isEmpty(room) &&
+      !this.store.isIdle(room) &&
       this.store.current(room) === null &&
       !this.botView.has(room)
     );
@@ -1093,10 +1215,11 @@ export class JamService implements JamFeed {
       this.botView.set(status.room, { itemId: status.itemId, state: viewState(status.state) });
       if (this.store.current(status.room)?.item.id !== status.itemId) continue;
       if (status.state === 'ended' || status.state === 'error') {
-        this.store.finish(status.room, status.itemId);
+        const outcome = status.state === 'ended' ? 'ended' : 'failed';
+        this.store.finish(status.room, status.itemId, outcome);
       } else if (status.state === 'playing' || status.state === 'paused') {
         const paused = status.state === 'paused';
-        this.store.setPosition(status.room, status.itemId, status.positionMs, paused);
+        this.adoptPosition(status.room, status.itemId, status.positionMs, paused);
       }
     }
     for (const room of [...this.botView.keys()]) {
@@ -1119,7 +1242,8 @@ export class JamService implements JamFeed {
       );
     }
     // Idempotent: a song already moved on from (a failed upload, a skip) is not the current one.
-    this.store.finish(event.room, event.itemId);
+    // Only one that played to its end goes to the history.
+    this.store.finish(event.room, event.itemId, event.type === 'ended' ? 'ended' : 'failed');
   }
 }
 

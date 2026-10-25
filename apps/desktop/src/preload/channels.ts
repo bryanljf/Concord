@@ -56,9 +56,12 @@ export const IPC = {
   SEARCH_JAM: 'jam:search',
   /** Argument: the video ids to download ahead of time; resolves at once. */
   PREFETCH_JAM: 'jam:prefetch',
+  GET_JAM_RECENT: 'jam:recent',
   ADD_TO_JAM: 'jam:add',
   REMOVE_FROM_JAM: 'jam:remove',
   SKIP_JAM: 'jam:skip',
+  SEEK_JAM: 'jam:seek',
+  PREVIOUS_JAM: 'jam:previous',
   PAUSE_JAM: 'jam:pause',
   RESUME_JAM: 'jam:resume',
   GET_JAM_UPLOADS: 'jam:uploads',

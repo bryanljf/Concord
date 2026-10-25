@@ -141,6 +141,22 @@ export function expectJamItemId(value: unknown, name = 'itemId'): string {
   return id;
 }
 
+/** `previousJam` input: the song playing as the renderer saw it, or null when none was. */
+export function expectNullableJamItemId(value: unknown, name = 'itemId'): string | null {
+  return value === null ? null : expectJamItemId(value, name);
+}
+
+/** Largest `seekJam` position (songs are far shorter; the server clamps to the song anyway). */
+export const JAM_SEEK_MAX_MS = 24 * 60 * 60 * 1000;
+
+/** `seekJam` input: whole milliseconds, 0 to `JAM_SEEK_MAX_MS`. */
+export function expectJamPositionMs(value: unknown, name = 'positionMs'): number {
+  const valid =
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= JAM_SEEK_MAX_MS;
+  if (!valid) throw new IpcValidationError(name);
+  return value;
+}
+
 /** `searchJam` input: trimmed, 1 to `JAM_SEARCH_MAX_LENGTH` characters (pt-BR errors). */
 export function expectJamQuery(value: unknown): string {
   const query = expectString(value, 'query').trim();

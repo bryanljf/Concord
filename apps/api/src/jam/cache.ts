@@ -1,12 +1,41 @@
 import { randomUUID } from 'node:crypto';
-import { chmod, mkdir, readdir, stat, unlink, utimes } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JAM_UPLOAD_TIMEOUT_MS } from '@concord/shared';
+import { JAM_UPLOAD_TIMEOUT_MS, type JamRecentTrack, type JamTrack } from '@concord/shared';
 import { renameWithRetry } from '../atomic-file';
 import type { Logger } from '../logger';
+import { isTime, parseTrack } from './state-file';
 
 const CACHED_FILE = /^[A-Za-z0-9_-]{11}\.webm$/;
+const INFO_FILE = /^[A-Za-z0-9_-]{11}\.json$/;
 const TEMP_PREFIX = '.tmp-';
+
+/**
+ * What the cache remembers of a song that played, in `<videoId>.json` next to its audio (the bot
+ * only ever reads `.webm` files). Written when the song starts playing with its audio stored, or
+ * when the audio of a song that started while it streamed gets stored; deleted with its audio.
+ */
+export interface SongInfo {
+  track: JamTrack;
+  /** Server clock: when it last started playing (in any room). */
+  playedAt: number;
+}
+
+/** A use of a song, for its info file. */
+export interface SongUse {
+  /** It started playing at this server time. */
+  playedAt?: number;
+  /** `track` has the file's exact duration: it replaces what was remembered. */
+  exact?: boolean;
+}
+
+function parseSongInfo(value: unknown, videoId: string): SongInfo | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const { version, track, playedAt } = value as Record<string, unknown>;
+  const parsed = parseTrack(track);
+  if (version !== 1 || parsed?.videoId !== videoId || !isTime(playedAt)) return undefined;
+  return { track: parsed, playedAt };
+}
 
 /** Files the bot (another uid in production) only reads: world-readable, never writable. */
 const FILE_MODE = 0o644;
@@ -35,6 +64,8 @@ export interface CacheMaintenance {
   evicted: string[];
   /** Leftover temporary upload files deleted. */
   temps: number;
+  /** Song infos left without their audio, deleted. */
+  orphans: number;
 }
 
 interface CachedSong {
@@ -52,6 +83,8 @@ export class JamAudioCache {
   private readonly ttlMs: number;
   private readonly tempMaxAgeMs: number;
   private readonly now: () => number;
+  /** Info writes in progress, per song (one at a time). */
+  private readonly noting = new Map<string, Promise<void>>();
 
   constructor(
     /** Absolute directory. */
@@ -70,9 +103,14 @@ export class JamAudioCache {
     return join(this.dir, `${videoId}.webm`);
   }
 
-  /** A fresh temporary path inside the cache, for an upload being received. */
-  tempFile(): string {
-    return join(this.dir, `${TEMP_PREFIX}${randomUUID()}.webm`);
+  /** Absolute path of a song's info, next to its audio. */
+  infoFor(videoId: string): string {
+    return join(this.dir, `${videoId}.json`);
+  }
+
+  /** A fresh temporary path inside the cache, for an upload being received (or an info). */
+  tempFile(extension = '.webm'): string {
+    return join(this.dir, `${TEMP_PREFIX}${randomUUID()}${extension}`);
   }
 
   /** Creates the directory when missing (readable by the bot). */
@@ -130,17 +168,111 @@ export class JamAudioCache {
     );
   }
 
+  /** Deletes a song's audio and its info (after the info writes already asked for). */
+  discardSong(videoId: string): Promise<void> {
+    return this.inTurn(videoId, async () => {
+      await this.discard(this.fileFor(videoId));
+      await this.discard(this.infoFor(videoId));
+    });
+  }
+
+  /**
+   * Records a use of a song whose audio is here (nothing happens otherwise) in its info file:
+   * created by its first start (`playedAt`, which only moves forward); `exact` replaces the
+   * remembered description. One write at a time per song; never rejects (logged).
+   */
+  noteUse(track: JamTrack, use: SongUse): Promise<void> {
+    return this.inTurn(track.videoId, () => this.writeUse(track, use));
+  }
+
+  /** Runs `task` after the ones already queued for `videoId`'s info; never rejects (logged). */
+  private inTurn(videoId: string, task: () => Promise<void>): Promise<void> {
+    const run = (this.noting.get(videoId) ?? Promise.resolve()).then(task).catch((err: unknown) => {
+      this.log.warn({ err, videoId }, 'could not save a jam song info');
+    });
+    this.noting.set(videoId, run);
+    void run.then(() => {
+      if (this.noting.get(videoId) === run) this.noting.delete(videoId);
+    });
+    return run;
+  }
+
+  /** Resolves once no info write is in progress. */
+  async idle(): Promise<void> {
+    while (this.noting.size > 0) await Promise.all([...this.noting.values()]);
+  }
+
+  /**
+   * "Recentes": the songs that played and whose audio is still here, with their description, the
+   * last to start playing first. An info without its audio, audio without a (valid) info (never
+   * played, or stored before infos existed: its next start writes one) and uploads in progress
+   * are left out.
+   */
+  async recent(): Promise<JamRecentTrack[]> {
+    await this.idle();
+    let names: string[];
+    try {
+      names = await readdir(this.dir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw err;
+    }
+    const found = await Promise.all(
+      names
+        .filter((name) => CACHED_FILE.test(name))
+        .map(async (name): Promise<JamRecentTrack | undefined> => {
+          const videoId = name.slice(0, -'.webm'.length);
+          if (!(await this.exists(videoId))) return undefined;
+          const info = await this.readInfo(videoId);
+          return info ? { ...info.track, usedAt: info.playedAt } : undefined;
+        }),
+    );
+    return found
+      .filter((track): track is JamRecentTrack => track !== undefined)
+      .sort((a, b) => b.usedAt - a.usedAt || a.videoId.localeCompare(b.videoId));
+  }
+
+  private async readInfo(videoId: string): Promise<SongInfo | undefined> {
+    try {
+      return parseSongInfo(JSON.parse(await readFile(this.infoFor(videoId), 'utf8')), videoId);
+    } catch {
+      return undefined; // missing or unreadable: the next start rewrites it
+    }
+  }
+
+  private async writeUse(track: JamTrack, use: SongUse): Promise<void> {
+    const { videoId } = track;
+    if (!(await this.exists(videoId))) return;
+    const before = await this.readInfo(videoId);
+    const playedAt =
+      before && use.playedAt !== undefined
+        ? Math.max(before.playedAt, use.playedAt)
+        : (use.playedAt ?? before?.playedAt);
+    if (playedAt === undefined) return; // never played: nothing to remember
+    const info: SongInfo = { track: use.exact || !before ? { ...track } : before.track, playedAt };
+    // Atomic: a temporary file (cleaned up like the uploads' when left behind), then a rename.
+    const temp = this.tempFile('.json');
+    try {
+      await writeFile(temp, `${JSON.stringify({ version: 1, ...info })}\n`, { mode: FILE_MODE });
+      await renameWithRetry(temp, this.infoFor(videoId));
+    } catch (err) {
+      await removeFile(temp).catch(() => undefined);
+      throw err;
+    }
+  }
+
   /**
    * Keeps the cache small, never touching a song in `keep` (what some room still plays or
    * queues, or an upload in progress) nor a temporary file in `keepTemps` (absolute paths of the
    * uploads being received): deletes leftover temporary uploads, songs unused for longer than the
-   * TTL, then the least recently used songs until the cache fits its size limit.
+   * TTL, then the least recently used songs until the cache fits its size limit. A song's info
+   * goes with its audio; infos left without their audio are deleted.
    */
   async maintain(
     keep: ReadonlySet<string>,
     keepTemps: ReadonlySet<string> = new Set(),
   ): Promise<CacheMaintenance> {
-    const result: CacheMaintenance = { expired: [], evicted: [], temps: 0 };
+    const result: CacheMaintenance = { expired: [], evicted: [], temps: 0, orphans: 0 };
     let names: string[];
     try {
       names = await readdir(this.dir);
@@ -150,7 +282,17 @@ export class JamAudioCache {
     }
     const now = this.now();
     const songs: CachedSong[] = [];
+    const audio = new Set(names.filter((name) => CACHED_FILE.test(name)));
     for (const name of names) {
+      if (INFO_FILE.test(name)) {
+        const videoId = name.slice(0, -'.json'.length);
+        // Checked again: the audio may have been stored since the listing.
+        if (!audio.has(`${videoId}.webm`) && !(await this.audioPresent(videoId))) {
+          await removeFile(join(this.dir, name));
+          result.orphans += 1;
+        }
+        continue;
+      }
       const isSong = CACHED_FILE.test(name);
       if (!isSong && !name.startsWith(TEMP_PREFIX)) continue;
       const path = join(this.dir, name);
@@ -174,7 +316,7 @@ export class JamAudioCache {
       }
       const videoId = name.slice(0, -'.webm'.length);
       if (this.ttlMs > 0 && now - usedAt >= this.ttlMs && !keep.has(videoId)) {
-        await removeFile(path);
+        await this.removeSong(videoId);
         result.expired.push(videoId);
         continue;
       }
@@ -185,7 +327,7 @@ export class JamAudioCache {
     for (const song of songs.sort((a, b) => a.usedAt - b.usedAt)) {
       if (total <= this.maxBytes) break;
       if (keep.has(song.videoId)) continue;
-      await removeFile(this.fileFor(song.videoId));
+      await this.removeSong(song.videoId);
       total -= song.size;
       result.evicted.push(song.videoId);
     }
@@ -196,5 +338,21 @@ export class JamAudioCache {
       );
     }
     return result;
+  }
+
+  /** Deletes a song's audio and info, in turn with its info writes (one after it finds no audio). */
+  private async removeSong(videoId: string): Promise<void> {
+    await this.inTurn(videoId, async () => {
+      await removeFile(this.fileFor(videoId));
+      await removeFile(this.infoFor(videoId));
+    });
+  }
+
+  /** Whether a song's audio file is there at all (empty or not). */
+  private async audioPresent(videoId: string): Promise<boolean> {
+    return stat(this.fileFor(videoId)).then(
+      () => true,
+      () => false,
+    );
   }
 }

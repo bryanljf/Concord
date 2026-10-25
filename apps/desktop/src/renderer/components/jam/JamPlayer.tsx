@@ -1,12 +1,19 @@
 import type { JamState, RoomId } from '@concord/shared';
 import type { JamUploadStatus } from '../../../preload/api';
 import type { JamActions } from '../../hooks/useJamActions';
-import { jamArtworkSrc, jamItemStatusLabel, pausedByLabel, type JamPerson } from '../../lib/jam';
+import {
+  jamArtworkSrc,
+  jamItemStatusLabel,
+  jamPreviousItem,
+  jamPreviousTitle,
+  pausedByLabel,
+  type JamPerson,
+} from '../../lib/jam';
 import type { Viewer } from '../../lib/viewers';
 import type { VolumeSetting } from '../../lib/volume';
 import { Avatar } from '../Avatar';
 import { Spinner } from '../Spinner';
-import { PauseIcon, PlayIcon, SkipForwardIcon } from '../icons';
+import { PauseIcon, PlayIcon, SkipBackIcon, SkipForwardIcon } from '../icons';
 import { Marquee } from '../music/Marquee';
 import { MusicCover, MusicVolume } from '../music/MusicCover';
 import { JamProgress } from '../music/MusicProgress';
@@ -40,11 +47,13 @@ interface JamPlayerProps {
 }
 
 /**
- * The song playing in your room's Jam, like the music players: cover, title (bold), artists and
- * album (muted), who asked for it, the progress on the server's clock, "Ouvir" with your own
- * volume, and the controls everyone in the room has (pause or resume for everyone, skip) next to
- * who listens (overlapped avatars, like a live's viewers). Paused, it says who paused it. Before
- * the first song is ready it says so.
+ * The song playing in your room's Jam, like the music players: cover, title (bold), artists
+ * (muted) with the album on its own line below, who asked for it, the progress on the server's
+ * clock (a slider: anyone in the room can move the song), "Ouvir" with your own volume and, above
+ * it in the card's top-right corner, who listens (small overlapped avatars, like a live's viewers),
+ * then the icon controls everyone in the room has, centered under the bar (back to the previous
+ * song once one was played, pause or resume for everyone, skip). Paused, it says who paused it.
+ * Before the first song is ready it says so.
  */
 export function JamPlayer({
   room,
@@ -65,7 +74,8 @@ export function JamPlayer({
     : null;
   const skipKey = current ? `skip:${current.item.id}` : '';
   const toggling = actions.busy.has('pause') || actions.busy.has('resume');
-  const artists = track ? [track.artists, track.album].filter(Boolean).join(' · ') : '';
+  // Only once a song was really played in this Jam.
+  const previous = jamPreviousItem(state);
 
   const listenButton = listening.on ? (
     <button type="button" className="btn btn--sm" onClick={listening.stop}>
@@ -101,7 +111,10 @@ export function JamPlayer({
             className="music-player__title"
             text={track?.title || (current ? 'Sem título' : 'Preparando a primeira música…')}
           />
-          {artists && <Marquee as="p" className="music-player__artist" text={artists} />}
+          {track?.artists && (
+            <Marquee as="p" className="music-player__artist" text={track.artists} />
+          )}
+          {track?.album && <Marquee as="p" className="music-player__album" text={track.album} />}
           <p className="music-player__source">
             {requester ? (
               <>
@@ -124,52 +137,75 @@ export function JamPlayer({
             {statusLabel && <span className="jam-badge">{statusLabel}</span>}
           </p>
         </div>
-        <div className="music-player__actions">{listenButton}</div>
-      </div>
-      {current && <JamProgress nowPlaying={current} clockOffsetMs={clockOffsetMs} />}
-      {current && (
-        <div className="jam-controls">
-          {paused ? (
-            <button
-              type="button"
-              className="btn btn--sm jam-controls__btn"
-              disabled={toggling}
-              title="Retomar a Jam para todos da sala"
-              onClick={() => actions.resume(room)}
-            >
-              <PlayIcon size={14} />
-              Retomar
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn btn--sm jam-controls__btn"
-              disabled={toggling}
-              title="Pausar a Jam para todos da sala"
-              onClick={() => actions.pause(room)}
-            >
-              <PauseIcon size={14} />
-              Pausar
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn--sm jam-controls__btn"
-            disabled={actions.busy.has(skipKey)}
-            title="Pular para a próxima música (para todos da sala)"
-            onClick={() => actions.skip(room, current.item.id)}
-          >
-            <SkipForwardIcon size={14} />
-            Pular
-          </button>
+        {/* Who listens in the card's top-right corner, small, with "Ouvir" below it. */}
+        <div className="music-player__actions jam-player__actions">
           <ViewerList
             viewers={listeners}
             kind="listening"
             tone="surface"
             placement="below"
             align="end"
-            className="jam-controls__listeners"
+            className="jam-player__listeners"
           />
+          {listenButton}
+        </div>
+      </div>
+      {current && (
+        <JamProgress
+          nowPlaying={current}
+          clockOffsetMs={clockOffsetMs}
+          onSeek={(itemId, positionMs) => actions.seek(room, itemId, positionMs)}
+        />
+      )}
+      {(current || previous) && (
+        <div className="jam-controls">
+          {/* Always there (so the buttons stay centered), dimmed until a song was played before. */}
+          <button
+            type="button"
+            className="icon-btn jam-controls__btn"
+            aria-label="Música anterior"
+            title={previous ? jamPreviousTitle(previous) : 'Nenhuma música anterior nesta Jam'}
+            disabled={!previous || actions.busy.has('previous')}
+            onClick={() => actions.previous(room, current?.item.id ?? null)}
+          >
+            <SkipBackIcon size={16} />
+          </button>
+          {current &&
+            (paused ? (
+              <button
+                type="button"
+                className="icon-btn jam-controls__btn"
+                aria-label="Retomar a Jam"
+                title="Retomar a Jam para todos da sala"
+                disabled={toggling}
+                onClick={() => actions.resume(room)}
+              >
+                <PlayIcon size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="icon-btn jam-controls__btn"
+                aria-label="Pausar a Jam"
+                title="Pausar a Jam para todos da sala"
+                disabled={toggling}
+                onClick={() => actions.pause(room)}
+              >
+                <PauseIcon size={16} />
+              </button>
+            ))}
+          {current && (
+            <button
+              type="button"
+              className="icon-btn jam-controls__btn"
+              aria-label="Pular a música"
+              title="Pular para a próxima música (para todos da sala)"
+              disabled={actions.busy.has(skipKey)}
+              onClick={() => actions.skip(room, current.item.id)}
+            >
+              <SkipForwardIcon size={16} />
+            </button>
+          )}
         </div>
       )}
       {paused && current && (

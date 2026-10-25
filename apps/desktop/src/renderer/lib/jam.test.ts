@@ -25,6 +25,8 @@ import {
   jamListenable,
   jamPerson,
   jamPlaying,
+  jamPreviousItem,
+  jamPreviousTitle,
   jamProgress,
   jamQueryHint,
   jamQueryIntent,
@@ -365,6 +367,28 @@ describe('queue', () => {
       'Nenhuma música na fila. Busque uma música para começar a Jam.',
     );
     expect(jamEmptyQueueText(true)).toBe('Nenhuma música na fila. Adicione a próxima.');
+  });
+});
+
+describe('previous song', () => {
+  it('goes back to the most recent song played, only once one was', () => {
+    const played = state('sala-1', nowPlaying());
+    expect(jamPreviousItem({ ...played, history: [item('b'), item('a')] })?.id).toBe('b');
+    // Nothing played yet in this Jam, or a server from before the history: no button.
+    expect(jamPreviousItem({ ...played, history: [] })).toBeNull();
+    expect(jamPreviousItem(played)).toBeNull();
+    expect(jamPreviousItem(null)).toBeNull();
+    expect(jamPreviousItem(undefined)).toBeNull();
+    // Songs still waiting for their audio with nothing playing: the history still counts.
+    const waiting = state('sala-1', null, [item('c', 'ana', 'downloading')]);
+    expect(jamPreviousItem({ ...waiting, history: [item('b')] })?.id).toBe('b');
+  });
+
+  it('names the song in the tooltip', () => {
+    expect(jamPreviousTitle(item('b'))).toBe('Voltar para “Música b” (para todos da sala)');
+    expect(jamPreviousTitle({ ...item('b'), track: { ...track, title: '  ' } })).toBe(
+      'Voltar para a música anterior (para todos da sala)',
+    );
   });
 });
 

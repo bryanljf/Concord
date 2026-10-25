@@ -23,6 +23,8 @@ export type JamErrorCode =
   | 'already_uploaded'
   | 'invalid_audio'
   | 'stale'
+  | 'no_previous'
+  | 'previous_unavailable'
   | 'unsupported_media_type'
   | 'payload_too_large';
 
@@ -41,6 +43,8 @@ const STATUS: Record<JamErrorCode, number> = {
   already_uploaded: 409,
   invalid_audio: 422,
   stale: 409,
+  no_previous: 409,
+  previous_unavailable: 410,
   unsupported_media_type: 415,
   payload_too_large: 413,
 };
@@ -63,6 +67,8 @@ const MESSAGES: Record<JamErrorCode, string> = {
   already_uploaded: 'O áudio dessa música já foi enviado.',
   invalid_audio: 'O áudio recebido não é válido.',
   stale: 'Essa música já não está tocando.',
+  no_previous: 'Nenhuma música tocou antes desta na Jam.',
+  previous_unavailable: 'A música anterior não está mais no servidor.',
   unsupported_media_type: `Envie o áudio como ${JAM_UPLOAD_CONTENT_TYPE}.`,
   payload_too_large: `O áudio passa do limite de ${MAX_MEGABYTES} MB.`,
 };

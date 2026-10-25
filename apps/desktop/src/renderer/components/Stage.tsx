@@ -102,6 +102,8 @@ interface StageProps {
   musicCards: readonly MusicCardItem[];
   onListen(participantId: string): void;
   onStopListening(participantId: string): void;
+  /** A click on the Jam card (or its "Ouvir"): opens the music panel. */
+  onOpenMusic(): void;
 }
 
 interface EmptyStateProps {
@@ -223,6 +225,7 @@ export function Stage({
   musicCards,
   onListen,
   onStopListening,
+  onOpenMusic,
 }: StageProps) {
   const contextMenu = useContextMenu<MenuTarget>(focusedTileElement);
   const byKey = useMemo(() => new Map(streams.map((stream) => [stream.key, stream])), [streams]);
@@ -446,6 +449,7 @@ export function Stage({
       listeners={viewers.get(musicKey(item.participantId)) ?? NO_VIEWERS}
       onListen={() => onListen(item.participantId)}
       onStopListening={() => onStopListening(item.participantId)}
+      onOpen={onOpenMusic}
     />
   );
 

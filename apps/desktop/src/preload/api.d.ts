@@ -7,6 +7,7 @@
 import type {
   JamEvent,
   JamItem,
+  JamRecentTrack,
   JamSnapshot,
   JamTrack,
   PresenceEvent,
@@ -346,6 +347,11 @@ export interface ConcordApi {
    */
   prefetchJam(videoIds: string[]): Promise<void>;
   /**
+   * "Recentes": the songs the server still has (its 3 h cache), most recently played first; adding
+   * one is instant. Rejects with a pt-BR message.
+   */
+  getJamRecent(): Promise<JamRecentTrack[]>;
+  /**
    * Adds a song to the room's queue and resolves with the queued item. When the server needs
    * its audio, main downloads it (yt-dlp, anonymous: no cookies, no account) and uploads it in
    * the background, reporting through `onJamUploadStatus`. Rejects with a pt-BR message.
@@ -355,6 +361,17 @@ export interface ConcordApi {
   removeFromJam(room: RoomId, itemId: string): Promise<void>;
   /** Skips `itemId` only if it is still the one playing. */
   skipJam(room: RoomId, itemId: string): Promise<void>;
+  /**
+   * Moves the song playing (`itemId`, still current) to `positionMs` for everyone; resolves
+   * quietly when it is no longer the one playing. Rejects with a pt-BR message.
+   */
+  seekJam(room: RoomId, itemId: string, positionMs: number): Promise<void>;
+  /**
+   * "Música anterior": plays the room's previous song (`JamState.history[0]`) from the start and
+   * puts the song playing (`itemId`, null when none) back at the front of the queue; resolves
+   * quietly when the song playing changed meanwhile. Rejects with a pt-BR message.
+   */
+  previousJam(room: RoomId, itemId: string | null): Promise<void>;
   /** Pauses / resumes the room's jam for everyone. */
   pauseJam(room: RoomId): Promise<void>;
   resumeJam(room: RoomId): Promise<void>;

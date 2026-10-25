@@ -185,7 +185,7 @@ describe('streamed uploads', () => {
     expect(await put.end()).toBe(204);
     expect(s.bot.callsOf('probe').at(-1)).toEqual({ method: 'probe', file: temp, partial: false });
     expect(s.bot.callsOf('complete')).toEqual([{ method: 'complete', file: temp }]);
-    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.webm`]);
+    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.json`, `${VIDEO_A}.webm`]);
     expect((await stat(join(s.cacheDir, `${VIDEO_A}.webm`))).size).toBe(360 * KB);
     // The exact duration, once the file is whole.
     expect(s.service.snapshot().rooms.geral?.current?.item.track.durationMs).toBe(199_500);
@@ -238,7 +238,7 @@ describe('streamed uploads', () => {
     ).toEqual([item.id, next.item.id]);
     expect(lastPlay(s).request.file).toBe(join(s.cacheDir, `${VIDEO_B}.webm`));
     await waitFor(() => !existsSync(temp));
-    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_B}.webm`]);
+    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_B}.json`, `${VIDEO_B}.webm`]);
     expect(loggedText(s.log)).not.toContain('token-');
   });
 
@@ -334,7 +334,7 @@ describe('streamed uploads', () => {
     // The bot opened the temporary file (it was there), then it became the song's.
     expect(s.bot.state.get('geral')).toMatchObject({ itemId: item.id, state: 'playing' });
     expect(existsSync(temp)).toBe(false);
-    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.webm`]);
+    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.json`, `${VIDEO_A}.webm`]);
   });
 
   it('has a song starting during the rename wait for it, then play the stored file', async () => {

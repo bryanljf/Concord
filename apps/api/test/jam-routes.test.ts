@@ -75,6 +75,13 @@ describe('jam routes', () => {
     const requests = [
       { method: 'GET', url: '/api/jam' },
       { method: 'GET', url: '/api/jam/search?q=x' },
+      { method: 'GET', url: '/api/jam/recent' },
+      {
+        method: 'POST',
+        url: '/api/rooms/geral/jam/seek',
+        payload: { itemId: 'x', positionMs: 1000 },
+      },
+      { method: 'POST', url: '/api/rooms/geral/jam/previous', payload: { itemId: null } },
       { method: 'POST', url: '/api/rooms/geral/jam/queue', payload: { videoId: VIDEO_A } },
       { method: 'POST', url: '/api/rooms/geral/jam/pause' },
       { method: 'POST', url: '/api/rooms/geral/jam/resume' },
@@ -278,7 +285,7 @@ describe('jam routes', () => {
       expect(res.statusCode).toBe(204);
       await s.service.settled();
       expect(res.body).toBe('');
-      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.webm`]);
+      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.json`, `${VIDEO_A}.webm`]);
       const snapshot = await app.inject({ method: 'GET', url: '/api/jam', headers: bearer(BOB) });
       expect(snapshot.json<JamSnapshot>().rooms.geral?.current?.item).toMatchObject({
         id: 'item-1',
@@ -434,7 +441,8 @@ describe('jam routes', () => {
       expect(missing.statusCode).toBe(404);
       expect(errorOf(missing)).toBe('item_not_found');
       expect((await remove('item-2')).statusCode).toBe(204);
-      expect(s.service.snapshot().rooms).toEqual({});
+      // Nothing left to play: the room keeps its history while the bot lingers.
+      expect(s.service.snapshot().rooms.geral).toMatchObject({ current: null, queue: [] });
       // Silenced; it leaves only after lingering a while (a new song would start right away).
       expect(s.bot.callsOf('pause')).toEqual([{ method: 'pause', room: 'geral' }]);
       expect(s.bot.callsOf('leave')).toHaveLength(0);

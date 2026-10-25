@@ -2,13 +2,16 @@ import { JAM_SEARCH_LIMIT, JAM_SEARCH_MAX_LENGTH, NICKNAME_MAX_LENGTH } from '@c
 import { describe, expect, it } from 'vitest';
 import {
   expectJamItemId,
+  expectJamPositionMs,
   expectJamQuery,
   expectNickname,
+  expectNullableJamItemId,
   expectOptionalTokenPurpose,
   expectPipResizeCorner,
   expectYouTubeVideoId,
   expectYouTubeVideoIds,
   IpcValidationError,
+  JAM_SEEK_MAX_MS,
   UserFacingError,
 } from './validation';
 
@@ -90,6 +93,30 @@ describe('jam IPC arguments', () => {
     expect(() => expectJamItemId('../skip')).toThrow(IpcValidationError);
     expect(() => expectJamItemId('a b')).toThrow(IpcValidationError);
     expect(() => expectJamItemId(null)).toThrow(IpcValidationError);
+  });
+
+  it('accepts the song playing, or null when none, for "Música anterior"', () => {
+    expect(expectNullableJamItemId(null)).toBeNull();
+    expect(expectNullableJamItemId('item-1')).toBe('item-1');
+    expect(() => expectNullableJamItemId(undefined)).toThrow(IpcValidationError);
+    expect(() => expectNullableJamItemId('')).toThrow(IpcValidationError);
+    expect(() => expectNullableJamItemId('../previous')).toThrow(IpcValidationError);
+    expect(() => expectNullableJamItemId(42)).toThrow('Parâmetro inválido: itemId.');
+  });
+
+  it('accepts seek positions in whole milliseconds, up to a day', () => {
+    expect(JAM_SEEK_MAX_MS).toBe(86_400_000);
+    expect(expectJamPositionMs(0)).toBe(0);
+    expect(expectJamPositionMs(83_000)).toBe(83_000);
+    expect(expectJamPositionMs(JAM_SEEK_MAX_MS)).toBe(JAM_SEEK_MAX_MS);
+    expect(() => expectJamPositionMs(-1)).toThrow(IpcValidationError);
+    expect(() => expectJamPositionMs(JAM_SEEK_MAX_MS + 1)).toThrow(IpcValidationError);
+    expect(() => expectJamPositionMs(1.5)).toThrow(IpcValidationError);
+    expect(() => expectJamPositionMs(Number.NaN)).toThrow(IpcValidationError);
+    expect(() => expectJamPositionMs(Number.POSITIVE_INFINITY)).toThrow(IpcValidationError);
+    expect(() => expectJamPositionMs('83000')).toThrow(IpcValidationError);
+    expect(() => expectJamPositionMs(null)).toThrow(IpcValidationError);
+    expect(() => expectJamPositionMs(undefined)).toThrow('Parâmetro inválido: positionMs.');
   });
 
   it('trims search queries and bounds them with pt-BR messages', () => {

@@ -16,6 +16,8 @@ import {
   jamArtworkSrc,
   jamDurationLabel,
   jamItemStatusLabel,
+  jamPreviousItem,
+  jamPreviousTitle,
   jamQueryHint,
   jamQueryIntent,
   jamQueuePreview,
@@ -35,6 +37,7 @@ import {
   PlayIcon,
   PlusIcon,
   SearchIcon,
+  SkipBackIcon,
   SkipForwardIcon,
 } from '../icons';
 import { Marquee } from '../music/Marquee';
@@ -68,7 +71,7 @@ interface JamSearchModalProps {
 
 /**
  * "Adicionar música": a dialog in the middle of the screen with the room's Jam on top (the song
- * playing with pause and skip, the next few songs) and the YouTube Music search below, at most
+ * playing with its controls, the next few songs) and the YouTube Music search below, at most
  * four results with cover, title, artists, album and duration. A YouTube / YouTube Music link is
  * added straight away. Picking a song adds it to the room's queue (it starts at once when nothing
  * plays); a refusal stays here, in pt-BR.
@@ -362,11 +365,11 @@ function JamResult({ track, disabled, adding, onAdd, onIntent, onLeave }: JamRes
       <span className="jam-result__text">
         <Marquee className="jam-result__title" text={track.title || 'Sem título'} />
         {track.artists && <Marquee className="jam-result__artist" text={track.artists} />}
-        {/* A long album gives way; the duration always shows. */}
+        {/* The album below the artists (sliding when too long); the duration always shows. */}
         <span className="jam-result__detail">
           {track.album && (
             <>
-              <span className="jam-result__album">{track.album}</span>
+              <Marquee className="jam-result__album" text={track.album} />
               <span aria-hidden="true">·</span>
             </>
           )}
@@ -388,7 +391,10 @@ interface JamCompactProps {
   onOpenQueue(): void;
 }
 
-/** The room's Jam above the search: the song playing (pause, skip) and the next few songs. */
+/**
+ * The room's Jam above the search: the song playing (its bar seeks; back to the previous song once
+ * one was played, pause, skip) and the next few songs.
+ */
 function JamCompact({
   room,
   state,
@@ -402,6 +408,7 @@ function JamCompact({
   const current = state.current;
   const { shown, more } = jamQueuePreview(state.queue, COMPACT_QUEUE);
   const toggling = actions.busy.has('pause') || actions.busy.has('resume');
+  const previous = jamPreviousItem(state);
   const label = current
     ? current.paused
       ? pausedByLabel(current.pausedBy ? person(current.pausedBy) : null)
@@ -425,10 +432,29 @@ function JamCompact({
               className="jam-compact__title"
               text={jamTrackLine(current.item.track)}
             />
-            <JamProgress nowPlaying={current} clockOffsetMs={clockOffsetMs} compact />
+            <JamProgress
+              nowPlaying={current}
+              clockOffsetMs={clockOffsetMs}
+              compact
+              onSeek={
+                canControl
+                  ? (itemId, positionMs) => actions.seek(room, itemId, positionMs)
+                  : undefined
+              }
+            />
           </div>
           {canControl && (
             <div className="jam-compact__controls">
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Música anterior"
+                title={previous ? jamPreviousTitle(previous) : 'Nenhuma música anterior nesta Jam'}
+                disabled={!previous || actions.busy.has('previous')}
+                onClick={() => actions.previous(room, current.item.id)}
+              >
+                <SkipBackIcon size={16} />
+              </button>
               {current.paused ? (
                 <button
                   type="button"

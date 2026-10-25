@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   isJamEmpty,
+  JAM_HISTORY_MAX,
   JAM_QUEUE_MAX,
   JAM_UPLOAD_TIMEOUT_MS,
   jamPositionAt,
@@ -12,6 +13,16 @@ import {
   type RoomId,
 } from '@concord/shared';
 import { JamError } from './errors';
+
+/** A seek to within this of where the song already is changes nothing. */
+export const JAM_SEEK_TOLERANCE_MS = 250;
+
+/** A room's jam as the store keeps (and always sends) it: with its history. */
+type RoomJam = JamState & { history: JamItem[] };
+
+function emptyJam(room: RoomId): RoomJam {
+  return { room, current: null, queue: [], history: [] };
+}
 
 /**
  * The audio of a song nobody has sent yet. One per videoId (the cache is shared by every room):
@@ -47,8 +58,8 @@ export interface PersistedJam {
 }
 
 /**
- * `data` without the ready songs (playing or queued) of `videoIds`: their audio is not on disk
- * (an upload still streaming when the api stopped). Songs waiting for an upload stay.
+ * `data` without the ready songs (playing, queued or in the history) of `videoIds`: their audio is
+ * not on disk (an upload still streaming when the api stopped). Songs waiting for an upload stay.
  */
 export function withoutReadySongs(data: PersistedJam, videoIds: ReadonlySet<string>): PersistedJam {
   return {
@@ -60,6 +71,7 @@ export function withoutReadySongs(data: PersistedJam, videoIds: ReadonlySet<stri
       queue: state.queue.filter(
         (item) => item.status !== 'ready' || !videoIds.has(item.track.videoId),
       ),
+      history: (state.history ?? []).filter((item) => !videoIds.has(item.track.videoId)),
     })),
   };
 }
@@ -75,29 +87,41 @@ export interface JamStoreOptions {
   newId?: () => string;
   /** How long a song may wait for its audio (default JAM_UPLOAD_TIMEOUT_MS). */
   uploadTimeoutMs?: number;
+  /** A song just entered a room's history (the service marks its audio as just used). */
+  onHistory?: (videoId: string) => void;
+  /** A song just started playing in a room (not when a saved jam is loaded). */
+  onStart?: (item: JamItem) => void;
 }
 
 /**
- * The jam of every room: what plays and what comes next, in memory and without I/O. Each change
- * emits one `jam_updated` per room it touched, with the room's whole state.
+ * The jam of every room: what plays, what comes next and what already played, in memory and
+ * without I/O. Each change emits one `jam_updated` per room it touched, with the room's whole
+ * state (history included, always).
  *
  * Playback always moves to the first `ready` song in queue order: songs still waiting for their
  * audio keep their place and play once they are ready. A new song always starts playing, even
- * when the previous one was paused.
+ * when the previous one was paused. A song that played to its end or was skipped goes to the
+ * front of the room's history ("Música anterior" plays it again), which lasts as long as the jam:
+ * once nothing plays nor is queued, the room remains with its history until the service's linger
+ * period ends the session.
  */
 export class JamStore {
-  private readonly rooms = new Map<RoomId, JamState>();
+  private readonly rooms = new Map<RoomId, RoomJam>();
   private readonly uploads = new Map<string, PendingUpload>();
   private readonly listeners = new Set<JamStoreListener>();
   private readonly touched = new Set<RoomId>();
   private readonly now: () => number;
   private readonly newId: () => string;
   private readonly uploadTimeoutMs: number;
+  private readonly onHistory: (videoId: string) => void;
+  private readonly onStart: (item: JamItem) => void;
 
   constructor(options: JamStoreOptions = {}) {
     this.now = options.now ?? Date.now;
     this.newId = options.newId ?? randomUUID;
     this.uploadTimeoutMs = options.uploadTimeoutMs ?? JAM_UPLOAD_TIMEOUT_MS;
+    this.onHistory = options.onHistory ?? (() => undefined);
+    this.onStart = options.onStart ?? (() => undefined);
   }
 
   subscribe(listener: JamStoreListener): () => void {
@@ -112,7 +136,7 @@ export class JamStore {
   // -------------------------------------------------------------------------
 
   state(room: RoomId): JamState {
-    return structuredClone(this.rooms.get(room) ?? { room, current: null, queue: [] });
+    return structuredClone(this.rooms.get(room) ?? emptyJam(room));
   }
 
   current(room: RoomId): JamNowPlaying | null {
@@ -124,7 +148,13 @@ export class JamStore {
     return !this.rooms.has(room);
   }
 
-  /** Rooms with something playing or queued. */
+  /** Whether the room has no current song or queued song, including a session with history only. */
+  isIdle(room: RoomId): boolean {
+    const state = this.rooms.get(room);
+    return state === undefined || (state.current === null && state.queue.length === 0);
+  }
+
+  /** Rooms with something playing, queued, or retained in the current session history. */
   activeRooms(): RoomId[] {
     return [...this.rooms.keys()];
   }
@@ -145,12 +175,29 @@ export class JamStore {
     return item ? structuredClone(item) : undefined;
   }
 
-  /** Every videoId some room still plays or queues (their files must stay in the cache). */
+  /** How some room describes `videoId` (playing, queued or in its history), if any does. */
+  track(videoId: string): JamTrack | undefined {
+    for (const state of this.rooms.values()) {
+      const items = [
+        ...(state.current ? [state.current.item] : []),
+        ...state.queue,
+        ...state.history,
+      ];
+      const found = items.find((item) => item.track.videoId === videoId);
+      if (found) return { ...found.track };
+    }
+    return undefined;
+  }
+
+  /**
+   * Every videoId some room still plays, queues or may play again from its history (their files
+   * must stay in the cache).
+   */
   referencedVideoIds(): Set<string> {
     const ids = new Set<string>();
     for (const state of this.rooms.values()) {
       if (state.current) ids.add(state.current.item.track.videoId);
-      for (const item of state.queue) ids.add(item.track.videoId);
+      for (const item of [...state.queue, ...state.history]) ids.add(item.track.videoId);
     }
     return ids;
   }
@@ -228,10 +275,13 @@ export class JamStore {
     this.flush();
   }
 
-  /** The bot finished `itemId` (played to the end or gave up): playback moves on. */
-  finish(room: RoomId, itemId: string): boolean {
+  /**
+   * The bot is done with `itemId`: it played it to the end (`ended`, remembered in the history) or
+   * gave up on it (`failed`). Playback moves on.
+   */
+  finish(room: RoomId, itemId: string, outcome: 'ended' | 'failed' = 'ended'): boolean {
     if (this.rooms.get(room)?.current?.item.id !== itemId) return false;
-    this.advance(room);
+    this.advance(room, outcome === 'ended');
     this.flush();
     return true;
   }
@@ -274,6 +324,28 @@ export class JamStore {
   }
 
   /**
+   * Moves the song playing to `positionMs` (clamped to the song), paused or not, only if it still
+   * is `itemId` (rejects with `stale` otherwise). False, changing nothing, when it already is
+   * within JAM_SEEK_TOLERANCE_MS of there.
+   */
+  seek(room: RoomId, itemId: string, positionMs: number): boolean {
+    const current = this.rooms.get(room)?.current;
+    if (!current || current.item.id !== itemId) throw new JamError('stale');
+    if (!Number.isFinite(positionMs)) return false;
+    const duration = current.item.track.durationMs;
+    const target = Math.round(
+      Math.max(0, duration > 0 ? Math.min(duration, positionMs) : positionMs),
+    );
+    const now = this.now();
+    if (Math.abs(target - jamPositionAt(current, now)) < JAM_SEEK_TOLERANCE_MS) return false;
+    current.positionMs = target;
+    current.at = now;
+    this.touch(room);
+    this.flush();
+    return true;
+  }
+
+  /**
    * Where the bot says `itemId` is, `paused` or playing, right now. Ignored unless it is still the
    * song playing in the same paused state (otherwise the bot is about to be told otherwise).
    */
@@ -283,6 +355,51 @@ export class JamStore {
     if (!Number.isFinite(positionMs) || positionMs < 0) return;
     current.positionMs = Math.round(positionMs);
     current.at = this.now();
+    this.touch(room);
+    this.flush();
+  }
+
+  // -------------------------------------------------------------------------
+  // History ("Música anterior")
+  // -------------------------------------------------------------------------
+
+  /**
+   * The song "Música anterior" would play: the latest of the history, provided the song playing
+   * still is `itemId` (null: nothing plays). Rejects with `stale` or `no_previous`.
+   */
+  previousOf(room: RoomId, itemId: string | null): JamItem {
+    const state = this.rooms.get(room);
+    if ((state?.current?.item.id ?? null) !== itemId) throw new JamError('stale');
+    const previous = state?.history[0];
+    if (!previous) throw new JamError('no_previous');
+    return structuredClone(previous);
+  }
+
+  /**
+   * Plays `previousId`, the latest song of the history, from the start (leaving the history); the
+   * song playing goes back to the front of the queue, so skipping returns to it. Only while the
+   * song playing still is `itemId` and the history still starts with `previousId`; rejects with
+   * `stale` otherwise.
+   */
+  playPrevious(room: RoomId, itemId: string | null, previousId: string): void {
+    const state = this.rooms.get(room);
+    const previous = state?.history[0];
+    if (!state || !previous || previous.id !== previousId) throw new JamError('stale');
+    if ((state.current?.item.id ?? null) !== itemId) throw new JamError('stale');
+    state.history.shift();
+    if (state.current) state.queue.unshift(state.current.item);
+    state.current = this.nowPlaying(previous);
+    this.onStart(previous);
+    this.touch(room);
+    this.flush();
+  }
+
+  /** Forgets a song of `room`'s history (its audio is gone). */
+  forgetPrevious(room: RoomId, itemId: string): void {
+    const state = this.rooms.get(room);
+    const index = state?.history.findIndex((item) => item.id === itemId) ?? -1;
+    if (!state || index < 0) return;
+    state.history.splice(index, 1);
     this.touch(room);
     this.flush();
   }
@@ -345,17 +462,21 @@ export class JamStore {
 
   /**
    * A song's audio turned out unusable after all (a streamed upload that failed once its songs
-   * were ready): every copy of it leaves, in every room, and the one playing moves on.
+   * were ready): every copy of it leaves, in every room (histories included), and the one playing
+   * moves on without entering the history.
    */
   dropVideo(videoId: string): void {
     this.uploads.delete(videoId);
     for (const [room, state] of this.rooms) {
-      const queue = state.queue.filter((item) => item.track.videoId !== videoId);
-      if (queue.length !== state.queue.length) {
+      const keep = (item: JamItem): boolean => item.track.videoId !== videoId;
+      const queue = state.queue.filter(keep);
+      const history = state.history.filter(keep);
+      if (queue.length !== state.queue.length || history.length !== state.history.length) {
         state.queue = queue;
+        state.history = history;
         this.touch(room);
       }
-      if (state.current?.item.track.videoId === videoId) this.advance(room);
+      if (state.current?.item.track.videoId === videoId) this.advance(room, false);
     }
     this.flush();
   }
@@ -364,7 +485,11 @@ export class JamStore {
   setDuration(videoId: string, durationMs: number): void {
     if (!Number.isFinite(durationMs) || durationMs <= 0) return;
     for (const [room, state] of this.rooms) {
-      const items = state.current ? [state.current.item, ...state.queue] : state.queue;
+      const items = [
+        ...(state.current ? [state.current.item] : []),
+        ...state.queue,
+        ...state.history,
+      ];
       for (const item of items) {
         if (item.track.videoId !== videoId || item.track.durationMs === durationMs) continue;
         item.track.durationMs = durationMs;
@@ -413,7 +538,10 @@ export class JamStore {
       const queue = state.queue.filter(
         (item) => item.status === 'ready' || this.uploads.has(item.track.videoId),
       );
-      const loaded: JamState = { room: state.room, current: state.current, queue };
+      const history = (state.history ?? [])
+        .filter((item) => item.status === 'ready')
+        .slice(0, JAM_HISTORY_MAX);
+      const loaded: RoomJam = { room: state.room, current: state.current, queue, history };
       if (!loaded.current) {
         const index = queue.findIndex((item) => item.status === 'ready');
         if (index >= 0) {
@@ -431,10 +559,10 @@ export class JamStore {
   // Internals
   // -------------------------------------------------------------------------
 
-  private ensure(room: RoomId): JamState {
+  private ensure(room: RoomId): RoomJam {
     let state = this.rooms.get(room);
     if (!state) {
-      state = { room, current: null, queue: [] };
+      state = emptyJam(room);
       this.rooms.set(room, state);
     }
     return state;
@@ -444,10 +572,18 @@ export class JamStore {
     return { item, positionMs: 0, at: this.now(), paused: false, pausedBy: null };
   }
 
-  /** Ends the song playing and starts the next ready one, if any. */
-  private advance(room: RoomId): void {
+  /**
+   * Ends the song playing and starts the next ready one, if any. `played` (it ended or was
+   * skipped, as opposed to failing): the song goes to the front of the history.
+   */
+  private advance(room: RoomId, played = true): void {
     const state = this.rooms.get(room);
     if (!state) return;
+    if (played && state.current) {
+      state.history.unshift(state.current.item);
+      state.history.splice(JAM_HISTORY_MAX);
+      this.onHistory(state.current.item.track.videoId);
+    }
     state.current = null;
     this.touch(room);
     this.startNext(room);
@@ -461,6 +597,7 @@ export class JamStore {
     const [item] = state.queue.splice(index, 1);
     if (!item) return;
     state.current = this.nowPlaying(item);
+    this.onStart(item);
     this.touch(room);
   }
 
@@ -494,7 +631,10 @@ export class JamStore {
     this.touched.add(room);
   }
 
-  /** Emits each touched room once; rooms left empty are forgotten after their (empty) update. */
+  /**
+   * Emits each touched room once. A room left with nothing playing nor queued is over: forgotten
+   * (its history with it) and announced as an empty jam.
+   */
   private flush(): void {
     if (this.touched.size === 0) return;
     const rooms = [...this.touched];
@@ -504,11 +644,7 @@ export class JamStore {
     for (const room of rooms) {
       const state = this.rooms.get(room);
       if (state && isJamEmpty(state)) this.rooms.delete(room);
-      updates.push({
-        type: 'jam_updated',
-        state: structuredClone(state ?? { room, current: null, queue: [] }),
-        serverTime,
-      });
+      updates.push({ type: 'jam_updated', state: this.state(room), serverTime });
     }
     this.forgetUnwantedUploads();
     for (const update of updates) {

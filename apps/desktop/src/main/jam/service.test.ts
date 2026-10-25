@@ -33,9 +33,12 @@ function setup(overrides: Partial<JamServiceDeps> = {}) {
   type Api = JamServiceDeps['api'];
   const api = {
     jamSearch: vi.fn<Api['jamSearch']>(async () => ({ results: [track, other], cached: [] })),
+    jamRecent: vi.fn<Api['jamRecent']>(async () => []),
     jamEnqueue: vi.fn<Api['jamEnqueue']>(async () => ({ item, upload: true })),
     jamRemove: vi.fn<Api['jamRemove']>(async () => undefined),
     jamSkip: vi.fn<Api['jamSkip']>(async () => undefined),
+    jamSeek: vi.fn<Api['jamSeek']>(async () => undefined),
+    jamPrevious: vi.fn<Api['jamPrevious']>(async () => undefined),
     jamPause: vi.fn<Api['jamPause']>(async () => undefined),
     jamResume: vi.fn<Api['jamResume']>(async () => undefined),
   };
@@ -147,6 +150,30 @@ describe('createJamService', () => {
     expect(prefetches.prefetch).toHaveBeenLastCalledWith([track.videoId]);
   });
 
+  it('lists the recent songs and never prefetches them while they are listed', async () => {
+    const { service, api, prefetches } = setup();
+    const recent = [{ ...track, usedAt: 5_000 }];
+    api.jamRecent.mockResolvedValue(recent);
+    expect(await service.recent()).toEqual(recent);
+    // The server has them: pointing at one downloads nothing, nor does a search they top.
+    service.prefetch([track.videoId, other.videoId]);
+    expect(prefetches.prefetch).toHaveBeenLastCalledWith([other.videoId]);
+    await service.search('daft punk');
+    expect(prefetches.prefetch).toHaveBeenCalledTimes(1);
+
+    // The next listing replaces the last one; a failed one keeps it.
+    api.jamRecent.mockRejectedValueOnce(
+      new ApiClientError('http', 'Fora do ar.', 503, 'jam_unavailable'),
+    );
+    expect((await rejection(service.recent())).message).toBe('Fora do ar.');
+    service.prefetch([track.videoId]);
+    expect(prefetches.prefetch).toHaveBeenCalledTimes(1);
+    api.jamRecent.mockResolvedValue([]);
+    await service.recent();
+    service.prefetch([track.videoId]);
+    expect(prefetches.prefetch).toHaveBeenLastCalledWith([track.videoId]);
+  });
+
   it('skips songs being sent or ready in some jam, and prefetches nothing without a jam', () => {
     const { service, uploads, prefetches, store } = setup();
     uploads.isSending.mockImplementation((videoId) => videoId === other.videoId);
@@ -188,6 +215,53 @@ describe('createJamService', () => {
     expect((await rejection(service.remove('sala-1', 'item-1'))).message).toBe('Entre na sala.');
     api.jamSkip.mockRejectedValueOnce(new ApiClientError('network', 'offline'));
     expect((await rejection(service.skip('sala-1', 'item-1'))).message).toBe('offline');
+  });
+
+  it('seeks the song playing, and lets go once another one plays', async () => {
+    const { service, api } = setup();
+    await service.seek('sala-1', 'item-1', 83_000);
+    expect(api.jamSeek).toHaveBeenCalledWith('sala-1', 'item-1', 83_000);
+
+    // Skipped or ended meanwhile: never move the next song by accident.
+    api.jamSeek.mockRejectedValueOnce(new ApiClientError('http', 'x', 409, 'stale'));
+    await expect(service.seek('sala-1', 'item-1', 0)).resolves.toBeUndefined();
+    api.jamSeek.mockRejectedValueOnce(new ApiClientError('http', 'x', 404, 'item_not_found'));
+    await expect(service.seek('sala-1', 'item-1', 0)).resolves.toBeUndefined();
+
+    api.jamSeek.mockRejectedValueOnce(
+      new ApiClientError('http', 'Entre na sala.', 403, 'not_in_room'),
+    );
+    expect((await rejection(service.seek('sala-1', 'item-1', 0))).message).toBe('Entre na sala.');
+    api.jamSeek.mockRejectedValueOnce(new ApiClientError('rate_limited', 'Aguarde.', 429));
+    expect((await rejection(service.seek('sala-1', 'item-1', 0))).message).toBe('Aguarde.');
+  });
+
+  it('goes back one song, and lets go once the song playing changed', async () => {
+    const { service, api } = setup();
+    await service.previous('sala-1', 'item-1');
+    await service.previous('sala-1', null);
+    expect(api.jamPrevious).toHaveBeenNthCalledWith(1, 'sala-1', 'item-1');
+    expect(api.jamPrevious).toHaveBeenNthCalledWith(2, 'sala-1', null);
+
+    // Someone went back or skipped first: two quick presses go back one song only.
+    api.jamPrevious.mockRejectedValueOnce(new ApiClientError('http', 'x', 409, 'stale'));
+    await expect(service.previous('sala-1', 'item-1')).resolves.toBeUndefined();
+
+    // Nothing to go back to: the user is told.
+    api.jamPrevious.mockRejectedValueOnce(
+      new ApiClientError('http', 'Não há música anterior nesta Jam.', 409, 'no_previous'),
+    );
+    expect((await rejection(service.previous('sala-1', null))).message).toBe(
+      'Não há música anterior nesta Jam.',
+    );
+    api.jamPrevious.mockRejectedValueOnce(
+      new ApiClientError('http', 'Indisponível.', 410, 'previous_unavailable'),
+    );
+    expect((await rejection(service.previous('sala-1', 'item-1'))).message).toBe('Indisponível.');
+    api.jamPrevious.mockRejectedValueOnce(
+      new ApiClientError('http', 'Entre na sala.', 403, 'not_in_room'),
+    );
+    expect((await rejection(service.previous('sala-1', 'item-1'))).message).toBe('Entre na sala.');
   });
 
   it('pauses and resumes, and reads the jam from the store', async () => {

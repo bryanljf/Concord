@@ -16,7 +16,7 @@ export interface MusicCoverProps {
   /** Equalizer over the cover: you are listening and it plays. */
   playing: boolean;
   listening: boolean;
-  /** `md`: 56 px (players); `sm`: 40 px (search results, queue); `xs`: 32 px (compact rows). */
+  /** `md`: 64 px (players); `sm`: 40 px (search results, queue); `xs`: 32 px (compact rows). */
   size?: 'md' | 'sm' | 'xs';
   /** A link to another site (the Jam's covers): loaded lazily, without a referrer. */
   remote?: boolean;
@@ -28,7 +28,7 @@ const COVER_CLASSES = {
   xs: 'music-cover music-cover--xs',
 } as const;
 
-const COVER_ICON_SIZES = { md: 22, sm: 18, xs: 14 } as const;
+const COVER_ICON_SIZES = { md: 24, sm: 18, xs: 14 } as const;
 
 /** Rounded cover thumbnail; a note on the theme's background until (or unless) it arrives. */
 export function MusicCover({

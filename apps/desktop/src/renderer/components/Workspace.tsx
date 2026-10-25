@@ -25,6 +25,7 @@ import { useCamera, type CameraEndReason } from '../hooks/useCamera';
 import { useFullscreen } from '../hooks/useFullscreen';
 import { useHotkeys } from '../hooks/useHotkeys';
 import { useJam, useJamUploads } from '../hooks/useJam';
+import { useJamRecent } from '../hooks/useJamRecent';
 import { useJamStartedSound } from '../hooks/useJamStartedSound';
 import { useLiveStartedSound } from '../hooks/useLiveStartedSound';
 import { useMusicListening } from '../hooks/useMusicListening';
@@ -53,10 +54,12 @@ import {
   jamArtworkSrc,
   jamListenable,
   jamPerson,
+  jamRoomIdle,
   jamsElsewhere,
   jamTrackLine,
   jamUploadErrorMessage,
 } from '../lib/jam';
+import { JAM_RECENT_REFRESH_MS, jamRecentButtonShown } from '../lib/jamRecent';
 import { watchingWithMusic } from '../lib/musicListening';
 import { knownParticipants, presenceProfiles, withPresenceProfiles } from '../lib/presence';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
@@ -472,6 +475,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   // The drawer closes when the last Jam ends (the rooms' music buttons are gone with it).
   if (musicOpen && jamCount === 0) setMusicOpen(false);
   const toggleMusic = useCallback(() => setMusicOpen((open) => !open), []);
+  const openMusic = useCallback(() => setMusicOpen(true), []);
   const closeMusic = useCallback(() => setMusicOpen(false), []);
   const selfProfile = useMemo(
     () => ({ id: user.id, name: user.displayName, avatarUrl: user.avatarUrl ?? null }),
@@ -515,6 +519,40 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     },
     [noteJamAdded, toast, listeningJam, listenIn],
   );
+  // "Recentes" in the drawer (your room's Jam): the songs the server still has, asked when the
+  // drawer opens, every 30 s while it stays open and after each add. Its column closes with the
+  // drawer, outside the room, or when no song is left.
+  const recentJam = useJamRecent(musicOpen && currentJam !== null, JAM_RECENT_REFRESH_MS);
+  const [recentOpen, setRecentOpen] = useState(false);
+  const recentAvailable = jamRecentButtonShown(
+    musicOpen,
+    currentJam !== null,
+    recentJam.tracks.length,
+  );
+  if (recentOpen && !recentAvailable) setRecentOpen(false);
+  const toggleRecent = useCallback(() => setRecentOpen((open) => !open), []);
+  const closeRecent = useCallback(() => setRecentOpen(false), []);
+  const { refresh: refreshRecent } = recentJam;
+  // "+" on a recent song: added like a search result (toast, listening), a refusal as a toast.
+  const addRecent = useCallback(
+    (videoId: string): Promise<void> => {
+      if (!connected || !currentRoom) return Promise.resolve();
+      const roomId = currentRoom;
+      const roomWasIdle = jamRoomIdle(jam.rooms[roomId]);
+      return Promise.resolve()
+        .then(() => concord().addToJam(roomId, videoId))
+        .then(
+          (item) => onJamAdded(roomId, item, roomWasIdle),
+          (err: unknown) => {
+            toast.show(toErrorMessage(err, 'Não foi possível adicionar a música.'), {
+              tone: 'error',
+            });
+          },
+        )
+        .finally(refreshRecent);
+    },
+    [connected, currentRoom, jam.rooms, onJamAdded, toast, refreshRecent],
+  );
   const jamPersonOf = useCallback(
     (id: string) => jamPerson(id, profiles, selfProfile),
     [profiles, selfProfile],
@@ -549,6 +587,13 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             uploads: jamUploads,
             listeners: jamListeners,
             onOpenSearch: openJamSearch,
+            recent: {
+              tracks: recentJam.tracks,
+              open: recentOpen,
+              onToggle: toggleRecent,
+              onClose: closeRecent,
+              onAdd: addRecent,
+            },
           }
         : null,
     [
@@ -562,6 +607,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       jamUploads,
       jamListeners,
       openJamSearch,
+      recentJam.tracks,
+      recentOpen,
+      toggleRecent,
+      closeRecent,
+      addRecent,
     ],
   );
   const platform = getPlatform();
@@ -863,10 +913,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   useHotkeys(
     {
       onToggleFullscreen,
-      // One Esc, one step back: Jam search, music drawer, statistics panel, picker, fullscreen,
-      // destaque → grid.
+      // One Esc, one step back: Jam search, "Recentes", music drawer, statistics panel, picker,
+      // fullscreen, destaque → grid.
       onEscape: () => {
         if (jamSearchRoom !== null) closeJamSearch();
+        else if (recentOpen) closeRecent();
         else if (musicOpen) closeMusic();
         else if (statsTarget) closeStats();
         else if (pickerOpen) closePicker();
@@ -1013,6 +1064,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           musicCards={musicCards}
           onListen={listening.listen}
           onStopListening={listening.stop}
+          onOpenMusic={openMusic}
         >
           {statsTarget && <StatsPanel target={statsTarget} onClose={closeStats} />}
         </Stage>

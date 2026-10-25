@@ -5,6 +5,7 @@
  * unknown fields are dropped; only a bad cover URL is softened to null.
  */
 import {
+  JAM_HISTORY_MAX,
   JAM_QUEUE_MAX,
   ROOM_ID_PATTERN,
   YOUTUBE_VIDEO_ID_PATTERN,
@@ -12,6 +13,7 @@ import {
   type JamItem,
   type JamItemStatus,
   type JamNowPlaying,
+  type JamRecentTrack,
   type JamSnapshot,
   type JamState,
   type JamTrack,
@@ -88,6 +90,15 @@ export function parseJamTrack(value: unknown): JamTrack | null {
   };
 }
 
+/** An entry of "Recentes" (`GET /api/jam/recent`): a track and when the server last used it. */
+export function parseJamRecentTrack(value: unknown): JamRecentTrack | null {
+  if (!isRecord(value)) return null;
+  const { usedAt } = value;
+  const track = parseJamTrack(value);
+  if (!track || !isTime(usedAt)) return null;
+  return { ...track, usedAt };
+}
+
 export function parseJamItem(value: unknown): JamItem | null {
   if (!isRecord(value)) return null;
   const { id, requestedBy, addedAt, status } = value;
@@ -108,23 +119,33 @@ function parseNowPlaying(value: unknown): JamNowPlaying | null {
   return { item, positionMs, at, paused, pausedBy };
 }
 
+/** A list of at most `max` items, all valid; null otherwise. */
+function parseJamItems(value: unknown, max: number): JamItem[] | null {
+  if (!Array.isArray(value) || value.length > max) return null;
+  const items: JamItem[] = [];
+  for (const entry of value) {
+    const item = parseJamItem(entry);
+    if (!item) return null;
+    items.push(item);
+  }
+  return items;
+}
+
+/** Always sets `history` (servers from before "Música anterior" send none: empty). */
 export function parseJamState(value: unknown): JamState | null {
   if (!isRecord(value)) return null;
-  const { room, queue } = value;
+  const { room } = value;
   if (typeof room !== 'string' || !ROOM_ID_PATTERN.test(room)) return null;
   let current: JamNowPlaying | null = null;
   if (value.current !== null) {
     current = parseNowPlaying(value.current);
     if (!current) return null;
   }
-  if (!Array.isArray(queue) || queue.length > JAM_QUEUE_MAX) return null;
-  const items: JamItem[] = [];
-  for (const entry of queue) {
-    const item = parseJamItem(entry);
-    if (!item) return null;
-    items.push(item);
-  }
-  return { room, current, queue: items };
+  const queue = parseJamItems(value.queue, JAM_QUEUE_MAX);
+  if (!queue) return null;
+  const history = value.history === undefined ? [] : parseJamItems(value.history, JAM_HISTORY_MAX);
+  if (!history) return null;
+  return { room, current, queue, history };
 }
 
 export function parseJamSnapshot(value: unknown): JamSnapshot | null {

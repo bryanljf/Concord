@@ -107,7 +107,7 @@ export function jamArtworkSrc(url: string | null | undefined): string | null {
 export const JAM_SEARCH_MIN_LENGTH = 2;
 
 /** Typing pauses this long before a search goes out. */
-export const JAM_SEARCH_DEBOUNCE_MS = 350;
+export const JAM_SEARCH_DEBOUNCE_MS = 250;
 
 /** The search shows only the best few results. */
 export const JAM_RESULTS_SHOWN = 4;
@@ -162,7 +162,10 @@ export function jamDurationLabel(durationMs: number): string {
   return durationMs > 0 ? formatTrackTime(durationMs) : '–:––';
 }
 
-/** "Random Access Memories · 6:09" (just the duration without an album). */
+/**
+ * "Random Access Memories · 6:09" (just the duration without an album): part of a search result's
+ * accessible name. On screen the album always shows below the artists, never next to them.
+ */
 export function jamTrackDetail(track: JamTrack): string {
   const duration = jamDurationLabel(track.durationMs);
   return track.album ? `${track.album} · ${duration}` : duration;
@@ -374,6 +377,25 @@ export function jamEmptyQueueText(playing: boolean): string {
   return playing
     ? 'Nenhuma música na fila. Adicione a próxima.'
     : 'Nenhuma música na fila. Busque uma música para começar a Jam.';
+}
+
+// --- Previous song -------------------------------------------------------------------------
+
+/**
+ * The song "Música anterior" goes back to: the last one played in this Jam (`history[0]`, the
+ * most recent first). Null until a song was really played (and from servers without a history):
+ * the button only shows with one.
+ */
+export function jamPreviousItem(state: JamState | null | undefined): JamItem | null {
+  return state?.history?.[0] ?? null;
+}
+
+/** The tooltip of "Música anterior": "Voltar para “Get Lucky” (para todos da sala)". */
+export function jamPreviousTitle(item: JamItem): string {
+  const title = item.track.title.trim();
+  return title
+    ? `Voltar para “${title}” (para todos da sala)`
+    : 'Voltar para a música anterior (para todos da sala)';
 }
 
 // --- Rooms ---------------------------------------------------------------------------------

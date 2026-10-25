@@ -3,7 +3,10 @@ import type { FastifyPluginAsync } from 'fastify';
 import {
   JAM_UPLOAD_CONTENT_TYPE,
   type JamEnqueueResponse,
+  type JamPreviousRequest,
+  type JamRecentResponse,
   type JamSearchResponse,
+  type JamSeekRequest,
   type JamSnapshot,
   type RoomId,
 } from '@concord/shared';
@@ -43,6 +46,26 @@ function stringField(body: unknown, name: string): string | undefined {
 
 const PER_MINUTE = (max: number) => ({ rateLimit: { max, timeWindow: '1 minute' } });
 
+/** Item ids are ours (UUIDs): anything longer is not one. */
+const ITEM_ID_MAX_LENGTH = 64;
+
+const seekBodySchema = {
+  type: 'object',
+  required: ['itemId', 'positionMs'],
+  properties: {
+    itemId: { type: 'string', maxLength: ITEM_ID_MAX_LENGTH },
+    positionMs: { type: 'integer', minimum: 0 },
+  },
+} as const;
+
+const previousBodySchema = {
+  type: 'object',
+  required: ['itemId'],
+  properties: {
+    itemId: { type: ['string', 'null'], maxLength: ITEM_ID_MAX_LENGTH },
+  },
+} as const;
+
 /**
  * The Jam (a YouTube Music queue per room, routes listed in `@concord/shared` jam.ts). Every
  * route needs the session; mutations also need the caller in that room, except the audio upload,
@@ -67,6 +90,12 @@ export const jamRoutes: FastifyPluginAsync<JamRoutesOptions> = async (
       const { q } = request.query;
       return jam.search(typeof q === 'string' ? q : '');
     },
+  );
+
+  app.get(
+    '/api/jam/recent',
+    { preHandler: authenticate, config: PER_MINUTE(30) },
+    async (): Promise<JamRecentResponse> => jam.recent(),
   );
 
   app.get('/api/jam', { preHandler: authenticate }, async (): Promise<JamSnapshot> =>
@@ -100,6 +129,25 @@ export const jamRoutes: FastifyPluginAsync<JamRoutesOptions> = async (
       const itemId = stringField(request.body, 'itemId');
       if (!itemId) throw new JamError('stale');
       await jam.skip(getUser(request).id, request.params.room, itemId);
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<{ Params: RoomParams; Body: JamSeekRequest }>(
+    '/api/rooms/:room/jam/seek',
+    { schema: { body: seekBodySchema }, preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      const { itemId, positionMs } = request.body;
+      await jam.seek(getUser(request).id, request.params.room, itemId, positionMs);
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<{ Params: RoomParams; Body: JamPreviousRequest }>(
+    '/api/rooms/:room/jam/previous',
+    { schema: { body: previousBodySchema }, preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      await jam.previous(getUser(request).id, request.params.room, request.body.itemId);
       return reply.code(204).send();
     },
   );

@@ -11,6 +11,11 @@ export interface YouTubeMusic {
   search(query: string): Promise<JamTrack[]>;
   /** One video's metadata; null when YouTube Music does not know it. Rejects with YouTubeMusicError. */
   track(videoId: string): Promise<JamTrack | null>;
+  /**
+   * Gets the YouTube Music session ready (module, visitor session, connection) so the first
+   * search does not pay for it. Never rejects.
+   */
+  warmUp?(): Promise<void>;
 }
 
 export class YouTubeMusicError extends Error {
@@ -64,6 +69,8 @@ export interface MusicSource {
   searchSongs(query: string): Promise<readonly SongLike[]>;
   /** The "up next" panel of `videoId` (its first video is that one); empty when unknown. */
   upNext(videoId: string): Promise<readonly PanelVideoLike[]>;
+  /** Opens the session ahead of the first call (may reject; the caller ignores it). */
+  warmUp?(): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,12 +227,24 @@ export class TrackCache {
   }
 }
 
+/** A search typed again within this long is answered from memory. */
+export const SEARCH_CACHE_TTL_MS = 10 * 60_000;
+/** Distinct searches remembered (the oldest go first). */
+export const SEARCH_CACHE_MAX_ENTRIES = 200;
+
+/** "  Daft  PUNK " and "daft punk" are the same search. */
+export function searchKey(query: string): string {
+  return query.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 export interface YouTubeMusicOptions {
   /** Defaults to youtubei.js (innertubeSource). */
   source?: MusicSource;
   /** Whole-call timeout (default 10 s). */
   timeoutMs?: number;
   cache?: TrackCache;
+  /** Clock for the search cache (tests). */
+  now?: () => number;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
@@ -246,30 +265,74 @@ function upstreamError(what: string, err: unknown): YouTubeMusicError {
   return new YouTubeMusicError(`${what} failed: ${message}`);
 }
 
-/** YouTube Music with a track cache in front: search results and lookups are remembered. */
+/**
+ * YouTube Music with caches in front: searches typed again within SEARCH_CACHE_TTL_MS are answered
+ * from memory (identical searches in flight share one request), and every track seen is
+ * remembered for enqueueing.
+ */
 export function createYouTubeMusic(options: YouTubeMusicOptions = {}): YouTubeMusic {
   const timeoutMs = options.timeoutMs ?? 10_000;
   const source = options.source ?? innertubeSource({ requestTimeoutMs: timeoutMs });
   const cache = options.cache ?? new TrackCache();
+  const now = options.now ?? Date.now;
+  const searches = new Map<string, { tracks: JamTrack[]; expiresAt: number }>();
+  const pending = new Map<string, Promise<JamTrack[]>>();
+
+  async function searchUpstream(query: string): Promise<JamTrack[]> {
+    let songs: readonly SongLike[];
+    try {
+      songs = await withTimeout(source.searchSongs(query), timeoutMs, 'YouTube Music search');
+    } catch (err) {
+      throw upstreamError('YouTube Music search', err);
+    }
+    const tracks: JamTrack[] = [];
+    const seen = new Set<string>();
+    for (const song of songs) {
+      const track = songToTrack(song);
+      if (!track || seen.has(track.videoId)) continue;
+      seen.add(track.videoId);
+      cache.set(track);
+      tracks.push(track);
+      if (tracks.length >= JAM_SEARCH_LIMIT) break;
+    }
+    return tracks;
+  }
+
+  function remember(key: string, tracks: JamTrack[]): void {
+    searches.delete(key);
+    searches.set(key, { tracks, expiresAt: now() + SEARCH_CACHE_TTL_MS });
+    while (searches.size > SEARCH_CACHE_MAX_ENTRIES) {
+      const oldest = searches.keys().next().value;
+      if (oldest === undefined) break;
+      searches.delete(oldest);
+    }
+  }
+
   return {
     async search(query) {
-      let songs: readonly SongLike[];
+      const key = searchKey(query);
+      const hit = searches.get(key);
+      if (hit && hit.expiresAt > now()) return hit.tracks;
+      if (hit) searches.delete(key);
+      let request = pending.get(key);
+      if (!request) {
+        request = searchUpstream(query).then((tracks) => {
+          remember(key, tracks);
+          return tracks;
+        });
+        pending.set(key, request);
+        // Failures are not remembered: the next identical search asks YouTube again.
+        request.finally(() => pending.delete(key)).catch(() => undefined);
+      }
+      return request;
+    },
+
+    async warmUp() {
       try {
-        songs = await withTimeout(source.searchSongs(query), timeoutMs, 'YouTube Music search');
-      } catch (err) {
-        throw upstreamError('YouTube Music search', err);
+        await withTimeout(source.warmUp?.() ?? Promise.resolve(), timeoutMs * 3, 'warm-up');
+      } catch {
+        // The first search simply pays for it.
       }
-      const tracks: JamTrack[] = [];
-      const seen = new Set<string>();
-      for (const song of songs) {
-        const track = songToTrack(song);
-        if (!track || seen.has(track.videoId)) continue;
-        seen.add(track.videoId);
-        cache.set(track);
-        tracks.push(track);
-        if (tracks.length >= JAM_SEARCH_LIMIT) break;
-      }
-      return tracks;
     },
 
     async track(videoId) {
@@ -353,12 +416,22 @@ export function innertubeSource(options: InnertubeSourceOptions = {}): MusicSour
     }
   }
 
+  async function searchSongs(query: string): Promise<readonly SongLike[]> {
+    return call(async (yt) => {
+      const search = await yt.music.search(query, { type: 'song' });
+      return search.songs?.contents ?? [];
+    });
+  }
+
   return {
-    searchSongs: (query) =>
-      call(async (yt) => {
-        const search = await yt.music.search(query, { type: 'song' });
-        return search.songs?.contents ?? [];
-      }),
+    searchSongs,
+
+    // Loading youtubei.js, creating the session and the first YouTube Music request took ~8 s
+    // on the first search: do it once at start instead (the answer itself is thrown away).
+    warmUp: async () => {
+      await connect();
+      await searchSongs('musica');
+    },
 
     upNext: (videoId) =>
       call(async (yt) => {

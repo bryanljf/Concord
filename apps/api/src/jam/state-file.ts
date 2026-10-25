@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import {
+  JAM_HISTORY_MAX,
   YOUTUBE_VIDEO_ID_PATTERN,
   type JamItem,
   type JamNowPlaying,
@@ -22,10 +23,13 @@ function isRecord(value: unknown): value is Fields {
 }
 
 const isText = (value: unknown): value is string => typeof value === 'string' && value !== '';
-const isTime = (value: unknown): value is number =>
+
+/** A server clock time (or duration): a finite number, 0 or more. */
+export const isTime = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
-function parseTrack(value: unknown): JamTrack | undefined {
+/** A song's description as we saved it (state file, cache infos); undefined when malformed. */
+export function parseTrack(value: unknown): JamTrack | undefined {
   if (!isRecord(value)) return undefined;
   const { videoId, title, artists, album, durationMs, artworkUrl } = value;
   if (typeof videoId !== 'string' || !YOUTUBE_VIDEO_ID_PATTERN.test(videoId)) return undefined;
@@ -42,6 +46,13 @@ function parseItem(value: unknown): JamItem | undefined {
   if (!track || !isText(id) || !isText(requestedBy) || !isTime(addedAt)) return undefined;
   if (status !== 'ready' && status !== 'downloading') return undefined;
   return { id, track, requestedBy, addedAt, status };
+}
+
+/** The valid items of a list (anything else: none). */
+function parseItems(value: unknown): JamItem[] {
+  return (Array.isArray(value) ? value : [])
+    .map(parseItem)
+    .filter((item): item is JamItem => item !== undefined);
 }
 
 function parseNowPlaying(value: unknown): JamNowPlaying | null | undefined {
@@ -84,14 +95,24 @@ export function parseJamStateFile(json: string, rooms: readonly RoomId[]): Persi
     if (!isRecord(value) || typeof value.room !== 'string' || !known.has(value.room)) continue;
     if (states.some((state) => state.room === value.room)) continue;
     const current = parseNowPlaying(value.current);
-    const queue = (Array.isArray(value.queue) ? value.queue : [])
-      .map(parseItem)
-      .filter((item): item is JamItem => item !== undefined);
-    const state: JamState = { room: value.room, current: current ?? null, queue: [] };
+    const queue = parseItems(value.queue);
+    const state: JamState & { history: JamItem[] } = {
+      room: value.room,
+      current: current ?? null,
+      queue: [],
+      history: [],
+    };
     for (const item of [...(state.current ? [state.current.item] : []), ...queue]) {
       if (itemIds.has(item.id)) continue;
       itemIds.add(item.id);
       if (item !== state.current?.item) state.queue.push(item);
+    }
+    // Only songs that played (so ready), most recent first, within the limit.
+    for (const item of parseItems(value.history)) {
+      if (item.status !== 'ready' || itemIds.has(item.id)) continue;
+      if (state.history.length >= JAM_HISTORY_MAX) break;
+      itemIds.add(item.id);
+      state.history.push(item);
     }
     states.push(state);
   }

@@ -95,7 +95,11 @@ describe('JamService', () => {
 
       s.bot.emit({ type: 'error', room: 'geral', itemId: second.item.id, message: 'boom' });
       await s.service.settled();
-      expect(s.service.snapshot().rooms).toEqual({});
+      expect(s.service.snapshot().rooms.geral).toMatchObject({
+        current: null,
+        queue: [],
+        history: [{ id: first.item.id }],
+      });
       // It stays, silent, so a song added soon starts without joining LiveKit again.
       s.clock.advance(JAM_BOT_LINGER_MS - 1);
       s.service.sweep();
@@ -105,6 +109,7 @@ describe('JamService', () => {
       s.service.sweep();
       await s.service.settled();
       expect(s.bot.callsOf('leave')).toEqual([{ method: 'leave', room: 'geral' }]);
+      expect(s.service.snapshot().rooms).toEqual({});
       expect(s.log.warn).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'boom' }),
         'the jam bot gave up on a song',
@@ -181,7 +186,7 @@ describe('JamService', () => {
         first.item.id,
         second.item.id,
       ]);
-      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_B}.webm`]);
+      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_B}.json`, `${VIDEO_B}.webm`]);
     });
 
     it('keeps the jam while the bot is down and catches it up on reconnection', async () => {
@@ -190,7 +195,11 @@ describe('JamService', () => {
       s.bot.unreachable = true;
       const { item } = await s.service.enqueue('alice', 'geral', VIDEO_A);
       await s.service.skip('bob', 'geral', item.id).catch(() => undefined);
-      expect(s.service.snapshot().rooms).toEqual({});
+      expect(s.service.snapshot().rooms.geral).toMatchObject({
+        current: null,
+        queue: [],
+        history: [{ id: item.id }],
+      });
       const second = await s.service.enqueue('alice', 'geral', VIDEO_A);
       expect(s.log.warn).toHaveBeenCalledWith(
         expect.objectContaining({ room: 'geral' }),
@@ -307,7 +316,7 @@ describe('JamService', () => {
       expect(s.bot.callsOf('probe')).toEqual([{ method: 'probe', file: probed, partial: false }]);
       expect(s.bot.plays()[0]?.request.growing).toBe(false);
       expect(s.bot.callsOf('complete')).toEqual([]);
-      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.webm`]);
+      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.json`, `${VIDEO_A}.webm`]);
       expect((await readFile(join(s.cacheDir, `${VIDEO_A}.webm`))).length).toBe(4096);
       const current = s.service.snapshot().rooms.geral?.current;
       expect(current?.item).toMatchObject({ id: item.id, status: 'ready' });
@@ -393,7 +402,11 @@ describe('JamService', () => {
       await s.service.upload('alice', 'geral', item.id, audio(1000));
       // B is the least recently used and not queued: it goes; A plays, C was used later.
       await s.service.maintainCache();
-      expect((await readdir(s.cacheDir)).sort()).toEqual([`${VIDEO_A}.webm`, `${VIDEO_C}.webm`]);
+      expect((await readdir(s.cacheDir)).sort()).toEqual([
+        `${VIDEO_A}.json`,
+        `${VIDEO_A}.webm`,
+        `${VIDEO_C}.webm`,
+      ]);
     });
   });
 
@@ -443,7 +456,7 @@ describe('JamService', () => {
       await age(s, VIDEO_C, 4 * HOUR);
       // No explicit call: the periodic pass (every 20 ms here) finds it.
       await waitFor(() => !existsSync(join(s.cacheDir, `${VIDEO_C}.webm`)));
-      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_B}.webm`]);
+      expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_B}.json`, `${VIDEO_B}.webm`]);
     });
 
     it('deletes temporary uploads left behind', async () => {

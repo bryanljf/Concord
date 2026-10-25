@@ -447,6 +447,16 @@ export function SkipForwardIcon(props: IconProps) {
   );
 }
 
+/** A bar against a triangle (the skip, mirrored): back to the previous song. */
+export function SkipBackIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M19 4.5v15a.5.5 0 0 1-.78.42l-10.4-7.5a.5.5 0 0 1 0-.84l10.4-7.5a.5.5 0 0 1 .78.42z" />
+      <path d="M5 5v14" />
+    </Icon>
+  );
+}
+
 /** A plus: add a song. */
 export function PlusIcon(props: IconProps) {
   return (

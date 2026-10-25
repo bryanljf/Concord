@@ -76,6 +76,7 @@ describe('JamAudioCache', () => {
       expired: [],
       evicted: [VIDEO_B],
       temps: 0,
+      orphans: 0,
     });
     // A fresh temporary file is an upload in progress: it stays, and does not count.
     expect((await readdir(dir)).sort()).toEqual([
@@ -97,6 +98,7 @@ describe('JamAudioCache', () => {
       expired: [VIDEO_B],
       evicted: [],
       temps: 0,
+      orphans: 0,
     });
     expect((await readdir(dir)).sort()).toEqual([`${VIDEO_A}.webm`, `${VIDEO_C}.webm`]);
   });
@@ -152,7 +154,12 @@ describe('JamAudioCache', () => {
 
   it('has nothing to do without a directory yet', async () => {
     const cache = new JamAudioCache(join(dir, 'missing'), 1, fakeLogger());
-    expect(await cache.maintain(new Set())).toEqual({ expired: [], evicted: [], temps: 0 });
+    expect(await cache.maintain(new Set())).toEqual({
+      expired: [],
+      evicted: [],
+      temps: 0,
+      orphans: 0,
+    });
   });
 
   it('moves an upload into place', async () => {
@@ -205,8 +212,8 @@ describe('parseJamStateFile', () => {
     });
     const parsed = parseJamStateFile(json, ['geral', 'jogos']);
     expect(parsed.rooms).toEqual<JamState[]>([
-      { room: 'geral', current: current('i1'), queue: [item('i2')] },
-      { room: 'jogos', current: null, queue: [] },
+      { room: 'geral', current: current('i1'), queue: [item('i2')], history: [] },
+      { room: 'jogos', current: null, queue: [], history: [] },
     ]);
     expect(parsed.uploads).toEqual([
       {

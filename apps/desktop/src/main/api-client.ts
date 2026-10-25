@@ -8,7 +8,11 @@ import {
   type ApiErrorResponse,
   type JamEnqueueRequest,
   type JamEnqueueResponse,
+  type JamPreviousRequest,
+  type JamRecentResponse,
+  type JamRecentTrack,
   type JamSearchResponse,
+  type JamSeekRequest,
   type JamSkipRequest,
   type JamTrack,
   type MeResponse,
@@ -21,7 +25,7 @@ import {
   type TokenResponse,
   type UserInfo,
 } from '@concord/shared';
-import { parseJamItem, parseJamTrack } from './jam-events';
+import { parseJamItem, parseJamRecentTrack, parseJamTrack } from './jam-events';
 import { parseAvatarUrl, parseProfileName } from './profile';
 
 export const API_TIMEOUT_MS = 10_000;
@@ -179,6 +183,8 @@ export type JamErrorCode =
   | 'already_uploaded'
   | 'invalid_audio'
   | 'stale'
+  | 'no_previous'
+  | 'previous_unavailable'
   // Upload-only, from the api's own error list (not in the shared contract).
   | 'unsupported_media_type'
   | 'payload_too_large';
@@ -204,6 +210,8 @@ export const JAM_ERROR_MESSAGES: Readonly<Record<JamErrorCode, string>> = {
   already_uploaded: 'O áudio dessa música já foi enviado.',
   invalid_audio: 'O servidor recusou o áudio baixado do YouTube.',
   stale: 'Essa música já tinha sido pulada.',
+  no_previous: 'Não há música anterior nesta Jam.',
+  previous_unavailable: 'A música anterior não está mais disponível.',
   unsupported_media_type: 'O servidor recusou o formato do áudio baixado do YouTube.',
   payload_too_large: JAM_AUDIO_TOO_LARGE_MESSAGE,
 };
@@ -312,6 +320,22 @@ function parseJamSearch(value: unknown): JamSearchResponse | null {
   return { results: tracks, cached: known };
 }
 
+/** Longest "Recentes" list kept (the server's 3 h cache never holds anywhere near this many). */
+export const JAM_RECENT_MAX = 500;
+
+function parseJamRecent(value: unknown): JamRecentTrack[] | null {
+  if (!isRecord(value)) return null;
+  const { tracks } = value as Partial<JamRecentResponse>;
+  if (!Array.isArray(tracks)) return null;
+  // Like the search: one odd entry is skipped, not the whole list.
+  const recent: JamRecentTrack[] = [];
+  for (const entry of tracks.slice(0, JAM_RECENT_MAX)) {
+    const track = parseJamRecentTrack(entry);
+    if (track) recent.push(track);
+  }
+  return recent;
+}
+
 function parseJamEnqueue(value: unknown): JamEnqueueResponse | null {
   if (!isRecord(value)) return null;
   const { upload } = value as Partial<JamEnqueueResponse>;
@@ -352,6 +376,11 @@ export interface ApiClient {
    * them the server already has (none with older servers).
    */
   jamSearch(query: string): Promise<JamSearchResponse>;
+  /**
+   * `GET /api/jam/recent`: the songs the server still has, most recently used first (malformed
+   * entries skipped, at most `JAM_RECENT_MAX`).
+   */
+  jamRecent(): Promise<JamRecentTrack[]>;
   /** `POST /api/rooms/:room/jam/queue` */
   jamEnqueue(room: RoomId, videoId: string): Promise<JamEnqueueResponse>;
   /**
@@ -368,6 +397,13 @@ export interface ApiClient {
   jamRemove(room: RoomId, itemId: string): Promise<void>;
   /** `POST /api/rooms/:room/jam/skip`; code `stale` when `itemId` is no longer the one playing. */
   jamSkip(room: RoomId, itemId: string): Promise<void>;
+  /** `POST /api/rooms/:room/jam/seek`; code `stale` when `itemId` is no longer the one playing. */
+  jamSeek(room: RoomId, itemId: string, positionMs: number): Promise<void>;
+  /**
+   * `POST /api/rooms/:room/jam/previous`, `itemId` being the song playing (null: none); code
+   * `stale` when that changed, `no_previous` / `previous_unavailable` when there is none to play.
+   */
+  jamPrevious(room: RoomId, itemId: string | null): Promise<void>;
   /** `POST /api/rooms/:room/jam/pause` */
   jamPause(room: RoomId): Promise<void>;
   /** `POST /api/rooms/:room/jam/resume` */
@@ -503,6 +539,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         'GET',
         jamLookup,
       ),
+    jamRecent: () =>
+      request('/api/jam/recent', parseJamRecent, undefined, 'GET', {
+        mapError: jamErrorFromResponse,
+      }),
     jamEnqueue: (room, videoId) => {
       const body: JamEnqueueRequest = { videoId };
       return request(jamPath(room, 'queue'), parseJamEnqueue, body, 'POST', jamLookup);
@@ -518,6 +558,14 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     jamSkip: (room, itemId) => {
       const body: JamSkipRequest = { itemId };
       return jamCommand(jamPath(room, 'skip'), { method: 'POST', json: body });
+    },
+    jamSeek: (room, itemId, positionMs) => {
+      const body: JamSeekRequest = { itemId, positionMs };
+      return jamCommand(jamPath(room, 'seek'), { method: 'POST', json: body });
+    },
+    jamPrevious: (room, itemId) => {
+      const body: JamPreviousRequest = { itemId };
+      return jamCommand(jamPath(room, 'previous'), { method: 'POST', json: body });
     },
     jamPause: (room) => jamCommand(jamPath(room, 'pause'), { method: 'POST' }),
     jamResume: (room) => jamCommand(jamPath(room, 'resume'), { method: 'POST' }),

@@ -24,6 +24,8 @@ interface MusicCardProps {
   listeners?: readonly Viewer[];
   onListen(): void;
   onStopListening(): void;
+  /** Opens the music panel: a click anywhere on the card, and "Ouvir" too. */
+  onOpen(): void;
 }
 
 const NO_LISTENERS: readonly Viewer[] = [];
@@ -32,7 +34,8 @@ const NO_LISTENERS: readonly Viewer[] = [];
  * The room's Jam on the stage: the green "JAM" badge, the song's cover (or a note), "Jam", what it
  * plays and "Ouvir" / "Parar de ouvir". Nothing is downloaded until "Ouvir", like "Assistir" for
  * lives. Once someone listens, the corner opposite the badge shows who, with overlapped avatars
- * like a live's viewers (only the count on a strip card).
+ * like a live's viewers (only the count on a strip card). A click anywhere on the card opens the
+ * music panel (player, queue, volume); "Ouvir" listens and opens it; "Parar de ouvir" only stops.
  */
 export function MusicCard({
   item,
@@ -40,6 +43,7 @@ export function MusicCard({
   listeners = NO_LISTENERS,
   onListen,
   onStopListening,
+  onOpen,
 }: MusicCardProps) {
   const strip = size === 'strip';
   const classes = ['live-card', 'music-card-stage', strip ? 'live-card--strip' : '']
@@ -49,7 +53,14 @@ export function MusicCard({
     ? 'music-card-stage__cover music-card-stage__cover--strip'
     : 'music-card-stage__cover';
   return (
-    <article className={classes} aria-label="A Jam está tocando nesta sala">
+    // The whole card opens the panel; keyboard users reach the same panel from its buttons and the
+    // room's headphone button, so the article itself stays a plain container.
+    <article
+      className={`${classes} music-card-stage--clickable`}
+      aria-label="A Jam está tocando nesta sala"
+      title="Abrir o painel da Jam"
+      onClick={onOpen}
+    >
       <span className="live-card__badge badge-music">JAM</span>
       {listeners.length > 0 &&
         (strip ? (
@@ -92,7 +103,11 @@ export function MusicCard({
           type="button"
           className={strip ? 'btn btn--sm live-card__watch' : 'btn'}
           aria-label="Parar de ouvir a Jam"
-          onClick={onStopListening}
+          onClick={(event) => {
+            // Only stops listening: never opens the panel.
+            event.stopPropagation();
+            onStopListening();
+          }}
         >
           <HeadphonesIcon size={strip ? 14 : 18} />
           Parar de ouvir
@@ -101,8 +116,12 @@ export function MusicCard({
         <button
           type="button"
           className={strip ? 'btn btn--primary btn--sm live-card__watch' : 'btn btn--primary'}
-          aria-label="Ouvir a Jam"
-          onClick={onListen}
+          aria-label="Ouvir a Jam e abrir o painel"
+          onClick={(event) => {
+            event.stopPropagation();
+            onListen();
+            onOpen();
+          }}
         >
           <HeadphonesIcon size={strip ? 14 : 18} />
           Ouvir

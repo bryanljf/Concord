@@ -24,8 +24,10 @@ import type { Updater } from './updater';
 import {
   expectBoolean,
   expectJamItemId,
+  expectJamPositionMs,
   expectJamQuery,
   expectNickname,
+  expectNullableJamItemId,
   expectOptionalTokenPurpose,
   expectPipResizeCorner,
   expectRoomId,
@@ -228,6 +230,7 @@ export function registerIpc(deps: IpcDeps): () => void {
   // --- Jam (reads from any window, changes from the main window only) -----------------------
   handle(IPC.GET_JAM, () => jam.getState());
   handle(IPC.GET_JAM_UPLOADS, () => jam.getUploads());
+  handle(IPC.GET_JAM_RECENT, () => jam.recent());
   handle(IPC.SEARCH_JAM, (ctx, query) => {
     requireKind(ctx, 'main');
     return jam.search(expectJamQuery(query));
@@ -248,6 +251,14 @@ export function registerIpc(deps: IpcDeps): () => void {
   handle(IPC.SKIP_JAM, (ctx, room, itemId) => {
     requireKind(ctx, 'main');
     return jam.skip(expectRoomId(room), expectJamItemId(itemId));
+  });
+  handle(IPC.SEEK_JAM, (ctx, room, itemId, positionMs) => {
+    requireKind(ctx, 'main');
+    return jam.seek(expectRoomId(room), expectJamItemId(itemId), expectJamPositionMs(positionMs));
+  });
+  handle(IPC.PREVIOUS_JAM, (ctx, room, itemId) => {
+    requireKind(ctx, 'main');
+    return jam.previous(expectRoomId(room), expectNullableJamItemId(itemId));
   });
   handle(IPC.PAUSE_JAM, (ctx, room) => {
     requireKind(ctx, 'main');

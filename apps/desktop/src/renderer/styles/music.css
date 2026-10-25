@@ -81,7 +81,9 @@
 
 /* --- Drawer ----------------------------------------------------------------------------- */
 /* Out of the sidebar, over the top-left of the stage: the layout never moves. Above the tiles
-   and the statistics panel, below the settings overlay, the source picker, toasts and menus. */
+   and the statistics panel, below the settings overlay, the source picker, toasts and menus.
+   "Recentes" widens it smoothly to show a second column (its widths come from
+   lib/jamRecent.ts `musicDrawerLayout`, inline). */
 .music-drawer {
   position: absolute;
   top: 0;
@@ -89,7 +91,7 @@
   z-index: 45;
   display: flex;
   flex-direction: column;
-  width: 360px;
+  width: 468px;
   max-width: calc(100% - 24px);
   max-height: calc(100% - 12px);
   border-radius: 0 0 var(--radius-lg) 0;
@@ -101,6 +103,7 @@
   visibility: hidden;
   transition:
     transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
     visibility 0s linear 240ms;
 }
 
@@ -109,6 +112,7 @@
   visibility: visible;
   transition:
     transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 240ms cubic-bezier(0.2, 0.8, 0.2, 1),
     visibility 0s;
 }
 
@@ -134,12 +138,23 @@
   height: 28px;
 }
 
+/* The main column and, with "Recentes", its column on the right. Both keep their widths while
+   the drawer widens or narrows: what does not fit yet is cut, never squeezed nor scrolled. */
+.music-drawer__columns {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .music-drawer__body {
   display: flex;
-  flex: 1;
+  flex: none;
   flex-direction: column;
   gap: 14px;
   min-height: 0;
+  /* Never sideways: everything inside fits the drawer's width (long text slides or ends in …). */
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 10px 10px 12px;
 }
@@ -180,19 +195,20 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
+/* The text column takes whatever width the drawer gives; the cover matches its four lines. */
 .music-player__main {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .music-cover {
   position: relative;
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   overflow: hidden;
   border-radius: 6px;
   background: var(--bg-active);
@@ -226,7 +242,7 @@
   min-width: 0;
 }
 
-/* Title and artist slide when too long (Marquee); the name just ends in an ellipsis. */
+/* Title, artists and album slide when too long (Marquee); the name just ends in an ellipsis. */
 .music-player__who {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -242,6 +258,12 @@
 .music-player__artist {
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* The album on its own line below the artists, a step smaller. */
+.music-player__album {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .music-player__source {
@@ -285,29 +307,122 @@
   text-align: left;
 }
 
+/* The bar's box: taller than the line it draws, so it is easy to hit. */
+.music-progress__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 12px;
+}
+
 .music-progress__track {
   position: relative;
+  flex: 1;
   height: 4px;
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: 3px;
   background: rgba(255, 255, 255, 0.18);
+  transition: height var(--transition);
 }
 
 .music-progress__fill {
   position: absolute;
   inset: 0;
-  border-radius: 2px;
   background: var(--text-normal);
   transform: scaleX(var(--music-progress, 0));
   transform-origin: left;
-}
-
-.music-progress__fill--playing {
-  transition: transform 250ms linear;
+  transition: background-color var(--transition);
 }
 
 .music-player--listening .music-progress__fill {
   background: var(--accent);
+}
+
+/* The thumb's carrier: as wide as the bar and slid along by the progress, like the fill (a
+   transform, so it glides with it). It comes in from the left (fully left of the bar at 0, over
+   it at the end) with the thumb on its right edge: sliding it rightwards instead would stick out
+   past the bar and give the drawer a horizontal scrollbar (overflow to the left never scrolls). */
+.music-progress__head {
+  position: absolute;
+  inset: 0;
+  transform: translateX(calc((var(--music-progress, 0) - 1) * 100%));
+  pointer-events: none;
+}
+
+/* While playing, the fill and the thumb glide between the clock's ticks (not while dragging). */
+.music-progress__bar--playing .music-progress__fill {
+  transition:
+    transform 250ms linear,
+    background-color var(--transition);
+}
+
+.music-progress__bar--playing .music-progress__head {
+  transition: transform 250ms linear;
+}
+
+/* Seekable (in the room): like the volume slider on hover or focus, a thicker bar in the accent
+   colour with a round white thumb (smaller than the volume's) and the time under the pointer. */
+.music-progress__bar--seekable {
+  cursor: pointer;
+  touch-action: none;
+}
+
+.music-progress__bar--seekable:hover .music-progress__track,
+.music-progress__bar--seekable:focus-visible .music-progress__track,
+.music-progress__bar--dragging .music-progress__track {
+  height: 6px;
+}
+
+.music-progress__bar--seekable:hover .music-progress__fill,
+.music-progress__bar--seekable:focus-visible .music-progress__fill,
+.music-progress__bar--dragging .music-progress__fill {
+  background: var(--accent);
+}
+
+.music-progress__thumb {
+  position: absolute;
+  top: 50%;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  transform: scale(0);
+  transition: transform var(--transition);
+}
+
+.music-progress__bar--seekable:hover .music-progress__thumb,
+.music-progress__bar--seekable:focus-visible .music-progress__thumb {
+  transform: scale(1);
+}
+
+.music-progress__bar--dragging .music-progress__thumb {
+  transform: scale(1.2);
+}
+
+.music-progress__bar--seekable:focus-visible {
+  outline: none;
+  border-radius: 6px;
+  box-shadow: var(--focus-ring);
+}
+
+.music-progress__tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  z-index: 2;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-strong);
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* --- Volume ----------------------------------------------------------------------------- */
@@ -391,7 +506,8 @@
 @media (prefers-reduced-motion: reduce) {
   .music-drawer,
   .music-drawer--open,
-  .music-progress__fill--playing {
+  .music-progress__bar--playing .music-progress__fill,
+  .music-progress__bar--playing .music-progress__head {
     transition: none;
   }
 
@@ -478,8 +594,22 @@
   font-size: 10px;
 }
 
+.music-progress--compact .music-progress__bar {
+  height: 10px;
+}
+
 .music-progress--compact .music-progress__track {
   height: 3px;
+}
+
+.music-progress--compact .music-progress__bar--seekable:hover .music-progress__track,
+.music-progress--compact .music-progress__bar--seekable:focus-visible .music-progress__track,
+.music-progress--compact .music-progress__bar--dragging .music-progress__track {
+  height: 5px;
+}
+
+.music-progress--compact .music-progress__tip {
+  font-size: 10px;
 }
 
 /* The Jam's stage card without a cover: a note in the cover's place. */
@@ -487,4 +617,10 @@
   display: grid;
   place-items: center;
   color: var(--text-muted);
+}
+
+/* The stage's Jam card opens the music panel when clicked anywhere (its buttons keep their own
+   action: "Ouvir" listens and opens, "Parar de ouvir" only stops). */
+.music-card-stage--clickable {
+  cursor: pointer;
 }

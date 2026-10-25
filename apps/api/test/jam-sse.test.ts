@@ -84,7 +84,7 @@ describe('GET /api/presence?jam=1', () => {
       await waitFor(() => events.length === 4);
       expect(events[2]).toEqual({
         type: 'jam_updated',
-        state: { room: 'geral', current: null, queue: [item] },
+        state: { room: 'geral', current: null, queue: [item], history: [] },
         serverTime: s.clock.time,
       });
       expect(events[3]?.type).toBe('participant_joined');
@@ -154,7 +154,7 @@ describe('PUT /api/rooms/:room/jam/items/:itemId/audio over a real socket', () =
       body: new Uint8Array(256 * 1024).fill(5),
     });
     expect(res.status).toBe(204);
-    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.webm`]);
+    expect(await readdir(s.cacheDir)).toEqual([`${VIDEO_A}.json`, `${VIDEO_A}.webm`]);
     expect(s.service.snapshot().rooms.geral?.current?.item.id).toBe(item.id);
   });
 

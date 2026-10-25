@@ -9,6 +9,7 @@ import { Marquee } from '../music/Marquee';
 import { MusicCover } from '../music/MusicCover';
 import { JamPlayer, type JamListeningControls } from './JamPlayer';
 import { JamQueue } from './JamQueue';
+import { JamRecentButton, type JamRecentButtonProps } from './JamRecent';
 import '../../styles/jam.css';
 
 interface JamRoomPanelProps {
@@ -21,11 +22,14 @@ interface JamRoomPanelProps {
   listening: JamListeningControls;
   /** "Adicionar música": the search dialog. */
   onOpenSearch(): void;
+  /** "Recentes" left of it; null (no button) while the server has no recent song. */
+  recent: JamRecentButtonProps | null;
 }
 
 /**
  * Your room's Jam in the music drawer (only while connected to it): the song playing with its
- * controls, then "A seguir" with the queue, and "Adicionar música".
+ * controls, then "A seguir" with the queue, "Recentes" (when the server has some) and "Adicionar
+ * música".
  */
 export function JamRoomPanel({
   room,
@@ -36,16 +40,20 @@ export function JamRoomPanel({
   listeners,
   listening,
   onOpenSearch,
+  recent,
 }: JamRoomPanelProps) {
   const actions = useJamActions();
   return (
     <section className="music-drawer__section jam-panel" aria-label="Jam nesta sala">
       <div className="jam-panel__header">
         <h3 className="music-drawer__heading">Jam</h3>
-        <button type="button" className="btn btn--sm jam-panel__add" onClick={onOpenSearch}>
-          <PlusIcon size={14} />
-          Adicionar música
-        </button>
+        <div className="jam-panel__actions">
+          {recent && <JamRecentButton open={recent.open} onToggle={recent.onToggle} />}
+          <button type="button" className="btn btn--sm jam-panel__add" onClick={onOpenSearch}>
+            <PlusIcon size={14} />
+            Adicionar música
+          </button>
+        </div>
       </div>
       <JamPlayer
         room={room}

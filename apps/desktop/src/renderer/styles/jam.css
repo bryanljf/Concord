@@ -33,6 +33,14 @@
   margin-bottom: 0;
 }
 
+/* "Recentes" (when there are some) left of "Adicionar música". */
+.jam-panel__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
 /* The music's green, like the bottom bar's "Música". */
 .btn.jam-panel__add {
   gap: 6px;
@@ -60,27 +68,76 @@
   font-size: 12px;
 }
 
+/* Under the progress bar, centered on the card (who listens is up in its top-right corner). */
 .jam-controls {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
 }
 
-.btn.jam-controls__btn {
-  gap: 6px;
+/* Icon-only (the name is in the aria-label and the tooltip): the app's icon buttons, square-ish
+   at the height the labelled ones had, filled so they read as the player's controls. */
+.icon-btn.jam-controls__btn {
+  flex: none;
+  width: 32px;
   height: 28px;
-  padding: 0 10px;
   background: var(--bg-active);
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--text-strong);
 }
 
-.btn.jam-controls__btn:hover:not(:disabled) {
+.icon-btn.jam-controls__btn:hover:not(:disabled) {
   background: var(--bg-selected);
+  color: var(--text-strong);
 }
 
-.jam-controls__listeners {
-  margin-left: auto;
+/* The player's right column, as tall as its top block: who listens in the top-right corner (the
+   card's padding away from its edges), "Ouvir" / "Parar de ouvir" at the bottom, right-aligned;
+   the column reserves the room of both, so nothing overlaps the title or the progress bar. */
+.music-player__actions.jam-player__actions {
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: stretch;
+  /* At the top, right under the listeners: the seek bar's time tooltip pops up above the bar and
+     must never land on "Parar de ouvir". */
+  justify-content: flex-start;
+  gap: 6px;
+  padding-bottom: 14px;
+}
+
+/* Who listens, about three quarters of a live's size (16 px icon, 12 px count, 18 px avatars). */
+.viewers.jam-player__listeners {
+  gap: 3px;
+  padding: 0;
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.jam-player__listeners > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.jam-player__listeners .viewers__stack {
+  padding-left: 3px;
+}
+
+.jam-player__listeners .viewers__stack > .avatar {
+  width: 14px;
+  height: 14px;
+  font-size: 6px;
+}
+
+.jam-player__listeners .viewers__stack > * {
+  margin-left: -4px;
+  box-shadow: 0 0 0 1.5px var(--viewers-ring);
+}
+
+.jam-player__listeners .viewers__more {
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 8px;
 }
 
 /* --- Queue ("A seguir") --------------------------------------------------------------------- */
@@ -470,10 +527,10 @@
   white-space: nowrap;
 }
 
+/* Below the artists, sliding when too long (Marquee); it gives way so the duration always shows. */
 .jam-result__album {
+  flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .jam-result__detail > :not(.jam-result__album) {
@@ -509,4 +566,13 @@
   .jam-modal {
     animation: none;
   }
+}
+
+/* "Música anterior" stays in place (keeping the controls centered) but dimmed until a song was
+   played before in this Jam. */
+.icon-btn.jam-controls__btn:disabled,
+.jam-compact__controls .icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
 }

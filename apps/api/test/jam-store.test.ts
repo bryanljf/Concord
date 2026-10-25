@@ -151,18 +151,24 @@ describe('JamStore', () => {
       expect(updates).toEqual([]);
     });
 
-    it('ends the jam (an empty update) when the last song finishes', () => {
+    it('keeps the session history when the last song finishes', () => {
       const { store, updates, clock } = setup();
       store.enqueue('geral', track(VIDEO_A), 'alice', true);
       clock.advance(1000);
       store.finish('geral', 'item-1');
       expect(updates.at(-1)).toEqual({
         type: 'jam_updated',
-        state: { room: 'geral', current: null, queue: [] },
+        state: {
+          room: 'geral',
+          current: null,
+          queue: [],
+          history: [expect.objectContaining({ id: 'item-1' })],
+        },
         serverTime: clock.time,
       });
-      expect(store.isEmpty('geral')).toBe(true);
-      expect(store.snapshot(true).rooms).toEqual({});
+      expect(store.isEmpty('geral')).toBe(false);
+      expect(store.isIdle('geral')).toBe(true);
+      expect(store.snapshot(true).rooms.geral?.history).toHaveLength(1);
     });
   });
 
@@ -406,7 +412,7 @@ describe('JamStore', () => {
     updates.length = 0;
     store.clear('geral');
     expect(updates.map((update) => update.state)).toEqual([
-      { room: 'geral', current: null, queue: [] },
+      { room: 'geral', current: null, queue: [], history: [] },
     ]);
     expect(store.pendingUploads()).toEqual([]);
     expect(store.activeRooms()).toEqual([]);
