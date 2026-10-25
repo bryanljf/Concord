@@ -19,6 +19,8 @@ pnpm typecheck            # tsc em todos os pacotes
 pnpm test                 # vitest em todos os pacotes
 pnpm build                # build de todos os pacotes
 pnpm --filter @concord/desktop dist   # instalador NSIS (apps/desktop/release); publica no GitHub via release.yml
+pnpm --filter @concord/desktop dev:web    # versão web (Vite, src/web) com proxy de /api para o api local
+pnpm --filter @concord/desktop build:web  # versão web estática em apps/desktop/out/web; o Deploy Oracle a envia para a VM
 ```
 
 Se o binário do Electron não baixar no `pnpm install`, rode
@@ -30,9 +32,9 @@ Dentro do VS Code, limpe `ELECTRON_RUN_AS_NODE` antes de iniciar o Electron manu
 - `packages/shared` — tipos e constantes compartilhados (presença, DTOs, presets de qualidade). Exporta TS puro.
 - `packages/process-audio` — adaptador do addon `loopback-capture` (áudio por processo no Windows, binário pré-compilado); carregado em runtime pelo main, fora do bundle e fora do asar.
 - `apps/api` — concord-api (Fastify 5). `src/app.ts` monta o app (testável via `inject`), `src/index.ts` só dá `listen`.
-- `apps/desktop` — Electron 44 + electron-vite + React 19. `src/main` (processo principal: bandeja, presença SSE, settings), `src/preload` (ponte IPC; o contrato é `api.d.ts`), `src/renderer` (UI).
+- `apps/desktop` — Electron 44 + electron-vite + React 19. `src/main` (processo principal: bandeja, presença SSE, settings), `src/preload` (ponte IPC; o contrato é `api.d.ts`), `src/renderer` (UI), `src/web` (versão web: segundo build Vite, `vite.web.config.ts`, que reaproveita o renderer tal como está e instala `window.concord = createWebApi()`, a mesma `ConcordApi` sobre fetch/EventSource/localStorage; o que é só Electron fica escondido por `capabilities`). Saída em `out/web`, servida pelo Caddy na raiz do domínio.
 - `apps/jam-bot` — Go: toca a fila da Jam de cada sala no LiveKit (Opus original, estéreo, sem re-encode). Player burro comandado pelo api; contrato em `API.md`. Fora do pnpm: `go vet/test` no job `jam-bot` do CI, e o binário linux/arm64 é compilado no GitHub e enviado pelo deploy (a VM nunca compila Go).
-- `infra/` — `livekit.yaml` compartilhado, `local/` (hospedagem no PC Windows), docker-compose, exemplos de `.env`/`users.json`.
+- `infra/` — `livekit.yaml` compartilhado, `local/` (hospedagem no PC Windows), docker-compose, `Caddyfile` (`/api/*` → api, `/rtc*` → LiveKit, o resto → versão web em `/srv/web/current`, a pasta `web/` da VM, fora do git), exemplos de `.env`/`users.json`.
 
 ## Convenções
 
@@ -44,7 +46,8 @@ Dentro do VS Code, limpe `ELECTRON_RUN_AS_NODE` antes de iniciar o Electron manu
 - Sem push, repo remoto, release ou ação na VM de produção sem pedir confirmação.
 - Se algo da spec se mostrar inviável, parar e propor em vez de improvisar.
 - Tudo que o Concord grava (caches, downloads, temporários, logs, uploads, artefatos de build), nos PCs ou na VM, precisa de limite ou rotina de limpeza na mesma mudança.
-- Jam: o yt-dlp roda sempre anônimo (sem cookies nem conta); o IP da VM é bloqueado pelo YouTube para baixar (a busca funciona), por isso quem baixa é o app de quem pediu.
+- Jam: o yt-dlp roda sempre anônimo (sem cookies nem conta); o IP da VM é bloqueado pelo YouTube para baixar (a busca funciona), por isso quem baixa é o app de quem pediu; música pedida pela versão web é baixada, em silêncio, pelo desktop mais bem conectado que estiver aberto (o api escolhe; sem nenhum, erro `no_downloader`).
+- Identidades LiveKit (`packages/shared`): desktop = `userId`; web = `userId~web` (visível: é uma pessoa na sala, pode estar junto com o desktop da mesma pessoa); pop-out e PiP = `userId~popout` / `userId~pip` (auxiliares, ocultas). Usar `identityFor`, `userIdOf`, `isWebIdentity` e `isAuxiliaryIdentity`; nunca comparar `user.id` direto com uma identidade.
 
 ## Pins importantes
 

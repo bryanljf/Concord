@@ -3,6 +3,11 @@
  * by `src/preload/index.ts`. The main process owns: settings, the encrypted access key,
  * every HTTP call to concord-api, the presence SSE connection, tray and notifications.
  * The renderer only talks to LiveKit directly (media), using tokens obtained here.
+ *
+ * The web client (`src/web`) implements the same contract in the browser (`fetch`, `EventSource`,
+ * `localStorage`): `client` says which one this is and `capabilities` what it can do, so the
+ * renderer hides what does not exist instead of calling it. A method a client does not support
+ * rejects with `{ name: 'UnsupportedError', code: 'unsupported', message }` (pt-BR).
  */
 import type {
   JamEvent,
@@ -198,10 +203,52 @@ export interface JamUploadStatus {
   message: string | null;
 }
 
+export type ClientKind = 'desktop' | 'web';
+
+/**
+ * What this client can do. The desktop app has everything (`jamDownload` only on Windows); the
+ * web client watches, listens, publishes a camera and uses the Jam, nothing that needs Electron
+ * or Windows.
+ */
+export interface ClientCapabilities {
+  /** Publishing a window or screen: capture sources, streaming state, quality settings. */
+  screenShare: boolean;
+  /** Per-process audio capture (Windows addon). */
+  processAudio: boolean;
+  /** Publishing a webcam. */
+  camera: boolean;
+  /** The frameless pop-out window of one live. */
+  popout: boolean;
+  /** The cameras' picture-in-picture window (Electron). */
+  pip: boolean;
+  /** The browser's own video picture-in-picture (`HTMLVideoElement.requestPictureInPicture`). */
+  nativeVideoPip: boolean;
+  /** Tray icon, hide-to-tray, launch at login, "follow Discord". */
+  tray: boolean;
+  /** Global keyboard shortcut to transmit/stop. */
+  shortcut: boolean;
+  /** Auto-updates (on the web, deploying is the update). */
+  updates: boolean;
+  /** This client runs yt-dlp: it downloads the Jam songs it adds (and those the server asks for). */
+  jamDownload: boolean;
+  /** The onboarding lets the person type the server URL (web: fixed to its own origin). */
+  serverChoice: boolean;
+  /** Login with an access key besides Discord. */
+  keyLogin: boolean;
+}
+
 export interface ConcordApi {
   platform: string;
   /** App version from package.json. */
   version: string;
+  /** Which implementation backs this bridge. */
+  readonly client: ClientKind;
+  readonly capabilities: ClientCapabilities;
+  /**
+   * Purpose of the token the main window joins rooms with (`requestToken` default): `main` on
+   * the desktop, `web` in the browser. The identity LiveKit sees is `identityFor(user.id, joinPurpose)`.
+   */
+  readonly joinPurpose: 'main' | 'web';
 
   // --- Session / onboarding -------------------------------------------------
   getSession(): Promise<Session>;
@@ -230,7 +277,10 @@ export interface ConcordApi {
 
   // --- concord-api calls (main adds the Authorization header) ------------------
   getRooms(): Promise<RoomId[]>;
-  /** `popout` / `pip` yield hidden, subscribe-only identities for the pop-out and PiP windows. */
+  /**
+   * `popout` / `pip` yield hidden, subscribe-only identities for the pop-out and PiP windows;
+   * omitted = `joinPurpose`.
+   */
   requestToken(room: RoomId, purpose?: TokenPurpose): Promise<TokenResponse>;
   /** Instance name and region of the server (`GET /api/server`). */
   getServerInfo(): Promise<ServerInfoResponse>;

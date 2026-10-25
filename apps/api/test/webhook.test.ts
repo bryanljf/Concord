@@ -23,6 +23,7 @@ const alicePresence = {
   joinedAt: 1_700_000_000_000,
   avatarUrl: null,
   camera: false,
+  client: 'desktop',
 };
 // LiveKit sent no name for bob: presence resolves it from users.json ("Bob").
 const bobPresence = {
@@ -32,6 +33,7 @@ const bobPresence = {
   joinedAt: 1_700_000_010_000,
   avatarUrl: null,
   camera: false,
+  client: 'desktop',
 };
 
 interface PostOptions {

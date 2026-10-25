@@ -3,14 +3,21 @@ import {
   applyPresenceEvent,
   AUXILIARY_IDENTITY_SEPARATOR,
   auxiliaryIdentity,
+  HIDDEN_PURPOSES,
+  identityFor,
   isAuxiliaryIdentity,
+  isWebIdentity,
   parseStreamQualityId,
+  participantClientOf,
   ROOM_ID_PATTERN,
   roomLabel,
   STREAM_FRAME_RATES,
   STREAM_RESOLUTIONS,
   streamQualityId,
   streamQualityOf,
+  userIdOf,
+  WEB_IDENTITY_SUFFIX,
+  webIdentity,
   type PresenceParticipant,
   type PresenceSnapshot,
 } from './index';
@@ -24,13 +31,69 @@ describe('auxiliary identities', () => {
   it('recognises auxiliary identities and leaves regular ids alone', () => {
     expect(isAuxiliaryIdentity(auxiliaryIdentity('ana', 'popout'))).toBe(true);
     expect(isAuxiliaryIdentity('bryan~popout')).toBe(true);
+    expect(isAuxiliaryIdentity('bryan~pip')).toBe(true);
+    expect(isAuxiliaryIdentity('bryan~future')).toBe(true);
     expect(isAuxiliaryIdentity('bryan')).toBe(false);
     expect(isAuxiliaryIdentity('bryan-popout')).toBe(false);
     expect(isAuxiliaryIdentity('')).toBe(false);
   });
 
+  it('never treats the web identity as auxiliary: it is a person in the room', () => {
+    expect(isAuxiliaryIdentity('bryan~web')).toBe(false);
+    expect(isAuxiliaryIdentity(webIdentity('bryan'))).toBe(false);
+  });
+
   it('uses a separator that can never appear in a user or room id', () => {
     expect(ROOM_ID_PATTERN.test(`a${AUXILIARY_IDENTITY_SEPARATOR}b`)).toBe(false);
+  });
+
+  it('lists exactly the hidden purposes', () => {
+    expect(HIDDEN_PURPOSES).toEqual(['popout', 'pip']);
+  });
+});
+
+describe('web identities', () => {
+  it('derives the web identity from the user id', () => {
+    expect(webIdentity('bryan')).toBe('bryan~web');
+    expect(webIdentity('bryan')).toBe(`bryan${WEB_IDENTITY_SUFFIX}`);
+  });
+
+  it('recognises web identities only', () => {
+    expect(isWebIdentity('bryan~web')).toBe(true);
+    expect(isWebIdentity('bryan')).toBe(false);
+    expect(isWebIdentity('bryan~popout')).toBe(false);
+    expect(isWebIdentity('bryan-web')).toBe(false);
+    expect(isWebIdentity('')).toBe(false);
+  });
+
+  it('names the client a presence participant connected from', () => {
+    expect(participantClientOf('bryan~web')).toBe('web');
+    expect(participantClientOf('bryan')).toBe('desktop');
+  });
+});
+
+describe('userIdOf', () => {
+  it('finds the person behind any identity', () => {
+    expect(userIdOf('bryan')).toBe('bryan');
+    expect(userIdOf('bryan~web')).toBe('bryan');
+    expect(userIdOf('bryan~popout')).toBe('bryan');
+    expect(userIdOf('bryan~pip')).toBe('bryan');
+    expect(userIdOf('')).toBe('');
+  });
+});
+
+describe('identityFor', () => {
+  it('maps every token purpose to its identity', () => {
+    expect(identityFor('bryan', 'main')).toBe('bryan');
+    expect(identityFor('bryan', 'popout')).toBe('bryan~popout');
+    expect(identityFor('bryan', 'pip')).toBe('bryan~pip');
+    expect(identityFor('bryan', 'web')).toBe('bryan~web');
+  });
+
+  it('round-trips through userIdOf', () => {
+    for (const purpose of ['main', 'popout', 'pip', 'web'] as const) {
+      expect(userIdOf(identityFor('bryan', purpose))).toBe('bryan');
+    }
   });
 });
 

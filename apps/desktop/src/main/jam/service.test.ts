@@ -41,6 +41,7 @@ function setup(overrides: Partial<JamServiceDeps> = {}) {
     jamPrevious: vi.fn<Api['jamPrevious']>(async () => undefined),
     jamPause: vi.fn<Api['jamPause']>(async () => undefined),
     jamResume: vi.fn<Api['jamResume']>(async () => undefined),
+    jamFetchDecline: vi.fn<Api['jamFetchDecline']>(async () => undefined),
   };
   const uploads = {
     start: vi.fn(),
@@ -101,6 +102,31 @@ describe('createJamService', () => {
     expect(err).toBeInstanceOf(UserFacingError);
     expect(err.message).toBe(JAM_PLATFORM_UNSUPPORTED_MESSAGE);
     expect(api.jamEnqueue).not.toHaveBeenCalled();
+  });
+
+  it('downloads a song for the server silently, or declines where yt-dlp cannot run', async () => {
+    const { service, uploads, api } = setup();
+    service.fetch('sala-1', item);
+    expect(uploads.start).toHaveBeenCalledWith('sala-1', item, { delegated: true });
+    expect(api.jamFetchDecline).not.toHaveBeenCalled();
+
+    const elsewhere = setup({ canDownload: false });
+    elsewhere.service.fetch('sala-1', item);
+    expect(elsewhere.uploads.start).not.toHaveBeenCalled();
+    expect(elsewhere.api.jamFetchDecline).toHaveBeenCalledWith(
+      'sala-1',
+      'item-1',
+      'cannot download on this platform',
+    );
+    // Gone or handed to someone else meanwhile, or any failure: nobody to tell (logged only).
+    elsewhere.api.jamFetchDecline.mockRejectedValueOnce(
+      new ApiClientError('http', 'x', 404, 'item_not_found'),
+    );
+    elsewhere.service.fetch('sala-1', item);
+    elsewhere.api.jamFetchDecline.mockRejectedValueOnce(new ApiClientError('network', 'offline'));
+    elsewhere.service.fetch('sala-1', item);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(elsewhere.api.jamFetchDecline).toHaveBeenCalledTimes(3);
   });
 
   it('passes enqueue errors through', async () => {

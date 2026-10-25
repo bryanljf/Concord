@@ -8,6 +8,10 @@
  *   resources/tray/live.png              red square + white dot
  *   resources/tray/offline.png           grey square + white "screen"
  *   resources/icon.png           256x256 future installer / notification icon
+ *   src/web/public/icons/        the web client's icons (manifest.webmanifest, home screen):
+ *     icon-192.png, icon-512.png         the app icon
+ *     icon-512-maskable.png              full-bleed variant (Android masks it into its own shape)
+ *     apple-touch-icon.png     180x180   full-bleed too (iOS rounds the corners itself)
  *
  * Usage: node scripts/gen-icons.mjs
  */
@@ -166,11 +170,22 @@ const screenLayers = [
   { color: WHITE, inside: roundedRect(0.4, 0.68, 0.6, 0.76, 0.02) },
 ];
 
+/** `inside` drawn `factor` times smaller around the centre (maskable icons keep a safe zone). */
+const shrink = (inside, factor) => (px, py) =>
+  inside((px - 0.5) / factor + 0.5, (py - 0.5) / factor + 0.5);
+
+/** The tray designs (each one is written at 16 and 32 px). */
 const DESIGNS = {
   idle: [background(ACCENT), ...screenLayers],
   live: [background(LIVE), { color: WHITE, inside: circle(0.5, 0.5, 0.22) }],
   offline: [background(OFFLINE), ...screenLayers],
 };
+
+/** Home-screen variant: edge to edge, the monitor within the central 80% every launcher keeps. */
+const MASKABLE = [
+  { color: ACCENT, inside: roundedRect(0, 0, 1, 1, 0) },
+  ...screenLayers.map((layer) => ({ color: layer.color, inside: shrink(layer.inside, 0.8) })),
+];
 
 // ---------------------------------------------------------------------------
 // Main
@@ -190,5 +205,12 @@ for (const [name, layers] of Object.entries(DESIGNS)) {
   write(join(trayDir, `${name}@2x.png`), 32, layers);
 }
 write(join(root, 'resources', 'icon.png'), 256, DESIGNS.idle);
+
+const webIconsDir = join(root, 'src', 'web', 'public', 'icons');
+mkdirSync(webIconsDir, { recursive: true });
+write(join(webIconsDir, 'icon-192.png'), 192, DESIGNS.idle);
+write(join(webIconsDir, 'icon-512.png'), 512, DESIGNS.idle);
+write(join(webIconsDir, 'icon-512-maskable.png'), 512, MASKABLE);
+write(join(webIconsDir, 'apple-touch-icon.png'), 180, MASKABLE);
 
 process.exitCode = 0;

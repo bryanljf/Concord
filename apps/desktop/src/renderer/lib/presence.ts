@@ -1,4 +1,9 @@
-import type { PresenceParticipant, PresenceSnapshot, RoomId } from '@concord/shared';
+import {
+  userIdOf,
+  type PresenceParticipant,
+  type PresenceSnapshot,
+  type RoomId,
+} from '@concord/shared';
 import type { PresenceConnectionStatus } from '../../preload/api';
 import { formatRetryIn } from './format';
 
@@ -122,19 +127,56 @@ export interface PresenceProfile {
   avatarUrl: string | null;
 }
 
-/** Every participant in presence (any room) by id. */
+/**
+ * Every participant in presence (any room) by id (their LiveKit identity), and every person by
+ * user id too: someone only present from the phone (`bryan~web`) still resolves lookups made with
+ * their user id (a Jam's `requestedBy`). An identity always wins over that fallback.
+ */
 export function presenceProfiles(snapshot: PresenceSnapshot): Map<string, PresenceProfile> {
   const profiles = new Map<string, PresenceProfile>();
-  for (const participants of Object.values(snapshot.rooms)) {
-    for (const participant of participants) {
-      if (profiles.has(participant.id)) continue;
-      profiles.set(participant.id, {
-        name: participant.name,
-        avatarUrl: participant.avatarUrl ?? null,
-      });
-    }
+  const everyone = Object.values(snapshot.rooms).flat();
+  for (const participant of everyone) {
+    if (profiles.has(participant.id)) continue;
+    profiles.set(participant.id, {
+      name: participant.name,
+      avatarUrl: participant.avatarUrl ?? null,
+    });
+  }
+  for (const participant of everyone) {
+    const userId = userIdOf(participant.id);
+    const profile = profiles.get(participant.id);
+    if (profile && !profiles.has(userId)) profiles.set(userId, profile);
   }
   return profiles;
+}
+
+/** Someone who can be muted in Settings → Sons. */
+export interface MutablePerson {
+  /** User id (what `Settings.mutedUsers` holds), whatever device they are on. */
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+/**
+ * The people offered in Settings → Sons: everyone in presence, one entry per person (the same
+ * person on the PC and on the phone is one), then the muted ids nobody is online for (they still
+ * need a chip so they can be unmuted). Keeps `participants`' order.
+ */
+export function mutablePeople(
+  participants: readonly PresenceParticipant[],
+  mutedUsers: readonly string[],
+): MutablePerson[] {
+  const byId = new Map<string, MutablePerson>();
+  for (const participant of participants) {
+    const id = userIdOf(participant.id);
+    if (byId.has(id)) continue;
+    byId.set(id, { id, name: participant.name, avatarUrl: participant.avatarUrl ?? null });
+  }
+  for (const id of mutedUsers) {
+    if (!byId.has(id)) byId.set(id, { id, name: id, avatarUrl: null });
+  }
+  return [...byId.values()];
 }
 
 interface Profiled {

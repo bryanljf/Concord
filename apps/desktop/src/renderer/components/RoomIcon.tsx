@@ -1,6 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { roomLabel, type JamState, type PresenceParticipant, type RoomId } from '@concord/shared';
+import { useTouchReveal } from '../hooks/useTouchReveal';
+import { useViewport } from '../hooks/useViewport';
 import { pluralize } from '../lib/format';
 import { jamIndicatorLabel } from '../lib/jam';
 import { roomIndicators } from '../lib/presence';
@@ -40,10 +42,13 @@ function anchorOf(button: HTMLElement): Anchor {
  * A room in the collapsed sidebar, like a Discord server icon: its short label in a rounded
  * square, the current room marked by a pill on the column's left edge, and only one marker: a
  * green dot when someone is in it (lives and the Jam show in the popover and the room's details).
- * Hovering it (or reaching it with the keyboard) shows who is there; a click joins it.
+ * Hovering it (or reaching it with the keyboard) shows who is there; a click joins it. On a touch
+ * screen the first tap shows who is there for a moment and the next one joins.
  */
 export function RoomIcon({ room, participants, current, jam, onJoin }: RoomIconProps) {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const { touch } = useViewport();
+  const reveal = useTouchReveal();
   const popoverId = useId();
   const label = roomLabel(room);
   const { online, live } = roomIndicators(participants);
@@ -56,8 +61,9 @@ export function RoomIcon({ room, participants, current, jam, onJoin }: RoomIconP
     .filter((detail) => detail !== null)
     .join(', ');
 
-  // The popover is placed once: scrolling, resizing or leaving the window hides it instead.
-  const open = anchor !== null;
+  // The popover is placed once: scrolling, resizing or leaving the window hides it instead. On a
+  // touch screen it lasts as long as the tap's reveal (a finger never "leaves" the icon).
+  const open = anchor !== null && (!touch || reveal.revealed);
   useEffect(() => {
     if (!open) return;
     const hide = (): void => setAnchor(null);
@@ -80,7 +86,13 @@ export function RoomIcon({ room, participants, current, jam, onJoin }: RoomIconP
         aria-current={current ? 'true' : undefined}
         aria-label={`${current ? 'Você está em' : 'Entrar em'} ${label} (${details})`}
         aria-describedby={open ? popoverId : undefined}
-        onClick={() => onJoin(room)}
+        onClick={(event) => {
+          if (touch && reveal.tap()) {
+            setAnchor(anchorOf(event.currentTarget));
+            return;
+          }
+          onJoin(room);
+        }}
         onMouseEnter={(event) => setAnchor(anchorOf(event.currentTarget))}
         onMouseLeave={() => setAnchor(null)}
         onFocus={(event) => {
@@ -98,7 +110,7 @@ export function RoomIcon({ room, participants, current, jam, onJoin }: RoomIconP
       </button>
       {/* After the button: its hover and focus styles reach the pill with `~`. */}
       <span className="room-icon__pill" aria-hidden="true" />
-      {anchor && (
+      {open && anchor && (
         <RoomPopover
           id={popoverId}
           label={label}

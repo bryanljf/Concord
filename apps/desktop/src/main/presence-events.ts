@@ -20,6 +20,8 @@ function parseParticipant(value: unknown): PresenceParticipant | null {
   };
   // Optional too (servers before v0.2.0): kept only when it is a real boolean.
   if (typeof value.camera === 'boolean') participant.camera = value.camera;
+  // Optional too (servers before the web client): anything unknown is left out (= desktop).
+  if (value.client === 'desktop' || value.client === 'web') participant.client = value.client;
   return participant;
 }
 

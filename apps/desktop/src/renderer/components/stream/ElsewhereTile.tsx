@@ -1,5 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
+import { useLongPress } from '../../hooks/useLongPress';
 import type { RemoteStream } from '../../hooks/useRemoteStreams';
+import { dispatchContextMenu } from '../../lib/touch';
 import { Avatar } from '../Avatar';
 import { CameraIcon, CloseIcon, WindowIcon } from '../icons';
 
@@ -34,6 +36,7 @@ export function ElsewhereTile({
 }: ElsewhereTileProps) {
   const camera = stream.kind === 'camera';
   const mini = variant === 'mini';
+  const longPress = useLongPress(dispatchContextMenu);
   const message = camera
     ? 'Câmera no picture-in-picture'
     : `A transmissão de ${stream.name} está aberta em outra janela`;
@@ -47,6 +50,8 @@ export function ElsewhereTile({
       aria-haspopup="menu"
       aria-keyshortcuts="Shift+F10 ContextMenu"
       data-focused-live={variant === 'focused' ? '' : undefined}
+      data-stream-key={variant === 'focused' ? stream.key : undefined}
+      {...longPress}
       onContextMenu={onContextMenu}
       onKeyDown={onKeyDown}
     >
@@ -88,7 +93,10 @@ export function ElsewhereTile({
   );
   if (variant === 'focused' || !onStopWatching) return tile;
   return (
-    <div className={variant === 'grid' ? 'tile-mini tile-grid' : 'tile-mini'}>
+    <div
+      className={variant === 'grid' ? 'tile-mini tile-grid' : 'tile-mini'}
+      data-stream-key={stream.key}
+    >
       {tile}
       <button
         type="button"

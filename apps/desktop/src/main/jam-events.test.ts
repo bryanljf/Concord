@@ -1,11 +1,13 @@
 import { JAM_HISTORY_MAX, JAM_QUEUE_MAX, type JamItem, type JamState } from '@concord/shared';
 import { describe, expect, it } from 'vitest';
 import {
+  isJamFetchPayload,
   isJamPayload,
   JAM_ROOMS_MAX,
   JAM_TEXT_MAX_LENGTH,
   parseArtworkUrl,
   parseJamEvent,
+  parseJamFetchEvent,
   parseJamItem,
   parseJamRecentTrack,
   parseJamTrack,
@@ -270,6 +272,64 @@ describe('isJamPayload', () => {
     expect(isJamPayload({ type: 'jam_updated' })).toBe(true);
     expect(isJamPayload({ type: 'snapshot' })).toBe(false);
     expect(isJamPayload({ type: 'jam_other' })).toBe(false);
+    expect(isJamPayload({ type: 'jam_fetch' })).toBe(false);
     expect(isJamPayload(['jam_snapshot'])).toBe(false);
+  });
+});
+
+describe('parseJamFetchEvent', () => {
+  const request = { type: 'jam_fetch', room: 'sala-1', item };
+
+  it('accepts a fetch request and a ping', () => {
+    expect(parseJamFetchEvent(request)).toEqual(request);
+    expect(parseJamFetchEvent({ type: 'jam_fetch_ping', nonce: 'a1B2_c-3=' })).toEqual({
+      type: 'jam_fetch_ping',
+      nonce: 'a1B2_c-3=',
+    });
+  });
+
+  it('drops unknown fields', () => {
+    expect(parseJamFetchEvent({ ...request, extra: 1, item: { ...item, extra: 2 } })).toEqual(
+      request,
+    );
+    expect(parseJamFetchEvent({ type: 'jam_fetch_ping', nonce: 'n', extra: true })).toEqual({
+      type: 'jam_fetch_ping',
+      nonce: 'n',
+    });
+  });
+
+  it('rejects anything malformed', () => {
+    const bad = (value: unknown) => expect(parseJamFetchEvent(value)).toBeNull();
+    bad(null);
+    bad('jam_fetch');
+    bad({ type: 'jam_updated', state, serverTime: 1 });
+    bad({ type: 'jam_fetch', room: 'sala com espaço', item });
+    bad({ type: 'jam_fetch', room: '__proto__', item });
+    bad({ type: 'jam_fetch', room: 'sala-1' });
+    bad({ type: 'jam_fetch', room: 'sala-1', item: null });
+    bad({ type: 'jam_fetch', room: 'sala-1', item: { ...item, id: '../x' } });
+    bad({ type: 'jam_fetch', room: 'sala-1', item: { ...item, status: 'played' } });
+    bad({ type: 'jam_fetch', room: 'sala-1', item: { ...item, requestedBy: 'Not A User' } });
+    bad({
+      type: 'jam_fetch',
+      room: 'sala-1',
+      item: { ...item, track: { ...track, videoId: 'short' } },
+    });
+    bad({ type: 'jam_fetch_ping' });
+    bad({ type: 'jam_fetch_ping', nonce: '' });
+    bad({ type: 'jam_fetch_ping', nonce: 42 });
+    bad({ type: 'jam_fetch_ping', nonce: 'has space' });
+    bad({ type: 'jam_fetch_ping', nonce: 'x'.repeat(129) });
+  });
+});
+
+describe('isJamFetchPayload', () => {
+  it('tells fetch requests and pings from the other events', () => {
+    expect(isJamFetchPayload({ type: 'jam_fetch' })).toBe(true);
+    expect(isJamFetchPayload({ type: 'jam_fetch_ping' })).toBe(true);
+    expect(isJamFetchPayload({ type: 'jam_updated' })).toBe(false);
+    expect(isJamFetchPayload({ type: 'snapshot' })).toBe(false);
+    expect(isJamFetchPayload(['jam_fetch'])).toBe(false);
+    expect(isJamFetchPayload(null)).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent } from 'react';
 import type { JamState, PresenceSnapshot, RoomId } from '@concord/shared';
 import logoUrl from '../../../resources/icon.png';
 import { useNow } from '../hooks/useNow';
+import { useViewport } from '../hooks/useViewport';
 import { useToast } from '../hooks/useToast';
 import { useUpdateStatus } from '../hooks/useUpdateStatus';
 import { toErrorMessage } from '../lib/concord';
@@ -56,9 +57,15 @@ function SidebarUpdate() {
 /**
  * The "CONCORD" row above the rooms, with the collapse toggle at its right end and, right after
  * the name, the update arrow. Collapsed, the name gives way to the app's logo (the same icon as
- * the installer, window and tray) and the arrow is left out.
+ * the installer, window and tray) and the arrow is left out. On a phone the row heads the rooms
+ * drawer: always the name, never the toggle (collapsing means nothing there).
  */
-export function SidebarBrand({ collapsed, onToggleCollapsed }: SidebarBrandProps) {
+export function SidebarBrand({
+  collapsed: collapsedSetting,
+  onToggleCollapsed,
+}: SidebarBrandProps) {
+  const { phone } = useViewport();
+  const collapsed = collapsedSetting && !phone;
   const label = collapsed ? 'Expandir a barra lateral' : 'Recolher a barra lateral';
   return (
     <div className={collapsed ? 'sidebar__brand sidebar__brand--collapsed' : 'sidebar__brand'}>
@@ -70,15 +77,17 @@ export function SidebarBrand({ collapsed, onToggleCollapsed }: SidebarBrandProps
           <SidebarUpdate />
         </>
       )}
-      <button
-        type="button"
-        className="icon-btn sidebar__toggle"
-        aria-label={label}
-        data-tooltip={label}
-        onClick={onToggleCollapsed}
-      >
-        {collapsed ? <ChevronsRightIcon size={18} /> : <ChevronsLeftIcon size={18} />}
-      </button>
+      {!phone && (
+        <button
+          type="button"
+          className="icon-btn sidebar__toggle"
+          aria-label={label}
+          data-tooltip={label}
+          onClick={onToggleCollapsed}
+        >
+          {collapsed ? <ChevronsRightIcon size={18} /> : <ChevronsLeftIcon size={18} />}
+        </button>
+      )}
     </div>
   );
 }
@@ -126,12 +135,16 @@ export function Sidebar({
   jamRooms,
   musicListening,
   musicOpen,
-  collapsed,
+  collapsed: collapsedSetting,
   onToggleMusic,
   onJoin,
   onWatch,
 }: SidebarProps) {
   const now = useNow();
+  // The phone's drawer always lists the rooms in full: the saved collapsed state waits for a
+  // wide window.
+  const { phone } = useViewport();
+  const collapsed = collapsedSetting && !phone;
 
   if (collapsed) {
     return (

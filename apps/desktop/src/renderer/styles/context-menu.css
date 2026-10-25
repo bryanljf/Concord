@@ -84,3 +84,15 @@
     animation: none;
   }
 }
+
+/* Touch screens: items a finger can hit (opened by a long press, hooks/useLongPress.ts). */
+@media (pointer: coarse) {
+  .context-menu {
+    min-width: 220px;
+  }
+
+  .context-menu__item {
+    min-height: 44px;
+    font-size: 15px;
+  }
+}

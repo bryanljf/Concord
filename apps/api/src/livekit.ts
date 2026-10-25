@@ -9,7 +9,7 @@ import {
   type VideoGrant,
 } from 'livekit-server-sdk';
 import {
-  auxiliaryIdentity,
+  identityFor,
   isAuxiliaryIdentity,
   isJamBotIdentity,
   JAM_BOT_IDENTITY,
@@ -55,9 +55,29 @@ const POPOUT_GRANT: Omit<VideoGrant, 'room'> = {
 };
 
 /**
+ * The web client: a visible person like `main`, but a browser only ever publishes its camera
+ * (never a screen); it still sets its own attributes (the lives it watches).
+ */
+const WEB_GRANT: Omit<VideoGrant, 'room'> = {
+  roomJoin: true,
+  canSubscribe: true,
+  canPublish: true,
+  canPublishSources: [TrackSource.CAMERA],
+  canPublishData: true,
+  canUpdateOwnMetadata: true,
+};
+
+const GRANTS: Record<TokenPurpose, Omit<VideoGrant, 'room'>> = {
+  main: MAIN_GRANT,
+  popout: POPOUT_GRANT,
+  pip: POPOUT_GRANT,
+  web: WEB_GRANT,
+};
+
+/**
  * Issues a join token for `room`. `main` (default) joins as `user.id` with screen-share and
  * camera publish grants; `popout` / `pip` join as the auxiliary identity `<id>~<purpose>`,
- * hidden and subscribe-only.
+ * hidden and subscribe-only; `web` joins as `<id>~web`, visible, publishing a camera at most.
  * `name` is the display name LiveKit shows (the resolved profile name; defaults to users.json).
  */
 export async function createRoomToken(
@@ -68,11 +88,11 @@ export async function createRoomToken(
   name: string = user.displayName,
 ): Promise<RoomToken> {
   const token = new AccessToken(livekit.apiKey, livekit.apiSecret, {
-    identity: purpose === 'main' ? user.id : auxiliaryIdentity(user.id, purpose),
+    identity: identityFor(user.id, purpose),
     name,
     ttl: TOKEN_TTL_SECONDS,
   });
-  token.addGrant({ ...(purpose === 'main' ? MAIN_GRANT : POPOUT_GRANT), room });
+  token.addGrant({ ...GRANTS[purpose], room });
   // The SDK derives `exp` from the wall clock inside toJwt(); mirror it at second precision.
   const expiresAt = (Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS) * 1000;
   return { token: await token.toJwt(), expiresAt };

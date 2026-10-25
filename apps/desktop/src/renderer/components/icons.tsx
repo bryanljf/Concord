@@ -477,6 +477,16 @@ export function SearchIcon(props: IconProps) {
   );
 }
 
+/** A phone: someone connected from the web client ("No celular"). */
+export function PhoneIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="7" y="2" width="10" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </Icon>
+  );
+}
+
 /** Two chain links: a pasted YouTube link. */
 export function LinkIcon(props: IconProps) {
   return (

@@ -1,13 +1,16 @@
-import type { PresenceEvent, RoomId } from '@concord/shared';
+import { userIdOf, type PresenceEvent, type RoomId } from '@concord/shared';
 
 export interface LiveSoundContext {
   /** The room this window is in (useRoom's current room). */
   currentRoom: RoomId | null;
   /** Only while actually connected to that room. */
   connected: boolean;
-  /** The signed-in user: your own broadcast has its own sounds. */
+  /**
+   * This window's LiveKit identity (`selfIdentity`): your own broadcast has its own sounds.
+   * Presence ids are identities too (`bryan~web` on the phone), muted users are user ids.
+   */
   selfId: string;
-  /** `Settings.mutedRooms` / `Settings.mutedUsers`. */
+  /** `Settings.mutedRooms` / `Settings.mutedUsers` (user ids). */
   mutedRooms: readonly RoomId[];
   mutedUsers: readonly string[];
 }
@@ -24,5 +27,5 @@ export function shouldPlayLiveStarted(event: PresenceEvent, context: LiveSoundCo
   if (event.room !== context.currentRoom) return false;
   if (event.participantId === context.selfId) return false;
   if (context.mutedRooms.includes(event.room)) return false;
-  return !context.mutedUsers.includes(event.participantId);
+  return !context.mutedUsers.includes(userIdOf(event.participantId));
 }

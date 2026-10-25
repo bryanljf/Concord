@@ -81,6 +81,24 @@ function subscribe2<A, B>(channel: EventChannel, listener: (a: A, b: B) => void)
 const api: ConcordApi = {
   platform: process.platform,
   version: typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0',
+  client: 'desktop',
+  // Everything Electron offers; the browser's own video PiP is the web client's substitute for
+  // the PiP window, and yt-dlp (downloading jam songs) runs on Windows only.
+  capabilities: {
+    screenShare: true,
+    processAudio: true,
+    camera: true,
+    popout: true,
+    pip: true,
+    nativeVideoPip: false,
+    tray: true,
+    shortcut: true,
+    updates: true,
+    jamDownload: process.platform === 'win32',
+    serverChoice: true,
+    keyLogin: true,
+  },
+  joinPurpose: 'main',
 
   getSession: () => invoke<Session>(IPC.GET_SESSION),
   onSessionChanged: (listener) => subscribe<Session>(EVENTS.SESSION_CHANGED, listener),

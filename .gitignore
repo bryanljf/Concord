@@ -27,6 +27,10 @@ apps/jam-bot/*.exe
 apps/jam-bot/*.test
 apps/jam-bot/*.out
 
+# web app build on the VM (web/current, bind-mounted into Caddy); the deploy puts it there.
+# The local build output (apps/desktop/out/web) is already covered by out/ above.
+/web/
+
 # Terraform state and local variables can contain infrastructure identifiers or credentials.
 infra/terraform/.terraform/
 infra/terraform/*.tfstate

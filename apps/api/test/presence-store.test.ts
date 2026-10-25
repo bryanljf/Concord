@@ -4,11 +4,13 @@ import { PresenceStore } from '../src/presence-store';
 import type { ResolvedProfile } from '../src/profiles';
 
 // avatarUrl: null is what presence reports when no profile is known, camera: false while no
-// camera track is published.
-const off = { avatarUrl: null, camera: false };
+// camera track is published, client: 'desktop' for a plain user id.
+const off = { avatarUrl: null, camera: false, client: 'desktop' };
 const alice = { id: 'alice', name: 'Alice', joinedAt: 1_000, ...off };
 const bob = { id: 'bob', name: 'Bob', joinedAt: 2_000, ...off };
 const carol = { id: 'carol', name: 'Carol', joinedAt: 3_000, ...off };
+// The same person as alice, from the phone (the identity carries the `~web` suffix).
+const aliceWeb = { id: 'alice~web', name: 'Alice', joinedAt: 5_000, ...off, client: 'web' };
 
 describe('PresenceStore', () => {
   let store: PresenceStore;
@@ -256,6 +258,99 @@ describe('PresenceStore', () => {
       expect(events).toEqual([
         { type: 'participant_updated', room: 'geral', participant: { ...alice, streaming: false } },
       ]);
+    });
+
+    it('resolves a web identity from the profile of the person behind it', () => {
+      resolved.join('geral', aliceWeb);
+      expect(resolved.snapshot().rooms.geral).toEqual([
+        { ...aliceWeb, name: 'Alice D.', avatarUrl: 'https://a/1.png', streaming: false },
+      ]);
+    });
+
+    it('refreshUser and refreshAll reach the web entry through the person id', () => {
+      resolved.join('geral', aliceWeb);
+      resolved.join('geral', alice);
+      resolved.join('jogos', bob);
+      events.length = 0;
+
+      profiles.set('alice', { name: 'Lice', avatarUrl: null });
+      resolved.refreshUser('alice');
+      expect(events).toEqual([
+        {
+          type: 'participant_updated',
+          room: 'geral',
+          participant: { ...aliceWeb, name: 'Lice', streaming: false },
+        },
+        {
+          type: 'participant_updated',
+          room: 'geral',
+          participant: { ...alice, name: 'Lice', streaming: false },
+        },
+      ]);
+
+      events.length = 0;
+      profiles.delete('alice');
+      resolved.refreshAll();
+      expect(events.map((event) => event.type)).toEqual([
+        'participant_updated',
+        'participant_updated',
+      ]);
+      expect(resolved.participant('geral', 'alice~web')?.name).toBe('Alice');
+    });
+  });
+
+  describe('web identities', () => {
+    it('reports which client each connection comes from', () => {
+      store.join('geral', alice);
+      store.join('geral', aliceWeb);
+      expect(store.snapshot().rooms.geral).toEqual([
+        { ...alice, streaming: false },
+        { ...aliceWeb, streaming: false },
+      ]);
+      expect(store.participant('geral', 'alice')?.client).toBe('desktop');
+      expect(store.participant('geral', 'alice~web')?.client).toBe('web');
+      expect(events).toEqual([
+        { type: 'participant_joined', room: 'geral', participant: { ...alice, streaming: false } },
+        {
+          type: 'participant_joined',
+          room: 'geral',
+          participant: { ...aliceWeb, streaming: false },
+        },
+      ]);
+    });
+
+    it('hasUser sees the person from any client and takes a user id, not an identity', () => {
+      store.join('geral', aliceWeb);
+      store.join('jogos', bob);
+      expect(store.hasUser('geral', 'alice')).toBe(true);
+      expect(store.hasUser('geral', 'alice~web')).toBe(false);
+      expect(store.hasUser('geral', 'bob')).toBe(false);
+      expect(store.hasUser('jogos', 'bob')).toBe(true);
+      expect(store.hasUser('nowhere', 'alice')).toBe(false);
+
+      store.leave('geral', 'alice~web');
+      expect(store.hasUser('geral', 'alice')).toBe(false);
+    });
+
+    it('roomsOf lists each room the person is in once, from any client', () => {
+      store.join('geral', alice);
+      store.join('geral', aliceWeb);
+      store.join('jogos', aliceWeb);
+      store.join('jogos', bob);
+      expect(store.roomsOf('alice')).toEqual(['geral', 'jogos']);
+      expect(store.roomsOf('bob')).toEqual(['jogos']);
+      expect(store.roomsOf('carol')).toEqual([]);
+    });
+
+    it('keeps the desktop and web entries of one person independent', () => {
+      store.join('geral', alice);
+      store.cameraTrackPublished('geral', aliceWeb, 'TR_phone');
+      expect(store.participant('geral', 'alice')?.camera).toBe(false);
+      expect(store.participant('geral', 'alice~web')?.camera).toBe(true);
+
+      store.leave('geral', 'alice');
+      expect(store.participant('geral', 'alice~web')).toMatchObject({ camera: true });
+      expect(store.hasUser('geral', 'alice')).toBe(true);
     });
   });
 

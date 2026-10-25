@@ -46,6 +46,7 @@ import { useToast } from '../hooks/useToast';
 import { useViewerSounds } from '../hooks/useViewerSounds';
 import { useWatchedLiveEndedSound } from '../hooks/useWatchedLiveEndedSound';
 import { usePublishWatching, useViewers } from '../hooks/useViewers';
+import { capabilities, selfIdentity } from '../lib/capabilities';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { installEncoderPreference, setEncoderPreference } from '../lib/encoderPreference';
 import { formatShortcut } from '../lib/format';
@@ -60,6 +61,7 @@ import {
 } from '../lib/jam';
 import { JAM_RECENT_REFRESH_MS, jamRecentButtonShown } from '../lib/jamRecent';
 import { watchingWithMusic } from '../lib/musicListening';
+import { requestNativePip } from '../lib/nativePip';
 import { knownParticipants, presenceProfiles, withPresenceProfiles } from '../lib/presence';
 import { getPlatform, concord, toErrorMessage, type Settings } from '../lib/concord';
 import { computeStageLayout } from '../lib/stageLayout';
@@ -70,7 +72,7 @@ import { AppShell } from './AppShell';
 import { BottomBar } from './BottomBar';
 import { ConnectionBanner } from './ConnectionBanner';
 import { UpdateBanner } from './UpdateBanner';
-import { Header } from './Header';
+import { Header, type WindowMode } from './Header';
 import { Sidebar, SidebarBrand } from './Sidebar';
 import { Stage, type StatsRequest } from './Stage';
 import { RoomStatusPanel } from './RoomStatusPanel';
@@ -111,10 +113,14 @@ const NO_MUSIC_CARDS: readonly MusicCardItem[] = [];
 
 const CLOSED_POPOUT: PopoutState = { open: false, target: null };
 
-/** Whether the pop-out window is open and which live it shows (main stops showing that one). */
+/**
+ * Whether the pop-out window is open and which live it shows (main stops showing that one).
+ * Always closed on a client without the window (the web).
+ */
 function usePopoutState(): PopoutState {
   const [state, setState] = useState<PopoutState>(CLOSED_POPOUT);
   useEffect(() => {
+    if (!capabilities().popout) return;
     let active = true;
     let changed = false;
     const unsubscribe = concord().onPopoutStateChanged((next) => {
@@ -138,10 +144,11 @@ function usePopoutState(): PopoutState {
   return state;
 }
 
-/** Whether the cameras' picture-in-picture window is open. */
+/** Whether the cameras' picture-in-picture window is open (never on the web). */
 function usePipOpen(): boolean {
   const [open, setOpen] = useState(false);
   useEffect(() => {
+    if (!capabilities().pip) return;
     let active = true;
     let changed = false;
     const unsubscribe = concord().onPipStateChanged((next) => {
@@ -164,9 +171,29 @@ function usePipOpen(): boolean {
   return open;
 }
 
+/**
+ * The browser blocked playback until a tap (phones): the strip's button unlocks every stream and
+ * the Jam at once. Harmless on the desktop, where playback is never blocked.
+ */
+function AudioUnlockBanner({ onEnable }: { onEnable(): void }) {
+  return (
+    <div className="banner banner--update" role="status">
+      <span>O som fica bloqueado até você tocar na tela.</span>
+      <button type="button" className="btn btn--sm" onClick={onEnable}>
+        Toque para ativar o som
+      </button>
+    </div>
+  );
+}
+
 /** The main UI once a session exists: wires presence, rooms, settings, media and main's requests. */
 export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const toast = useToast();
+  // What this client can do (fixed for its lifetime): the web hides the desktop-only parts.
+  const can = capabilities();
+  // Your LiveKit identity: the user id on the desktop, `<id>~web` in the browser. Everything that
+  // compares you with participants, stream keys or viewers uses it; profile things keep `user.id`.
+  const selfId = useMemo(() => selfIdentity(user.id), [user.id]);
   const { settings, error: settingsError, update } = useSettings();
   const { snapshot, status } = usePresence();
   const rooms = useRooms(snapshot, status);
@@ -345,11 +372,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     () => ({
       currentRoom,
       connected,
-      selfId: user.id,
+      selfId,
       mutedRooms: settings?.mutedRooms ?? [],
       mutedUsers: settings?.mutedUsers ?? [],
     }),
-    [currentRoom, connected, user.id, settings?.mutedRooms, settings?.mutedUsers],
+    [currentRoom, connected, selfId, settings?.mutedRooms, settings?.mutedUsers],
   );
   useLiveStartedSound(liveSoundContext);
   // Its own chime when a Jam starts here (its own switch, the same muted rooms and people).
@@ -362,7 +389,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   useRoomSounds({
     currentRoom,
     connectionState,
-    selfId: user.id,
+    selfId,
     enabled: settings?.roomSounds ?? true,
   });
 
@@ -372,14 +399,14 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const involvedLiveIds = useMemo(() => {
     const live = new Set(screenStreams.map((stream) => stream.key));
     const watchedLive = watchedKeys.filter((key) => live.has(key));
-    return broadcast.state.status === 'live' ? [user.id, ...watchedLive] : watchedLive;
-  }, [screenStreams, broadcast.state.status, user.id, watchedKeys]);
+    return broadcast.state.status === 'live' ? [selfId, ...watchedLive] : watchedLive;
+  }, [screenStreams, broadcast.state.status, selfId, watchedKeys]);
   useViewerSounds({
     viewers: viewerIds,
     currentRoom,
     connected,
     involvedLiveIds,
-    selfId: user.id,
+    selfId,
     enabled: settings?.viewerSounds ?? true,
   });
 
@@ -561,7 +588,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     () => jamsElsewhere(jam.rooms, rooms, currentRoom, connected),
     [jam.rooms, rooms, currentRoom, connected],
   );
-  // Viewers by stream key (your camera's viewers are under `cameraKey(user.id)`, the Jam's
+  // Viewers by stream key (your camera's viewers are under `cameraKey(selfId)`, the Jam's
   // listeners under `musicKey(JAM_BOT_IDENTITY)`).
   const viewers = useMemo(() => {
     const livekitName = (id: string): string | undefined =>
@@ -627,6 +654,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
         localScreen: broadcast.state.status === 'live',
         localCamera: camera.state.status === 'on',
         fullscreen,
+        canStream: can.screenShare,
       }),
     [
       streams,
@@ -636,6 +664,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       broadcast.state.status,
       camera.state.status,
       fullscreen,
+      can.screenShare,
     ],
   );
   // The stream big on the stage and playing here: M mutes it, the header pops it out.
@@ -688,6 +717,8 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
 
   const openPickerAs = useCallback(
     (mode: 'start' | 'switch') => {
+      // Nothing to pick from on a client without screen sharing (the web).
+      if (!can.screenShare) return;
       if (!settings) {
         toast.show('Aguarde as configurações carregarem.');
         return;
@@ -695,7 +726,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       setSettingsOpen(false);
       setPicker(mode);
     },
-    [settings, toast],
+    [can.screenShare, settings, toast],
   );
   const openPicker = useCallback(() => openPickerAs('start'), [openPickerAs]);
   const openSwitchPicker = useCallback(() => openPickerAs('switch'), [openPickerAs]);
@@ -801,14 +832,38 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     });
   }, [switchCameraDevice, cameraDeviceId, wantedCameraId, settings, toast]);
 
+  // The browser's own picture-in-picture (web client): the tile's video of one stream. Stands in
+  // for both desktop windows where they do not exist.
+  const openNativePip = useCallback(
+    (key: string) => {
+      requestNativePip(key).catch((err: unknown) => {
+        toast.show(toErrorMessage(err, 'Não foi possível abrir o picture-in-picture.'), {
+          tone: 'error',
+        });
+      });
+    },
+    [toast],
+  );
+  // What the header's "another window" button and the tiles' do here.
+  const windowMode: WindowMode =
+    can.popout || can.pip ? 'desktop' : can.nativeVideoPip ? 'native' : 'none';
+
   // Cameras' picture-in-picture: opened from a camera's menu, kept in sync with the watched
   // cameras while connected (never while reconnecting: streams briefly vanish), closed when
   // leaving or switching rooms.
   const pipRoom = useRef<RoomId | null>(null);
   const pipSent = useRef<string | null>(null);
-  // Participant ids never contain a comma (`^[a-z0-9][a-z0-9_-]{1,31}$`).
+  // Participant ids never contain a comma (`^[a-z0-9][a-z0-9_-]{1,31}$`, plus `~web`).
   const pipIds = watchedCameraKeys.map((key) => parseStreamKey(key).participantId).join(',');
+  const firstWatchedCamera = watchedCameraKeys[0] ?? null;
   const openPip = useCallback(() => {
+    if (!can.pip) {
+      // Without the window: the browser's picture-in-picture of the camera in destaque, else of
+      // the first camera watched.
+      const key = effectiveStream?.kind === 'camera' ? effectiveStream.key : firstWatchedCamera;
+      if (can.nativeVideoPip && key) openNativePip(key);
+      return;
+    }
     if (!currentRoom || !pipIds) return;
     pipRoom.current = currentRoom;
     pipSent.current = pipIds;
@@ -819,12 +874,22 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           tone: 'error',
         });
       });
-  }, [currentRoom, pipIds, toast]);
+  }, [
+    can.pip,
+    can.nativeVideoPip,
+    effectiveStream,
+    firstWatchedCamera,
+    openNativePip,
+    currentRoom,
+    pipIds,
+    toast,
+  ]);
   const closePip = useCallback(() => {
+    if (!can.pip) return;
     concord()
       .closePip()
       .catch(() => undefined);
-  }, []);
+  }, [can.pip]);
   useEffect(() => {
     if (pipOpen && pipRoom.current !== currentRoom) closePip();
   }, [pipOpen, currentRoom, closePip]);
@@ -878,6 +943,12 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
   const openPopout = useCallback(
     (participantId: string | null) => {
       if (!currentRoom || !participantId) return;
+      if (!can.popout) {
+        // Without the window: the browser's picture-in-picture of that screen share (its stream
+        // key is the participant id).
+        if (can.nativeVideoPip) openNativePip(participantId);
+        return;
+      }
       concord()
         .openPopout({ room: currentRoom, participantId })
         .catch((err: unknown) => {
@@ -886,19 +957,21 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           });
         });
     },
-    [currentRoom, toast],
+    [can.popout, can.nativeVideoPip, openNativePip, currentRoom, toast],
   );
   // "Trazer de volta": closing the pop-out makes the live play here again.
   const closePopout = useCallback(() => {
+    if (!can.popout) return;
     concord()
       .closePopout()
       .catch(() => undefined);
-  }, []);
+  }, [can.popout]);
   const showPopout = useCallback(() => {
+    if (!can.popout) return;
     concord()
       .focusPopout()
       .catch(() => undefined);
-  }, []);
+  }, [can.popout]);
 
   const enableAudio = useCallback(() => {
     startAudio().catch(() => {
@@ -939,11 +1012,12 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
         sidebarCollapsed={sidebarSetting}
         banner={
           <>
-            <UpdateBanner />
+            {can.updates && <UpdateBanner />}
             <ConnectionBanner
               status={status}
               onConnectAnyway={() => saveSettings({ followDiscord: false })}
             />
+            {connected && !audioPlayback && <AudioUnlockBanner onEnable={enableAudio} />}
           </>
         }
         brand={<SidebarBrand collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebar} />}
@@ -988,9 +1062,12 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
             currentRoom={currentRoom}
             focusedKind={connected ? (effectiveStream?.kind ?? null) : null}
             fullscreen={fullscreen}
+            windowMode={windowMode}
             onToggleFullscreen={onToggleFullscreen}
             onPopout={() => {
-              if (effectiveStream?.kind === 'camera') openPip();
+              if (windowMode === 'native') {
+                if (effectiveStream) openNativePip(effectiveStream.key);
+              } else if (effectiveStream?.kind === 'camera') openPip();
               else openPopout(effectiveScreen?.participantId ?? null);
             }}
             onOpenSettings={openSettings}
@@ -998,6 +1075,7 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
         }
         footer={
           <BottomBar
+            canStream={can.screenShare}
             defaultQuality={settings?.defaultQuality ?? DEFAULT_STREAM_QUALITY}
             broadcast={broadcast.state}
             switching={broadcast.switching}
@@ -1032,8 +1110,8 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
           streams={stageStreams}
           layout={layout}
           viewers={viewers}
-          localViewers={viewers.get(user.id) ?? NO_VIEWERS}
-          localCameraViewers={viewers.get(cameraKey(user.id)) ?? NO_VIEWERS}
+          localViewers={viewers.get(selfId) ?? NO_VIEWERS}
+          localCameraViewers={viewers.get(cameraKey(selfId)) ?? NO_VIEWERS}
           broadcast={broadcast.state}
           camera={camera.state}
           audio={audio}

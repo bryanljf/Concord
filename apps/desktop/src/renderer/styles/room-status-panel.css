@@ -206,6 +206,14 @@
   border-top: 1px solid var(--border);
 }
 
+/* Touch screens: the ping button at a finger's size. */
+@media (pointer: coarse) {
+  .ping__button {
+    width: 40px;
+    height: 40px;
+  }
+}
+
 /* Collapsed sidebar: the ping bars over the leave button, centered in the narrow column. */
 .room-status--compact {
   flex-direction: column;

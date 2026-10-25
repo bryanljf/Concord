@@ -280,3 +280,47 @@
 .settings__quality-hint {
   margin-top: 8px;
 }
+
+/* Phones: the sections' list is a row of tabs over the content; the × sits in the corner. */
+@media (max-width: 767px) {
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .settings__nav {
+    flex-direction: row;
+    gap: 4px;
+    padding: 12px 56px 8px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .settings__nav button {
+    flex: none;
+  }
+
+  .settings__nav-title {
+    display: none;
+  }
+
+  .settings__content {
+    max-width: none;
+    padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-top: 16px;
+  }
+
+  .settings__close {
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    right: 10px;
+  }
+
+  .settings__close span {
+    display: none;
+  }
+
+  .settings__section {
+    scroll-margin-top: 16px;
+  }
+}

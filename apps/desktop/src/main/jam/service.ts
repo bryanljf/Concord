@@ -1,7 +1,8 @@
 /**
  * What the IPC layer calls for the Jam: the rooms' jams (from the presence SSE), YouTube Music
  * search, adding a song (and sending its audio in the background when the server asks for it),
- * prefetching the songs about to be added, and the controls anyone in the room may use.
+ * prefetching the songs about to be added, and the controls anyone in the room may use. Also
+ * the server's requests to download a song for a client that cannot (`fetch`), done silently.
  * Electron-free: `index.ts` wires the real parts.
  */
 import type {
@@ -50,6 +51,11 @@ export interface JamService {
   previous(room: RoomId, itemId: string | null): Promise<void>;
   pause(room: RoomId): Promise<void>;
   resume(room: RoomId): Promise<void>;
+  /**
+   * The server asked this app to download and send someone else's song (a client without yt-dlp
+   * added it): done in the background, silently; declined when yt-dlp cannot run here.
+   */
+  fetch(room: RoomId, item: JamItem): void;
   getUploads(): JamUploadStatus[];
   onUploadStatus(listener: (status: JamUploadStatus) => void): () => void;
   /** Stops the uploads and prefetches in progress (logout, another account or server, quit). */
@@ -69,6 +75,7 @@ export interface JamServiceDeps {
     | 'jamPrevious'
     | 'jamPause'
     | 'jamResume'
+    | 'jamFetchDecline'
   >;
   store: JamStore;
   uploads: JamUploads;
@@ -186,6 +193,22 @@ export function createJamService(deps: JamServiceDeps): JamService {
     },
     pause: (room) => api.jamPause(room),
     resume: (room) => api.jamResume(room),
+    fetch(room, item) {
+      if (canDownload) {
+        logger.info(`fetching ${item.track.videoId} for ${room} as ${item.id} (server request)`);
+        uploads.start(room, item, { delegated: true });
+        return;
+      }
+      logger.info(`declining the fetch of ${item.id} for ${room}: yt-dlp cannot run here`);
+      api
+        .jamFetchDecline(room, item.id, 'cannot download on this platform')
+        .catch((err: unknown) => {
+          // Gone, or already handed to someone else: nothing left to decline.
+          if (!hasCode(err, 'item_not_found')) {
+            logger.warn(`could not decline the fetch of jam item ${item.id}`, err);
+          }
+        });
+    },
     getUploads: () => uploads.list(),
     onUploadStatus: (listener) => uploads.onStatus(listener),
     cancelUploads() {

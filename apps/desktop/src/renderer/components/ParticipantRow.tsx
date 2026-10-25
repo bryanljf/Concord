@@ -1,7 +1,7 @@
 import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
 import { formatJoinedAgo } from '../lib/format';
 import { Avatar } from './Avatar';
-import { CameraIcon } from './icons';
+import { CameraIcon, PhoneIcon } from './icons';
 
 interface ParticipantRowProps {
   room: RoomId;
@@ -21,6 +21,17 @@ export function ParticipantRow({ room, participant, watching, now, onWatch }: Pa
     >
       <Avatar id={participant.id} name={participant.name} src={participant.avatarUrl} size="sm" />
       <span className="participant__name">{participant.name}</span>
+      {participant.client === 'web' && (
+        // Same look as the camera glyph (`participant__client` is there for its own style).
+        <span
+          className="participant__camera participant__client"
+          role="img"
+          aria-label="No celular"
+          data-tooltip="No celular"
+        >
+          <PhoneIcon size={16} />
+        </span>
+      )}
       {participant.camera && (
         <span
           className="participant__camera"

@@ -3,6 +3,8 @@ import type { FastifyPluginAsync } from 'fastify';
 import {
   JAM_UPLOAD_CONTENT_TYPE,
   type JamEnqueueResponse,
+  type JamFetchDeclineRequest,
+  type JamFetchPongRequest,
   type JamPreviousRequest,
   type JamRecentResponse,
   type JamSearchResponse,
@@ -66,10 +68,28 @@ const previousBodySchema = {
   },
 } as const;
 
+/** Nonces are ours (16 characters of base64url): anything longer is not one. */
+const pongBodySchema = {
+  type: 'object',
+  required: ['nonce'],
+  properties: {
+    nonce: { type: 'string', minLength: 1, maxLength: 64 },
+  },
+} as const;
+
+/** A JSON body is required (`{}` without a reason). */
+const declineBodySchema = {
+  type: 'object',
+  properties: {
+    reason: { type: 'string', maxLength: 200 },
+  },
+} as const;
+
 /**
  * The Jam (a YouTube Music queue per room, routes listed in `@concord/shared` jam.ts). Every
- * route needs the session; mutations also need the caller in that room, except the audio upload,
- * which only its requester may send (from anywhere: the app keeps sending after a room change).
+ * route needs the session; mutations also need the caller in that room, except the audio upload
+ * (only its requester, or the app the api asked to download it, may send it, from anywhere: the
+ * app keeps sending after a room change) and the fetch routes (any app with a fetch stream).
  */
 export const jamRoutes: FastifyPluginAsync<JamRoutesOptions> = async (
   app,
@@ -108,7 +128,30 @@ export const jamRoutes: FastifyPluginAsync<JamRoutesOptions> = async (
     async (request): Promise<JamEnqueueResponse> => {
       const videoId = stringField(request.body, 'videoId');
       if (videoId === undefined) throw new JamError('invalid_video');
-      return jam.enqueue(getUser(request).id, request.params.room, videoId.trim());
+      const user = getUser(request);
+      // An app with a fetch stream downloads its own songs; anyone else (the web) is fetched for.
+      const canDownload = jam.fetchers.hasUser(user.id);
+      return jam.enqueue(user.id, request.params.room, videoId.trim(), canDownload);
+    },
+  );
+
+  app.post<{ Body: JamFetchPongRequest }>(
+    '/api/jam/fetch/pong',
+    { schema: { body: pongBodySchema }, preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      // An unknown or stale nonce is ignored: nothing to tell the app.
+      jam.fetchers.pong(request.body.nonce, getUser(request).id);
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<{ Params: ItemParams; Body: JamFetchDeclineRequest }>(
+    '/api/rooms/:room/jam/items/:itemId/fetch/decline',
+    { schema: { body: declineBodySchema }, preHandler: authenticate, config: PER_MINUTE(60) },
+    async (request, reply) => {
+      const { room, itemId } = request.params;
+      jam.declineFetch(getUser(request).id, room, itemId, request.body.reason);
+      return reply.code(204).send();
     },
   );
 

@@ -144,6 +144,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     users,
     presence,
     jam,
+    // Desktop apps offering to download for the web register on their presence stream.
+    fetchers: jam.fetchers,
     heartbeatMs: options.heartbeatMs,
     sessionSecret: config.auth.sessionSecret,
   });

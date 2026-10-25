@@ -20,6 +20,11 @@ import {
 import '../styles/bottom-bar.css';
 
 interface BottomBarProps {
+  /**
+   * This client can share its screen (`capabilities.screenShare`): "Transmitir", "Trocar fonte",
+   * "Parar" and the quality label. The web client keeps only the camera and the Jam.
+   */
+  canStream?: boolean;
   /** Default preset from the settings (shown while idle). */
   defaultQuality: StreamQualityId;
   broadcast: BroadcastState;
@@ -54,6 +59,7 @@ interface BottomBarProps {
 const REOPEN_GUARD_MS = 300;
 
 export function BottomBar({
+  canStream = true,
   defaultQuality,
   broadcast,
   switching,
@@ -78,7 +84,7 @@ export function BottomBar({
   const stopping = broadcast.status === 'stopping';
   return (
     <footer className={live ? 'bottom-bar bottom-bar--live' : 'bottom-bar'}>
-      {live ? (
+      {!canStream ? null : live ? (
         <button
           type="button"
           className={barButtonClass('btn btn--primary', switching)}
@@ -103,7 +109,7 @@ export function BottomBar({
           <BarLabel>{broadcast.status === 'starting' ? 'Iniciando…' : 'Transmitir'}</BarLabel>
         </button>
       )}
-      {(live || stopping) && (
+      {canStream && (live || stopping) && (
         <button
           type="button"
           className={barButtonClass('btn btn--danger', stopping)}
@@ -130,9 +136,11 @@ export function BottomBar({
           AO VIVO · <strong>{broadcast.sourceName}</strong>
         </span>
       )}
-      <span className="bottom-bar__quality">
-        qualidade: <strong>{streamQualityLabel(quality)}</strong>
-      </span>
+      {canStream && (
+        <span className="bottom-bar__quality">
+          qualidade: <strong>{streamQualityLabel(quality)}</strong>
+        </span>
+      )}
     </footer>
   );
 }

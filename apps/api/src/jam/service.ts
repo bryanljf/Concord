@@ -2,6 +2,8 @@ import { open, type FileHandle } from 'node:fs/promises';
 import { finished, Transform, Writable, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
+  JAM_FETCH_MAX_ASSIGNMENTS,
+  JAM_FETCH_START_TIMEOUT_MS,
   JAM_MAX_DURATION_MS,
   JAM_SEARCH_MAX_LENGTH,
   JAM_STREAM_START_BYTES,
@@ -35,6 +37,7 @@ import {
 } from './bot-client';
 import { JamAudioCache } from './cache';
 import { JamError } from './errors';
+import { JamFetchers, type FetchConnectionInfo } from './fetchers';
 import { JamStateWriter, readJamStateFile } from './state-file';
 import {
   JamStore,
@@ -117,6 +120,8 @@ interface UploadJob {
   receiving: boolean;
   /** The early check was started (once per upload). */
   checked: boolean;
+  /** The app sending it declined (it is quitting): once it fails, another app is asked. */
+  declined: boolean;
   /** Settles (never rejects) once the early check is over. */
   probing: Promise<void>;
   /** Why the upload fails, once known. */
@@ -216,11 +221,17 @@ async function receiveFile(body: Readable, path: string, options: ReceiveOptions
 
 export interface JamServiceOptions {
   rooms: readonly RoomId[];
-  presence: Pick<PresenceStore, 'participant' | 'snapshot'>;
+  presence: Pick<PresenceStore, 'hasUser' | 'snapshot'>;
   youtube: YouTubeMusic;
   /** Undefined: this server has no jam bot, so the Jam is unavailable (search still works). */
   bot: JamBot | undefined;
   cache: JamAudioCache;
+  /** The desktop apps that download for clients that cannot; defaults to a registry of its own. */
+  fetchers?: JamFetchers;
+  /** Round-trip ping interval of the default registry (default JAM_FETCH_PING_MS). */
+  fetchPingMs?: number;
+  /** An app asked to download that has not started uploading this long is replaced. */
+  fetchStartTimeoutMs?: number;
   /** Where the jam is persisted once started; undefined keeps it in memory only. */
   stateFile?: string;
   /** LiveKit URL the bot joins with. */
@@ -251,9 +262,15 @@ export interface JamServiceOptions {
  * bot, kept in step. The api owns every decision; the bot is told what to play and reports when
  * a song ends. When the bot is unreachable the jam is kept as is and the bot is caught up once it
  * is back (`GET /v1/rooms` on every reconnection of its event stream, plus retries).
+ *
+ * A song added by a client that cannot download (the web) is fetched by a desktop app instead:
+ * the best-connected one (`fetchers`) is asked over its presence stream and uploads the audio
+ * like the requester would; one that declines, disconnects or never starts is replaced (sweep).
  */
 export class JamService implements JamFeed {
   readonly uploadMaxBytes: number;
+  /** The desktop apps able to download for others (fed by `GET /api/presence?jam=1&fetch=1`). */
+  readonly fetchers: JamFetchers;
   private readonly store: JamStore;
   private readonly rooms: ReadonlySet<RoomId>;
   private readonly now: () => number;
@@ -263,6 +280,7 @@ export class JamService implements JamFeed {
   private readonly uploadTimeoutMs: number;
   private readonly uploadIdleMs: number;
   private readonly streamStartBytes: number;
+  private readonly fetchStartTimeoutMs: number;
   private readonly retryDelay: (failures: number) => number;
   private readonly botView = new Map<RoomId, BotView>();
   private readonly seeks = new Map<RoomId, PendingSeek>();
@@ -300,7 +318,10 @@ export class JamService implements JamFeed {
     this.uploadTimeoutMs = options.uploadTimeoutMs ?? JAM_UPLOAD_TIMEOUT_MS;
     this.uploadIdleMs = options.uploadIdleMs ?? JAM_UPLOAD_IDLE_MS;
     this.streamStartBytes = options.streamStartBytes ?? JAM_STREAM_START_BYTES;
+    this.fetchStartTimeoutMs = options.fetchStartTimeoutMs ?? JAM_FETCH_START_TIMEOUT_MS;
     this.retryDelay = options.retryDelay ?? retryDelayMs;
+    this.fetchers =
+      options.fetchers ?? new JamFetchers({ now: this.now, pingMs: options.fetchPingMs });
     this.store = new JamStore({
       now: this.now,
       newId: options.newId,
@@ -384,6 +405,7 @@ export class JamService implements JamFeed {
     this.connects.clear();
     for (const timer of this.timers) clearTimeout(timer);
     this.timers.clear();
+    this.fetchers.clear();
     await Promise.all([this.writer?.flush(), this.options.cache.idle()]);
   }
 
@@ -423,8 +445,18 @@ export class JamService implements JamFeed {
    * Adds a song. Answers right away: the bot is told in the background (joining LiveKit takes a
    * while) and the jam events say when the song plays. A song still to be downloaded brings the
    * bot into an idle room meanwhile, so its LiveKit join overlaps the download.
+   *
+   * `canDownload`: the requester's app can download it (the route checks it holds a fetch-enabled
+   * presence stream; callers that bypass the route are desktop apps). Otherwise a desktop app is
+   * asked to (`jam_fetch` on its stream) and the answer says `upload: false`; with none connected
+   * the song is refused (`no_downloader`) rather than queued for nothing.
    */
-  async enqueue(userId: string, room: RoomId, videoId: string): Promise<JamEnqueueResponse> {
+  async enqueue(
+    userId: string,
+    room: RoomId,
+    videoId: string,
+    canDownload = true,
+  ): Promise<JamEnqueueResponse> {
     this.assertCanChange(room, userId);
     if (!YOUTUBE_VIDEO_ID_PATTERN.test(videoId)) throw new JamError('invalid_video');
     this.store.assertQueueNotFull(room);
@@ -441,14 +473,53 @@ export class JamService implements JamFeed {
     const streaming = this.streams.has(videoId);
     const cached =
       (await this.options.cache.has(videoId)) || streaming || this.streams.has(videoId);
+    // Nothing awaits between here and the store: what is decided now still holds when queued.
+    const delegated = !cached && !canDownload && !this.store.awaits(videoId);
+    const fetcher = delegated ? this.pickFetcher(room, [userId]) : undefined;
+    if (delegated && !fetcher) throw new JamError('no_downloader');
     const result = this.store.enqueue(room, track, userId, cached);
     if (result.item.status === 'downloading') this.connectAhead(room);
-    return result;
+    if (!fetcher) return result;
+    this.askFetcher(fetcher, room, result.item, 'enqueued');
+    return { item: result.item, upload: false };
   }
 
   /**
-   * Receives the audio of `itemId` from its requester (who need not be in the room anymore),
-   * written to a temporary file in the cache as it arrives. Once JAM_STREAM_START_BYTES are there
+   * The app asked to download `itemId` cannot (yt-dlp failed, not on Windows, quitting…):
+   * another one is asked right away. Only the fetcher asked may decline: `not_requester` for
+   * anyone else, `item_not_found` once the song is gone or was already handed to someone else.
+   * An upload of it still arriving from that app is given up first (the next app is asked once
+   * it has failed); one its songs already play from (live) just fails, as any such upload.
+   */
+  declineFetch(userId: string, room: RoomId, itemId: string, reason?: string): void {
+    this.assertAvailable();
+    this.assertRoom(room);
+    const upload = this.store.uploadOf(room, itemId);
+    if (!upload) throw new JamError('item_not_found');
+    if (upload.fetcher?.userId !== userId) {
+      if (upload.tried.includes(userId)) throw new JamError('item_not_found');
+      throw new JamError(
+        'not_requester',
+        'Só o app encarregado de baixar essa música pode recusá-la.',
+      );
+    }
+    const { videoId } = upload;
+    this.log.info({ room, itemId, videoId, userId, reason }, 'a desktop app declined a jam fetch');
+    if (!upload.receiving) {
+      this.reassignFetch(upload, 'declined');
+      return;
+    }
+    for (const job of this.jobs) {
+      if (job.upload.videoId !== videoId || job.upload.itemId !== itemId) continue;
+      job.declined = job.phase !== 'live';
+      this.stopUpload(job, new JamError('invalid_audio', 'O app encarregado desistiu do envio.'));
+    }
+  }
+
+  /**
+   * Receives the audio of `itemId` from its requester (who need not be in the room anymore) or
+   * from the app asked to download it for them, written to a temporary file in the cache as it
+   * arrives. Once JAM_STREAM_START_BYTES are there
    * and the bot finds a valid header, the songs waiting for it are ready and may play the file
    * while it grows; when the body ends the bot checks all of it and the file becomes the song's
    * audio. A shorter upload is checked once whole. Any failure after the upload was claimed makes
@@ -471,6 +542,7 @@ export class JamService implements JamFeed {
       phase: 'receiving',
       receiving: true,
       checked: false,
+      declined: false,
       probing: Promise.resolve(),
       failure: undefined,
       controller: new AbortController(),
@@ -560,8 +632,9 @@ export class JamService implements JamFeed {
   // -------------------------------------------------------------------------
 
   /**
-   * Drops songs whose audio never came, gives up stalled uploads, clears rooms nobody has been in
-   * for a while and lets the bot leave rooms whose jam ended a while ago.
+   * Drops songs whose audio never came, gives up stalled uploads, replaces apps asked to download
+   * that disconnected or never started, clears rooms nobody has been in for a while and lets the
+   * bot leave rooms whose jam ended a while ago.
    */
   sweep(): void {
     if (!this.available || this.stopped) return;
@@ -573,6 +646,16 @@ export class JamService implements JamFeed {
         this.stopUpload(job, new JamError('invalid_audio', 'O envio do áudio parou.'));
       } else if (now >= job.deadline) {
         this.stopUpload(job, new JamError('invalid_audio', 'O envio do áudio demorou demais.'));
+      }
+    }
+    for (const upload of this.store.pendingUploads()) {
+      if (upload.assignments === 0 || upload.receiving) continue;
+      const { fetcher } = upload;
+      if (!fetcher)
+        this.reassignFetch(upload, 'restored'); // from the state file
+      else if (!this.fetchers.has(fetcher.connectionId)) this.reassignFetch(upload, 'disconnected');
+      else if (now - fetcher.assignedAt >= this.fetchStartTimeoutMs) {
+        this.reassignFetch(upload, 'never started');
       }
     }
     const people = this.options.presence.snapshot().rooms;
@@ -653,11 +736,11 @@ export class JamService implements JamFeed {
     if (!this.rooms.has(room)) throw new JamError('unknown_room', `A sala "${room}" não existe.`);
   }
 
-  /** Mutations need the Jam, a configured room and the caller in that room. */
+  /** Mutations need the Jam, a configured room and the caller in that room (from any client). */
   private assertCanChange(room: RoomId, userId: string): void {
     this.assertAvailable();
     this.assertRoom(room);
-    if (!this.options.presence.participant(room, userId)) throw new JamError('not_in_room');
+    if (!this.options.presence.hasUser(room, userId)) throw new JamError('not_in_room');
   }
 
   /** The videoIds among `tracks` whose audio is here (or streaming in, as good). */
@@ -693,6 +776,63 @@ export class JamService implements JamFeed {
       'dropping restored jam songs whose audio is not in the cache',
     );
     return withoutReadySongs(data, missing);
+  }
+
+  // -------------------------------------------------------------------------
+  // Internals: delegated fetches
+  // -------------------------------------------------------------------------
+
+  /**
+   * The best app to download a song for `room`, none of `exclude` (the requester and whoever was
+   * asked already): in the room first, then by round trip, then the least busy.
+   */
+  private pickFetcher(room: RoomId, exclude: Iterable<string>): FetchConnectionInfo | undefined {
+    const load = new Map<string, number>();
+    for (const upload of this.store.pendingUploads()) {
+      const id = upload.fetcher?.connectionId;
+      if (id !== undefined) load.set(id, (load.get(id) ?? 0) + 1);
+    }
+    return this.fetchers.pick({
+      exclude: new Set(exclude),
+      inRoom: (userId) => this.options.presence.hasUser(room, userId),
+      active: (id) => load.get(id) ?? 0,
+    });
+  }
+
+  /** Asks `fetcher`'s app for `item`'s audio (`jam_fetch` on its presence stream). */
+  private askFetcher(fetcher: FetchConnectionInfo, room: RoomId, item: JamItem, why: string): void {
+    const { videoId } = item.track;
+    if (!this.store.assignFetcher(videoId, fetcher)) return;
+    this.log.info(
+      { room, itemId: item.id, videoId, fetcher: fetcher.userId, rttMs: fetcher.rttMs, why },
+      'asked a desktop app to download a jam song',
+    );
+    if (!this.fetchers.send(fetcher.id, { type: 'jam_fetch', room, item })) {
+      this.log.warn({ room, itemId: item.id, fetcher: fetcher.userId }, 'jam fetch not delivered');
+    }
+  }
+
+  /**
+   * The app asked for `upload` is out (`why`): the next candidate is asked, never one asked
+   * before. Past JAM_FETCH_MAX_ASSIGNMENTS, with nobody left, or once its item is gone (copies in
+   * other rooms would be strays), the song is dropped like an upload that timed out.
+   */
+  private reassignFetch(upload: PendingUpload, why: string): void {
+    const { room, itemId, videoId } = upload;
+    const item = this.store.item(room, itemId);
+    const next =
+      item && upload.assignments < JAM_FETCH_MAX_ASSIGNMENTS
+        ? this.pickFetcher(room, [upload.requestedBy, ...upload.tried])
+        : undefined;
+    if (!item || !next) {
+      this.log.warn(
+        { room, itemId, videoId, why, assignments: upload.assignments },
+        'no desktop app left to download a jam song, dropping it',
+      );
+      this.store.failUpload(upload);
+      return;
+    }
+    this.askFetcher(next, room, item, why);
   }
 
   // -------------------------------------------------------------------------
@@ -801,7 +941,10 @@ export class JamService implements JamFeed {
       await cache.commit(temp, upload.videoId);
     } catch (err) {
       await cache.discard(temp);
-      this.store.failUpload(upload);
+      // Given up by a quitting app: the song still waits, for the next app asked.
+      const released = job.declined ? this.store.releaseUpload(upload) : undefined;
+      if (released) this.reassignFetch(released, 'declined');
+      else this.store.failUpload(upload);
       throw err;
     }
     // Ready (idle rooms start playing it); the answer does not wait for the bot.
@@ -1249,7 +1392,7 @@ export class JamService implements JamFeed {
 
 export interface CreateJamServiceOptions {
   config: Pick<ApiConfig, 'rooms' | 'livekit' | 'jam'>;
-  presence: Pick<PresenceStore, 'participant' | 'snapshot'>;
+  presence: Pick<PresenceStore, 'hasUser' | 'snapshot'>;
   log: Logger;
   youtube?: YouTubeMusic;
   now?: () => number;

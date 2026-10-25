@@ -89,6 +89,9 @@ function bootstrap(): void {
   const presence = new PresenceClient({
     getServerUrl: () => settings.get().serverUrl,
     getKey: () => settings.getKey(),
+    // yt-dlp runs on Windows only: that is where the server may delegate downloads to.
+    fetch: () => process.platform === 'win32',
+    api,
   });
   const controller = new PresenceController({
     settings,
@@ -97,8 +100,13 @@ function bootstrap(): void {
     client: presence,
     notifier,
   });
-  // The Jam's events ride the presence SSE; its uploads belong to the logged-in account.
-  const jam = createJam({ api, store: presence.jam });
+  // The Jam's events (and the server's download requests) ride the presence SSE; its uploads
+  // belong to the logged-in account.
+  const jam = createJam({
+    api,
+    store: presence.jam,
+    onFetchRequest: (listener) => presence.onFetchRequest(listener),
+  });
   let jamOwner = jamSessionOwner(session.get());
   session.onChange((current) => {
     const owner = jamSessionOwner(current);

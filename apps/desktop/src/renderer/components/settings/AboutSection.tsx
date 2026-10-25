@@ -10,9 +10,14 @@ import { SettingsSection } from './SettingsSection';
 interface AboutSectionProps {
   version: string;
   platform: string;
+  /**
+   * This client updates itself (`capabilities.updates`). Without it the status line only says
+   * how it updates (the web: every deploy) and there is nothing to check.
+   */
+  updates?: boolean;
 }
 
-export function AboutSection({ version, platform }: AboutSectionProps) {
+export function AboutSection({ version, platform, updates = true }: AboutSectionProps) {
   const { status, check, install } = useUpdateStatus();
   const view = describeUpdateStatus(status);
   const [installError, setInstallError] = useState<string | null>(null);
@@ -58,24 +63,25 @@ export function AboutSection({ version, platform }: AboutSectionProps) {
           <ExternalLinkIcon size={16} />
           Projeto no GitHub
         </button>
-        {view.canInstall ? (
-          <button type="button" className="btn btn--primary btn--sm" onClick={restart}>
-            <DownloadIcon size={16} />
-            Reiniciar para atualizar
-          </button>
-        ) : (
-          // No tooltip while disabled: it would open over the status line right above, which
-          // already says why.
-          <button
-            type="button"
-            className="btn btn--sm"
-            disabled={!view.canCheck}
-            onClick={() => void check()}
-          >
-            <RefreshIcon size={16} />
-            Verificar atualizações
-          </button>
-        )}
+        {updates &&
+          (view.canInstall ? (
+            <button type="button" className="btn btn--primary btn--sm" onClick={restart}>
+              <DownloadIcon size={16} />
+              Reiniciar para atualizar
+            </button>
+          ) : (
+            // No tooltip while disabled: it would open over the status line right above, which
+            // already says why.
+            <button
+              type="button"
+              className="btn btn--sm"
+              disabled={!view.canCheck}
+              onClick={() => void check()}
+            >
+              <RefreshIcon size={16} />
+              Verificar atualizações
+            </button>
+          ))}
       </div>
       <p className="field__hint">
         Companion de compartilhamento de tela para o grupo. O Discord continua cuidando da voz e do

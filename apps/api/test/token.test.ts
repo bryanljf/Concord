@@ -65,6 +65,27 @@ describe('POST /api/token', () => {
     await app.close();
   });
 
+  it('issues a visible, camera-only token under the web identity for purpose "web"', async () => {
+    const { app } = testApp();
+    const res = await requestToken(app, { room: 'jogos', purpose: 'web' });
+    expect(res.statusCode).toBe(200);
+    const claims = await new TokenVerifier(API_KEY, API_SECRET).verify(
+      res.json<TokenResponse>().token,
+    );
+    expect(claims.sub).toBe('alice~web');
+    expect(claims.name).toBe('Alice');
+    expect(claims.video).toEqual({
+      roomJoin: true,
+      room: 'jogos',
+      canSubscribe: true,
+      canPublish: true,
+      canPublishSources: ['camera'],
+      canPublishData: true,
+      canUpdateOwnMetadata: true,
+    });
+    await app.close();
+  });
+
   it('treats purpose "main" exactly like the default', async () => {
     const { app } = testApp();
     const res = await requestToken(app, { room: 'geral', purpose: 'main' });

@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { ApiErrorResponse, UserInfo } from '@concord/shared';
+import { SESSION_COOKIE_NAME, type ApiErrorResponse, type UserInfo } from '@concord/shared';
 import { resolveDisplayName, type Profile } from './profiles';
 
 export interface User {
@@ -205,21 +205,80 @@ export function userFromSessionToken(
   }
 }
 
-/** Fastify preHandler: validates `Authorization: Bearer <key>` and sets `request.user`. */
+/**
+ * Reads one cookie from a `Cookie` header (raw value, first occurrence wins). The api only ever
+ * sets opaque base64url values, so no decoding is needed.
+ */
+export function readCookie(header: string | undefined, name: string): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator < 0) continue;
+    if (part.slice(0, separator).trim() !== name) continue;
+    const value = part.slice(separator + 1).trim();
+    return value === '' ? undefined : value;
+  }
+  return undefined;
+}
+
+/**
+ * `Set-Cookie` value storing the web client's session: HttpOnly (scripts never see it),
+ * SameSite=Lax (not sent on cross-site POSTs) and `Secure` when the site is served over https.
+ */
+export function sessionCookie(token: string, maxAgeSeconds: number, secure: boolean): string {
+  return (
+    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAgeSeconds}` +
+    (secure ? '; Secure' : '')
+  );
+}
+
+/** `Set-Cookie` value that removes the web client's session cookie. */
+export function clearedSessionCookie(secure: boolean): string {
+  return sessionCookie('', 0, secure);
+}
+
+/** Methods that never change state: a cookie alone may authenticate them. */
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Whether the request comes from the web app's own pages: browsers say so with
+ * `Sec-Fetch-Site: same-origin`; otherwise the `Origin` header must name this very server.
+ * Cookies also ride on requests other sites trigger, so this is the CSRF rule for them.
+ */
+export function isSameOrigin(request: FastifyRequest): boolean {
+  if (request.headers['sec-fetch-site'] === 'same-origin') return true;
+  const origin = request.headers.origin;
+  return typeof origin === 'string' && origin === `${request.protocol}://${request.host}`;
+}
+
+/**
+ * Fastify preHandler: validates `Authorization: Bearer <key or session token>` and sets
+ * `request.user`. Without a Bearer credential the `concord_session` cookie (the web client's
+ * session) counts too, but a cookie-authenticated request that may change state must be
+ * same-origin (403 `csrf` otherwise); Bearer requests never need that check.
+ */
 export function requireUser(store: UserStore, sessionSecret?: string) {
   return async function authenticate(request: FastifyRequest, reply: FastifyReply) {
     const key = parseBearer(request.headers.authorization);
     const user = key ? store.findByKey(key) : undefined;
     const sessionUser =
       !user && sessionSecret && key ? userFromSessionToken(key, store, sessionSecret) : undefined;
-    if (!user && !sessionUser) {
+    const cookie =
+      !user && !sessionUser ? readCookie(request.headers.cookie, SESSION_COOKIE_NAME) : undefined;
+    const cookieUser =
+      cookie && sessionSecret ? userFromSessionToken(cookie, store, sessionSecret) : undefined;
+    if (!user && !sessionUser && !cookieUser) {
       const body: ApiErrorResponse = {
         error: 'unauthorized',
         message: 'Chave de acesso inválida ou ausente.',
       };
       return reply.code(401).header('www-authenticate', 'Bearer').send(body);
     }
-    request.user = user ?? sessionUser;
+    if (cookieUser && !SAFE_METHODS.has(request.method) && !isSameOrigin(request)) {
+      const body: ApiErrorResponse = { error: 'csrf', message: 'Requisição recusada.' };
+      return reply.code(403).send(body);
+    }
+    request.user = user ?? sessionUser ?? cookieUser;
   };
 }
 

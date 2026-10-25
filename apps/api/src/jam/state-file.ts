@@ -65,13 +65,27 @@ function parseNowPlaying(value: unknown): JamNowPlaying | null | undefined {
   return { item, positionMs, at, paused, pausedBy: paused ? pausedBy : null };
 }
 
+/**
+ * An upload as saved. A delegated one (some app was asked to download it) comes back without its
+ * fetcher: the sweep asks someone again, still counting the attempts and skipping who was asked.
+ */
 function parseUpload(value: unknown, rooms: ReadonlySet<RoomId>): PendingUpload | undefined {
   if (!isRecord(value)) return undefined;
-  const { videoId, itemId, room, requestedBy, deadline } = value;
+  const { videoId, itemId, room, requestedBy, deadline, assignments, tried } = value;
   if (typeof videoId !== 'string' || !YOUTUBE_VIDEO_ID_PATTERN.test(videoId)) return undefined;
   if (!isText(itemId) || typeof room !== 'string' || !rooms.has(room)) return undefined;
   if (!isText(requestedBy) || !isTime(deadline)) return undefined;
-  return { videoId, itemId, room, requestedBy, deadline, receiving: false };
+  return {
+    videoId,
+    itemId,
+    room,
+    requestedBy,
+    deadline,
+    receiving: false,
+    fetcher: null,
+    assignments: isTime(assignments) && Number.isInteger(assignments) ? assignments : 0,
+    tried: Array.isArray(tried) ? tried.filter(isText) : [],
+  };
 }
 
 /**

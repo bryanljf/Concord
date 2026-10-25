@@ -4,6 +4,8 @@ import { SettingsSection } from './SettingsSection';
 
 interface AudioSectionProps {
   settings: Settings;
+  /** This client has the pop-out window (`capabilities.popout`), which follows the device too. */
+  popout?: boolean;
   onUpdate(patch: Partial<Settings>): void;
 }
 
@@ -12,7 +14,7 @@ interface OutputDevice {
   label: string;
 }
 
-export function AudioSection({ settings, onUpdate }: AudioSectionProps) {
+export function AudioSection({ settings, popout = true, onUpdate }: AudioSectionProps) {
   const [devices, setDevices] = useState<OutputDevice[]>([]);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function AudioSection({ settings, onUpdate }: AudioSectionProps) {
         </select>
         <p className="field__hint">
           Independente do Discord: dá para mandar o som das transmissões para outro fone ou caixa. A
-          troca vale na hora, inclusive na janela separada.
+          troca vale na hora{popout ? ', inclusive na janela separada' : ''}.
         </p>
       </div>
     </SettingsSection>

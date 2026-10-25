@@ -4,7 +4,14 @@ export type RoomId = string;
 // Presence (who is in which room, who is streaming)
 // ---------------------------------------------------------------------------
 
+/** Which Concord client a participant connected from. */
+export type ParticipantClient = 'desktop' | 'web';
+
 export interface PresenceParticipant {
+  /**
+   * LiveKit identity: the user id for the desktop app, `<userId>~web` for the web client
+   * (`userIdOf` gives the person behind either). The same person may be in a room from both.
+   */
   id: string;
   /** Display name: the user's nickname, else their Discord name, else the users.json name. */
   name: string;
@@ -15,6 +22,8 @@ export interface PresenceParticipant {
   avatarUrl?: string | null;
   /** Publishing a webcam (a camera never counts as `streaming`). Optional for older servers. */
   camera?: boolean;
+  /** Where this connection comes from. Optional for older servers (= desktop). */
+  client?: ParticipantClient;
 }
 
 export interface PresenceSnapshot {
@@ -112,27 +121,91 @@ export interface ServerInfoResponse {
 }
 
 /**
- * `main`: the regular participant (publishes and subscribes). `popout` / `pip`: hidden,
- * subscribe-only identities used by the pop-out window and by the cameras' picture-in-picture
- * window, so one person can hold several LiveKit connections.
+ * `main`: the regular desktop participant (identity = user id; publishes screen, its audio and a
+ * camera). `popout` / `pip`: hidden, subscribe-only identities used by the pop-out window and by
+ * the cameras' picture-in-picture window, so one person can hold several LiveKit connections.
+ * `web`: the browser client (identity `<userId>~web`, visible in presence like `main`, may only
+ * publish a camera), so the same person can be on the phone while their PC stays in a room.
  */
-export type TokenPurpose = 'main' | 'popout' | 'pip';
+export type TokenPurpose = 'main' | 'popout' | 'pip' | 'web';
 
 export interface TokenRequest {
   room: RoomId;
   purpose?: TokenPurpose;
 }
 
-/** Appended to the user id for auxiliary identities (`bryan~popout`). */
+/** Appended to the user id for every identity that is not the desktop's (`bryan~popout`). */
 export const AUXILIARY_IDENTITY_SEPARATOR = '~';
 
-/** Auxiliary identities never appear in presence and cannot publish. */
-export function isAuxiliaryIdentity(identity: string): boolean {
-  return identity.includes(AUXILIARY_IDENTITY_SEPARATOR);
+/** The hidden, subscribe-only purposes (extra windows of the desktop app). */
+export const HIDDEN_PURPOSES = ['popout', 'pip'] as const;
+export type HiddenPurpose = (typeof HIDDEN_PURPOSES)[number];
+
+/** Suffix of the web client's identity (`bryan~web`). */
+export const WEB_IDENTITY_SUFFIX = `${AUXILIARY_IDENTITY_SEPARATOR}web`;
+
+/** The web client's identity for `userId`. */
+export function webIdentity(userId: string): string {
+  return `${userId}${WEB_IDENTITY_SUFFIX}`;
 }
 
-export function auxiliaryIdentity(userId: string, purpose: Exclude<TokenPurpose, 'main'>): string {
+export function isWebIdentity(identity: string): boolean {
+  return identity.endsWith(WEB_IDENTITY_SUFFIX);
+}
+
+/**
+ * Auxiliary identities (pop-out, PiP, or any suffix this version does not know) are hidden extra
+ * connections: they never appear in presence, never count as viewers and cannot publish. The web
+ * identity is NOT auxiliary: it is a person in the room.
+ */
+export function isAuxiliaryIdentity(identity: string): boolean {
+  return identity.includes(AUXILIARY_IDENTITY_SEPARATOR) && !isWebIdentity(identity);
+}
+
+export function auxiliaryIdentity(userId: string, purpose: HiddenPurpose): string {
   return `${userId}${AUXILIARY_IDENTITY_SEPARATOR}${purpose}`;
+}
+
+/** The person behind any identity: `bryan`, `bryan~web` and `bryan~popout` all give `bryan`. */
+export function userIdOf(identity: string): string {
+  const separator = identity.indexOf(AUXILIARY_IDENTITY_SEPARATOR);
+  return separator < 0 ? identity : identity.slice(0, separator);
+}
+
+/** The identity a token of `purpose` joins with. */
+export function identityFor(userId: string, purpose: TokenPurpose): string {
+  if (purpose === 'main') return userId;
+  if (purpose === 'web') return webIdentity(userId);
+  return auxiliaryIdentity(userId, purpose);
+}
+
+/** Where a presence participant connected from, by its identity. */
+export function participantClientOf(identity: string): ParticipantClient {
+  return isWebIdentity(identity) ? 'web' : 'desktop';
+}
+
+// ---------------------------------------------------------------------------
+// Web client session (cookie), next to the Bearer credentials the desktop uses
+// ---------------------------------------------------------------------------
+//
+// GET  /api/auth/discord/login?client=web   Discord OAuth; the callback then sets the session
+//                                           cookie and redirects to `/` (or `/?login_error=<code>`
+//                                           with the ApiErrorResponse.error code on failure).
+// POST /api/auth/session   SessionRequest → 204 + cookie (signs in with an access key: used by
+//                          tests and local development; the web UI only offers Discord).
+// POST /api/auth/logout    → 204, clears the cookie.
+// Every /api route accepts the cookie as an alternative to `Authorization: Bearer`; cookie-backed
+// requests that change state must come from the same origin (403 `csrf` otherwise).
+
+/** HttpOnly cookie holding the web client's session token. */
+export const SESSION_COOKIE_NAME = 'concord_session';
+
+/** Query parameter the OAuth callback adds to `/` when a web login fails. */
+export const LOGIN_ERROR_QUERY = 'login_error';
+
+/** `POST /api/auth/session` body. */
+export interface SessionRequest {
+  key: string;
 }
 
 export interface TokenResponse {

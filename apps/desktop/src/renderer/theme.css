@@ -79,6 +79,21 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+  /* Touch screens: no grey flash on taps, no callout on a long press (it opens our menu), no
+     double-tap zoom delay, no pull-to-refresh tearing the session down. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+/* Phones: the height follows the browser's toolbars as they come and go. */
+@media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
 }
 
 input,
@@ -293,6 +308,31 @@ kbd {
   background: var(--accent-hover);
 }
 
+/*
+ * Touch screens (`TOUCH_QUERY` in lib/touch.ts): targets at least 40 px, a fatter slider thumb.
+ * Components that size their own buttons repeat this in their stylesheets.
+ */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 40px;
+  }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .range {
+    height: 28px;
+  }
+
+  .range::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    margin-top: -8px;
+  }
+}
+
 /* Tooltips: CSS-only, from `data-tooltip` (the aria-label carries the same text). */
 [data-tooltip] {
   position: relative;
@@ -328,7 +368,6 @@ kbd {
   transform: translate(-50%, 0);
   transition-delay: 350ms;
 }
-
 /* Below the control (top bars) and right-aligned, so they never run off the window edge. */
 .header__actions [data-tooltip]::after,
 .popout__actions [data-tooltip]::after,

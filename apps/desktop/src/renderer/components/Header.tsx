@@ -2,6 +2,13 @@ import { roomLabel, type RoomId } from '@concord/shared';
 import { ExitFullscreenIcon, FullscreenIcon, GearIcon, PopOutIcon } from './icons';
 import '../styles/header.css';
 
+/**
+ * What the "another window" button does: the desktop's windows (the pop-out for a screen share,
+ * the cameras' picture-in-picture for a webcam), the browser's own picture-in-picture of the
+ * stream (web client), or nothing (the button is left out).
+ */
+export type WindowMode = 'desktop' | 'native' | 'none';
+
 interface HeaderProps {
   currentRoom: RoomId | null;
   /**
@@ -10,6 +17,7 @@ interface HeaderProps {
    */
   focusedKind: 'screen' | 'camera' | null;
   fullscreen: boolean;
+  windowMode?: WindowMode;
   onToggleFullscreen(): void;
   onPopout(): void;
   onOpenSettings(): void;
@@ -19,10 +27,23 @@ export function Header({
   currentRoom,
   focusedKind,
   fullscreen,
+  windowMode = 'desktop',
   onToggleFullscreen,
   onPopout,
   onOpenSettings,
 }: HeaderProps) {
+  let popoutTooltip = 'Destaque uma transmissão primeiro';
+  let popoutLabel = 'Abrir a transmissão em destaque em picture-in-picture';
+  if (windowMode === 'desktop') {
+    if (focusedKind === 'camera') popoutTooltip = 'Picture-in-picture';
+    else if (focusedKind === 'screen') popoutTooltip = 'Abrir em janela separada';
+    popoutLabel =
+      focusedKind === 'camera'
+        ? 'Abrir as câmeras em picture-in-picture'
+        : 'Abrir a transmissão em destaque em uma janela separada';
+  } else if (focusedKind !== null) {
+    popoutTooltip = 'Picture-in-picture';
+  }
   return (
     <header className="header">
       <h1 className="header__title">
@@ -43,26 +64,18 @@ export function Header({
         >
           {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
         </button>
-        <button
-          type="button"
-          className="icon-btn"
-          disabled={focusedKind === null}
-          data-tooltip={
-            focusedKind === 'camera'
-              ? 'Picture-in-picture'
-              : focusedKind === 'screen'
-                ? 'Abrir em janela separada'
-                : 'Destaque uma transmissão primeiro'
-          }
-          aria-label={
-            focusedKind === 'camera'
-              ? 'Abrir as câmeras em picture-in-picture'
-              : 'Abrir a transmissão em destaque em uma janela separada'
-          }
-          onClick={onPopout}
-        >
-          <PopOutIcon />
-        </button>
+        {windowMode !== 'none' && (
+          <button
+            type="button"
+            className="icon-btn"
+            disabled={focusedKind === null}
+            data-tooltip={popoutTooltip}
+            aria-label={popoutLabel}
+            onClick={onPopout}
+          >
+            <PopOutIcon />
+          </button>
+        )}
         <button
           type="button"
           className="icon-btn"

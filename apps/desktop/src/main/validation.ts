@@ -4,6 +4,8 @@ import {
   NICKNAME_MAX_LENGTH,
   parseStreamQualityId,
   ROOM_ID_PATTERN,
+  userIdOf,
+  webIdentity,
   YOUTUBE_VIDEO_ID_PATTERN,
   type RoomId,
   type StreamQualityId,
@@ -67,19 +69,29 @@ export function expectStreamQualityId(value: unknown, name = 'quality'): StreamQ
 
 export function expectOptionalTokenPurpose(value: unknown): TokenPurpose | undefined {
   if (value === undefined) return undefined;
-  if (value === 'main' || value === 'popout' || value === 'pip') return value;
+  if (value === 'main' || value === 'popout' || value === 'pip' || value === 'web') return value;
   throw new IpcValidationError('purpose');
 }
 
 /** Same rule as concord-api (`USER_ID_PATTERN` in apps/api/src/auth.ts). */
 export const USER_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 
+/**
+ * A participant whose camera the picture-in-picture may show: a desktop user id (`bryan`) or
+ * the web client's identity (`bryan~web`); never a hidden auxiliary one (`bryan~pip`).
+ */
+export function isPipParticipantId(id: string): boolean {
+  const userId = userIdOf(id);
+  return USER_ID_PATTERN.test(userId) && (id === userId || id === webIdentity(userId));
+}
+
 /** A room never holds more people than the picture-in-picture can show (LiveKit limit 15). */
 export const MAX_PIP_PARTICIPANTS = 15;
 
 /**
- * `openPip` / `updatePip` argument: a room and up to 15 user ids (cameras, not stream keys).
- * Duplicates are dropped, keeping the first occurrence so the order stays the watch order.
+ * `openPip` / `updatePip` argument: a room and up to 15 participant ids (user ids or web
+ * identities; cameras, not stream keys). Duplicates are dropped, keeping the first occurrence
+ * so the order stays the watch order.
  */
 export function parsePipTarget(raw: unknown): PipTarget {
   if (!isRecord(raw)) throw new IpcValidationError('target');
@@ -90,7 +102,7 @@ export function parsePipTarget(raw: unknown): PipTarget {
   }
   const participantIds: string[] = [];
   for (const id of ids) {
-    if (typeof id !== 'string' || !USER_ID_PATTERN.test(id)) {
+    if (typeof id !== 'string' || !isPipParticipantId(id)) {
       throw new IpcValidationError('participantIds');
     }
     if (!participantIds.includes(id)) participantIds.push(id);

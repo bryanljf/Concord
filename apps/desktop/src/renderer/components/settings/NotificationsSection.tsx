@@ -1,5 +1,6 @@
 import { roomLabel, type PresenceParticipant, type RoomId } from '@concord/shared';
 import type { Settings } from '../../lib/concord';
+import { mutablePeople } from '../../lib/presence';
 import { Avatar } from '../Avatar';
 import { SettingsSection } from './SettingsSection';
 
@@ -21,13 +22,9 @@ export function NotificationsSection({
   participants,
   onUpdate,
 }: NotificationsSectionProps) {
-  // Muted people who are offline right now still need a chip so they can be unmuted.
-  const people: { id: string; name: string; avatarUrl?: string | null }[] = [
-    ...participants,
-    ...settings.mutedUsers
-      .filter((id) => !participants.some((participant) => participant.id === id))
-      .map((id) => ({ id, name: id })),
-  ];
+  // One chip per person (PC and phone alike); muted people who are offline right now still need
+  // theirs so they can be unmuted.
+  const people = mutablePeople(participants, settings.mutedUsers);
 
   return (
     <SettingsSection id="notificacoes" title="Sons">

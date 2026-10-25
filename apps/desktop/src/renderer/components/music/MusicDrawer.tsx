@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { JAM_BOT_IDENTITY, type JamRecentTrack, type JamState, type RoomId } from '@concord/shared';
 import type { JamUploadStatus } from '../../../preload/api';
 import type { MusicListening } from '../../hooks/useMusicListening';
+import { useViewport } from '../../hooks/useViewport';
 import type { JamPerson } from '../../lib/jam';
 import { musicDrawerLayout } from '../../lib/jamRecent';
 import type { Viewer } from '../../lib/viewers';
@@ -70,9 +71,11 @@ const UNMEASURED_STAGE = 4096;
  * of the other rooms ("Entrar e ouvir"). Nothing plays until "Ouvir" is pressed. Closing it (×,
  * Esc, a click outside) never stops the audio. "Recentes" widens it smoothly with a second column
  * on the right (the main one keeps its layout and width); the × turns into a back arrow then, and
- * Esc narrows it first.
+ * Esc narrows it first. On a phone it is a bottom sheet as wide as the screen (the stylesheet
+ * sets the widths), where "Recentes" takes the sheet over instead of widening it.
  */
 export function MusicDrawer({ open, jam, listening, onClose }: MusicDrawerProps) {
+  const { phone } = useViewport();
   const jamHere = jam?.room && jam.state ? { room: jam.room, state: jam.state } : null;
   const jamsElsewhere = jam?.elsewhere ?? [];
   const empty = jamHere === null && jamsElsewhere.length === 0;
@@ -125,12 +128,20 @@ export function MusicDrawer({ open, jam, listening, onClose }: MusicDrawerProps)
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [open, onClose]);
 
+  const className = [
+    'music-drawer',
+    open ? 'music-drawer--open' : '',
+    expanded ? 'music-drawer--recent' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <section
       ref={panel}
       id="music-drawer"
-      className={open ? 'music-drawer music-drawer--open' : 'music-drawer'}
-      style={{ width: layout.drawer }}
+      className={className}
+      style={phone ? undefined : { width: layout.drawer }}
       aria-label="Música"
       aria-hidden={!open}
       inert={!open}
@@ -161,7 +172,7 @@ export function MusicDrawer({ open, jam, listening, onClose }: MusicDrawerProps)
         )}
       </header>
       <div className="music-drawer__columns">
-        <div className="music-drawer__body" style={{ width: layout.main }}>
+        <div className="music-drawer__body" style={phone ? undefined : { width: layout.main }}>
           {jam && jamHere && (
             <JamRoomPanel
               room={jamHere.room}
@@ -199,7 +210,11 @@ export function MusicDrawer({ open, jam, listening, onClose }: MusicDrawerProps)
           {empty && <p className="music-drawer__empty">Nenhuma Jam tocando agora.</p>}
         </div>
         {jam && recentMounted && (
-          <div className="music-drawer__side" style={{ width: recentWidth }} inert={!expanded}>
+          <div
+            className="music-drawer__side"
+            style={phone ? undefined : { width: recentWidth }}
+            inert={!expanded}
+          >
             <JamRecentColumn
               tracks={jam.recent.tracks}
               clockOffsetMs={jam.clockOffsetMs}

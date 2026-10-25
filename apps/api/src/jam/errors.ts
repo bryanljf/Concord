@@ -26,7 +26,8 @@ export type JamErrorCode =
   | 'no_previous'
   | 'previous_unavailable'
   | 'unsupported_media_type'
-  | 'payload_too_large';
+  | 'payload_too_large'
+  | 'no_downloader';
 
 const STATUS: Record<JamErrorCode, number> = {
   jam_unavailable: 503,
@@ -47,6 +48,7 @@ const STATUS: Record<JamErrorCode, number> = {
   previous_unavailable: 410,
   unsupported_media_type: 415,
   payload_too_large: 413,
+  no_downloader: 503,
 };
 
 const MAX_MINUTES = Math.round(JAM_MAX_DURATION_MS / 60_000);
@@ -71,6 +73,8 @@ const MESSAGES: Record<JamErrorCode, string> = {
   previous_unavailable: 'A música anterior não está mais no servidor.',
   unsupported_media_type: `Envie o áudio como ${JAM_UPLOAD_CONTENT_TYPE}.`,
   payload_too_large: `O áudio passa do limite de ${MAX_MEGABYTES} MB.`,
+  no_downloader:
+    'Ninguém com o Concord aberto no PC para baixar essa música agora. Tente de novo daqui a pouco.',
 };
 
 /** A Jam failure the routes answer as is: HTTP status, code and a pt-BR message. */

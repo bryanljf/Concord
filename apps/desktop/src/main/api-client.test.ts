@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ApiClientError,
   createApiClient,
+  JAM_FETCH_DECLINE_REASON_MAX_LENGTH,
   JAM_RECENT_MAX,
   normalizeServerUrl,
   parseUserInfo,
@@ -597,6 +598,67 @@ describe('jam routes', () => {
     expect(gone.status).toBe(410);
     expect(gone.code).toBe('previous_unavailable');
     expect((await errorOf(409, 'stale')).code).toBe('stale');
+  });
+
+  it('answers a fetch ping', async () => {
+    const { api, calls } = capture(noContent);
+    await api.jamFetchPong('a1B2_c-3');
+    expect(calls[0]?.url).toBe('http://127.0.0.1:3000/api/jam/fetch/pong');
+    expect(calls[0]?.init?.method).toBe('POST');
+    expect(headersOf(calls[0]?.init).Authorization).toBe('Bearer secret');
+    expect(headersOf(calls[0]?.init)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ nonce: 'a1B2_c-3' });
+  });
+
+  it('declines a fetch, with or without a reason', async () => {
+    const { api, calls } = capture(noContent);
+    await api.jamFetchDecline('sala-1', 'item-1', 'download failed: blocked');
+    await api.jamFetchDecline('sala-1', 'item-1');
+    await api.jamFetchDecline(
+      'sala-1',
+      'item-1',
+      'x'.repeat(JAM_FETCH_DECLINE_REASON_MAX_LENGTH + 50),
+    );
+    const url = 'POST http://127.0.0.1:3000/api/rooms/sala-1/jam/items/item-1/fetch/decline';
+    expect(calls.map((call) => `${call.init?.method} ${call.url}`)).toEqual([url, url, url]);
+    expect(headersOf(calls[0]?.init)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      reason: 'download failed: blocked',
+    });
+    // No reason: none sent (not `null`, which the schema would refuse).
+    expect(calls[1]?.init?.body).toBe('{}');
+    // Cut to what the schema accepts.
+    expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({
+      reason: 'x'.repeat(JAM_FETCH_DECLINE_REASON_MAX_LENGTH),
+    });
+
+    const errorOf = async (status: number, error: string) =>
+      failure(
+        capture(() => jsonResponse(status, { error, message: 'x' })).api.jamFetchDecline(
+          'sala-1',
+          'item-1',
+        ),
+      );
+    // Gone or handed to someone else meanwhile: the code is kept for the caller to let it go.
+    const gone = await errorOf(404, 'item_not_found');
+    expect(gone.status).toBe(404);
+    expect(gone.code).toBe('item_not_found');
+    expect(gone.message).toBe('Essa música não está mais na fila.');
+    expect((await errorOf(403, 'not_requester')).code).toBe('not_requester');
+  });
+
+  it('knows the error of a song nobody can download', async () => {
+    const err = await failure(
+      capture(() => jsonResponse(503, { error: 'no_downloader', message: 'x' })).api.jamEnqueue(
+        'sala-1',
+        '4D7u5KF7SP8',
+      ),
+    );
+    expect(err.status).toBe(503);
+    expect(err.code).toBe('no_downloader');
+    expect(err.message).toBe(
+      'Ninguém com o Concord aberto no PC para baixar essa música agora. Tente de novo daqui a pouco.',
+    );
   });
 
   it('uses its own pt-BR message for every jam error code', async () => {

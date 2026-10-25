@@ -20,7 +20,10 @@ export function App() {
   );
 }
 
-/** Session gate: loading → boot screen; no user (or onboarding in progress) → Onboarding. */
+/**
+ * Session gate: loading → boot screen; no user (or onboarding in progress) → Onboarding (on the
+ * web with the reason the last Discord sign-in failed, if it did).
+ */
 function Root() {
   const session = useSession();
 
@@ -32,6 +35,7 @@ function Root() {
         key={session.onboarding}
         flow={session.onboarding === 'rekey' ? 'rekey' : 'full'}
         initialServerUrl={session.serverUrl}
+        loginError={session.loginError}
         onLogin={session.login}
         onDiscordLogin={session.loginWithDiscord}
         onFinish={session.finishOnboarding}

@@ -8,6 +8,8 @@ import {
   type ApiErrorResponse,
   type JamEnqueueRequest,
   type JamEnqueueResponse,
+  type JamFetchDeclineRequest,
+  type JamFetchPongRequest,
   type JamPreviousRequest,
   type JamRecentResponse,
   type JamRecentTrack,
@@ -185,6 +187,7 @@ export type JamErrorCode =
   | 'stale'
   | 'no_previous'
   | 'previous_unavailable'
+  | 'no_downloader'
   // Upload-only, from the api's own error list (not in the shared contract).
   | 'unsupported_media_type'
   | 'payload_too_large';
@@ -212,6 +215,8 @@ export const JAM_ERROR_MESSAGES: Readonly<Record<JamErrorCode, string>> = {
   stale: 'Essa música já tinha sido pulada.',
   no_previous: 'Não há música anterior nesta Jam.',
   previous_unavailable: 'A música anterior não está mais disponível.',
+  no_downloader:
+    'Ninguém com o Concord aberto no PC para baixar essa música agora. Tente de novo daqui a pouco.',
   unsupported_media_type: 'O servidor recusou o formato do áudio baixado do YouTube.',
   payload_too_large: JAM_AUDIO_TOO_LARGE_MESSAGE,
 };
@@ -299,6 +304,9 @@ export const JAM_LOOKUP_TIMEOUT_MS = 15_000;
  * while yt-dlp still downloads it (which gives up after 3 minutes).
  */
 export const JAM_UPLOAD_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Longest `reason` of a fetch decline the api accepts (its schema); longer ones are cut. */
+export const JAM_FETCH_DECLINE_REASON_MAX_LENGTH = 200;
 
 function parseJamSearch(value: unknown): JamSearchResponse | null {
   if (!isRecord(value)) return null;
@@ -408,6 +416,15 @@ export interface ApiClient {
   jamPause(room: RoomId): Promise<void>;
   /** `POST /api/rooms/:room/jam/resume` */
   jamResume(room: RoomId): Promise<void>;
+  /** `POST /api/jam/fetch/pong`: answers a `jam_fetch_ping` of the fetch-enabled presence stream. */
+  jamFetchPong(nonce: string): Promise<void>;
+  /**
+   * `POST /api/rooms/:room/jam/items/:itemId/fetch/decline` (the assigned fetcher only): this
+   * app cannot download the song the server asked for, so it asks another one. `reason` goes to
+   * the server log (English, cut at `JAM_FETCH_DECLINE_REASON_MAX_LENGTH`); code `item_not_found`
+   * when the song is gone or was already handed to someone else.
+   */
+  jamFetchDecline(room: RoomId, itemId: string, reason?: string): Promise<void>;
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -569,5 +586,19 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     },
     jamPause: (room) => jamCommand(jamPath(room, 'pause'), { method: 'POST' }),
     jamResume: (room) => jamCommand(jamPath(room, 'resume'), { method: 'POST' }),
+    jamFetchPong: (nonce) => {
+      const body: JamFetchPongRequest = { nonce };
+      return jamCommand('/api/jam/fetch/pong', { method: 'POST', json: body });
+    },
+    jamFetchDecline: (room, itemId, reason) => {
+      // `reason` is omitted from the JSON when undefined (`JSON.stringify` drops it).
+      const body: JamFetchDeclineRequest = {
+        reason: reason?.slice(0, JAM_FETCH_DECLINE_REASON_MAX_LENGTH),
+      };
+      return jamCommand(jamItemPath(room, itemId, '/fetch/decline'), {
+        method: 'POST',
+        json: body,
+      });
+    },
   };
 }

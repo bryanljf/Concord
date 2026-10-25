@@ -8,6 +8,9 @@ e o chat continuam lá; o Concord transmite a tela (com o som do jogo) por um se
   inspirado no Discord para assistir ou transmitir.
 - **Servidor** (`concord-api` + `livekit-server` + `jam-bot` + Caddy): roda numa VM **Oracle
   Cloud Always Free**, atrás de um domínio com HTTPS (DuckDNS + Let's Encrypt).
+- **Versão web** (celular ou qualquer navegador, no mesmo endereço do servidor, sem instalar):
+  entrar com o Discord, ver as salas, assistir às lives e câmeras, ligar a câmera do celular e
+  usar a Jam. Não transmite a tela.
 
 Como instalar e usar (guia para os amigos): [docs/INSTALAR.md](docs/INSTALAR.md). Último
 instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/latest).
@@ -89,6 +92,19 @@ instalador: [releases/latest](https://github.com/bryanljf/Concord/releases/lates
 - **Atualização automática**: o app verifica de hora em hora, baixa em segundo plano e avisa
   (notificação, item na bandeja, faixa "Reiniciar agora" e uma seta verde ao lado de "CONCORD"
   na barra lateral expandida, que reinicia para instalar).
+- **Versão web** (`https://<domínio>/`, o mesmo endereço do servidor; celular ou qualquer
+  navegador, sem instalar nada): **Entrar com Discord** com a mesma lista de autorizados (a sessão
+  fica num cookie), as salas e a presença, assistir às lives e às câmeras (com o
+  picture-in-picture do próprio navegador), ligar a **câmera** do celular e a Jam inteira
+  (ouvir, buscar, adicionar, pausar, pular, voltar, remover). Dá para adicionar à tela inicial
+  (iPhone e Android) e abrir como app; na primeira live o celular pede um toque para liberar o
+  som. O que fica só no PC: **transmitir a tela**, o áudio por processo, a bandeja, o atalho, o
+  pop-out e a janelinha de câmeras. Em segundo plano o navegador do celular suspende a página: ao
+  voltar, a live e a presença reconectam sozinhas. Uma música adicionada pelo celular é baixada,
+  em silêncio, pelo Concord de quem está com o app aberto no PC (o api escolhe quem está na mesma
+  sala e com a melhor conexão, e passa a outro se esse falhar); sem ninguém com o app aberto, o
+  site avisa e a música não entra na fila. A mesma pessoa pode estar no PC e no celular ao mesmo
+  tempo (aparece duas vezes, com um ícone de celular). O site se atualiza sozinho a cada deploy.
 
 ## Arquitetura
 
@@ -97,48 +113,65 @@ PC de cada amigo (Windows)                 VM Oracle (Ubuntu 24.04 ARM, Docker)
 ┌──────────────────────────────┐   HTTPS   ┌─────────────────────────────────────────────┐
 │ Concord (Electron)           │──────────▶│ Caddy :443 (Let's Encrypt)                  │
 │  main: bandeja, presença SSE,│           │  ├─ /api/*  → concord-api 127.0.0.1:3000    │
-│        login Discord, update,│   WSS     │  └─ resto   → livekit-server :7880 (WSS)    │
-│        yt-dlp (Jam)          │──────────▶│ livekit-server: mídia UDP 50000-50200,      │
-│  renderer: React + livekit-  │ UDP/TCP   │                 TCP 7881; webhooks → api    │
-│        client                │──────────▶│ concord-api: OAuth Discord, tokens LiveKit, │
-└──────────────────────────────┘           │  presença (SSE), perfis, sync via bot, Jam  │
-       ▲                                   │  (busca no YouTube Music, filas, cache)     │
-       │ yt-dlp baixa o áudio da Jam:      │ jam-bot 127.0.0.1:3001 (Go): toca a Jam de  │
-       │ anônimo, da conexão de cada um    │  cada sala no LiveKit, Opus sem recodificar │
-    YouTube                                └─────────────────────────────────────────────┘
+│        login Discord, update,│   WSS     │  ├─ /rtc*   → livekit-server :7880 (WSS)    │
+│        yt-dlp (Jam)          │──────────▶│  └─ resto   → versão web (arquivos estáticos│
+│  renderer: React + livekit-  │ UDP/TCP   │               em web/current, pelo deploy)  │
+│        client                │──────────▶│ livekit-server: mídia UDP 50000-50200,      │
+└──────────────────────────────┘           │                 TCP 7881; webhooks → api    │
+       ▲                                   │ concord-api: OAuth Discord (app e web, com  │
+       │ yt-dlp baixa o áudio da Jam:      │  cookie), tokens LiveKit, presença (SSE),   │
+       │ anônimo, da conexão de cada um    │  perfis, sync via bot, Jam (busca no YouTube│
+    YouTube  (também as pedidas no celular)│  Music, filas, cache, quem baixa cada uma)  │
+                                           │ jam-bot 127.0.0.1:3001 (Go): toca a Jam de  │
+Celular ou navegador                       │  cada sala no LiveKit, Opus sem recodificar │
+┌──────────────────────────────┐ HTTPS/WSS └─────────────────────────────────────────────┘
+│ https://<domínio>/ : o mesmo │──────────▶ o mesmo Caddy (/, /api/*, /rtc*) e o mesmo
+│  renderer React, sem Electron│ UDP/TCP    livekit-server, pelas mesmas portas
+│  e o celular publica a câmera│──────────▶
+└──────────────────────────────┘
 ```
 
 - `apps/desktop`: Electron 44 + electron-vite + React 19. `src/main` (processo principal; baixa
-  o áudio da Jam com o yt-dlp, obtido no primeiro uso, e o envia enquanto baixa), `src/preload`
-  (ponte IPC, contrato em `api.d.ts`), `src/renderer` (UI).
-- `apps/api`: Fastify 5. Autenticação, tokens LiveKit restritos a compartilhamento de tela,
+  o áudio da Jam com o yt-dlp, obtido no primeiro uso, e o envia enquanto baixa, inclusive as
+  músicas que o api lhe delega para quem pediu pelo celular), `src/preload` (ponte IPC, contrato
+  em `api.d.ts`), `src/renderer` (UI) e `src/web` (versão web: um segundo build Vite,
+  `pnpm --filter @concord/desktop build:web`, que reaproveita o renderer tal como está e
+  implementa a mesma `ConcordApi` sobre `fetch`, `EventSource` e `localStorage`; o que é só
+  Electron fica escondido por `capabilities`). Saída em `out/web`, servida pelo Caddy.
+- `apps/api`: Fastify 5. Autenticação (Bearer no app; na versão web, cookie de sessão
+  `concord_session` gravado pelo callback do Discord, com checagem de mesma origem nos pedidos
+  que alteram algo), tokens LiveKit restritos a compartilhamento de tela (no celular, só câmera),
   presença por SSE alimentada por webhooks do LiveKit (com ressincronização a cada 60 s),
   perfis do Discord persistidos e apelidos. Na Jam, busca no YouTube Music, guarda as filas
   (`JAM_STATE_FILE`), recebe o áudio dos apps em streaming no cache (`JAM_CACHE_DIR`, até
-  `JAM_CACHE_MAX_MB` e `JAM_CACHE_TTL_HOURS`) e comanda o jam-bot.
+  `JAM_CACHE_MAX_MB` e `JAM_CACHE_TTL_HOURS`), escolhe qual desktop baixa as músicas pedidas pela
+  versão web (quem está na sala e responde mais rápido ao ping da presença; reatribui se o
+  envio não começar em 45 s) e comanda o jam-bot.
 - `apps/jam-bot`: Go, imagem distroless (~23 MB). Toca a Jam de cada sala no LiveKit como uma
   faixa Opus estéreo, sem recodificar, a partir do arquivo ainda chegando. Só obedece ao api, por
   uma API interna em `127.0.0.1:3001` ([API.md](apps/jam-bot/API.md)); lê o cache que o api
   grava, nunca fala com o YouTube e não tem o segredo do LiveKit (o api lhe entrega os tokens).
 - `packages/shared`: tipos e constantes comuns. `packages/process-audio`: adaptador do addon
   `loopback-capture` (áudio por processo, binário pré-compilado win32-x64).
-- `infra/`: Terraform da VM (`infra/terraform`), `docker-compose.yml`, `Caddyfile`,
-  `livekit.yaml` e o modo alternativo de hospedagem num PC Windows (`infra/local`).
+- `infra/`: Terraform da VM (`infra/terraform`), `docker-compose.yml`, `Caddyfile` (`/api/*` →
+  api, `/rtc*` → LiveKit, o resto → versão web em `/srv/web/current`, a pasta `web/` da VM, fora
+  do git), `livekit.yaml` e o modo alternativo de hospedagem num PC Windows (`infra/local`).
 
 ## Operação
 
 Passo a passo completo do servidor: [infra/README-deploy.md](infra/README-deploy.md).
 
-| Tarefa                     | Como                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Liberar um amigo           | `pnpm --filter @concord/api user:add <id> <nome> --discord-id <ID do Discord>` no PC, copiar `infra/users.json` para `~/concord/infra/users.json` na VM e `docker compose -f infra/docker-compose.yml restart api`.                                                                                                                                                                                                     |
-| Mudar as salas             | `ROOMS=sala-1,sala-2,sala-3` em `~/concord/infra/.env` na VM e `docker compose -f infra/docker-compose.yml up -d api`. O app mostra `sala-1` como "Sala 1".                                                                                                                                                                                                                                                             |
-| Atualizar o servidor       | Push em `main`: o workflow **CI** roda e, se passar, o **Deploy Oracle** entra na VM por SSH e executa `infra/scripts/deploy-oracle.sh`. Commits com `[skip ci]` não disparam nada. A VM não compila o `jam-bot`: o Deploy Oracle compila o binário linux/arm64 no GitHub e o envia por SSH, e a VM só monta uma imagem de ~23 MB.                                                                                      |
-| Jam                        | Ligada pelo compose (serviço `jam-bot`). `JAM_BOT_TOKEN` (opcional) no `~/concord/infra/.env` da VM chega ao api e ao bot (depois de mudá-lo, `up -d` sem nome de serviço, para recriar os dois). Áudio no volume `concord_jam-cache` (cache, até `JAM_CACHE_MAX_MB`, padrão 512; músicas fora da fila e não tocadas há `JAM_CACHE_TTL_HOURS` horas, padrão 3, saem; `0` desliga o prazo), filas no `concord_api-data`. |
-| Publicar uma versão do app | Subir `version` em `apps/desktop/package.json`, criar e enviar a tag `vX.Y.Z` (igual à versão). O workflow **Release** gera `Concord-Setup-X.Y.Z.exe` e `latest.yml`, e os apps instalados atualizam sozinhos.                                                                                                                                                                                                          |
-| Logs e consumo             | `ssh ubuntu@<IP da VM>` (o IP sai do `terraform output`), depois `cd ~/concord && docker compose -f infra/docker-compose.yml logs -f` (ou `logs -f jam-bot`, só a Jam) e `docker stats`.                                                                                                                                                                                                                                |
-| Armazenamento              | Nada cresce sem limite: logs dos containers com rotação (3 × 10 MB por serviço), o deploy apaga imagens sem tag e cache de build com mais de uma semana, e o api limita o áudio da Jam (`JAM_CACHE_MAX_MB`, padrão 512; fora da fila e não tocadas há 3 h saem, conferido a cada 10 min). Conferir com `docker system df`; detalhes na seção 8.1 do [README-deploy](infra/README-deploy.md).                            |
-| Infraestrutura             | `infra/terraform` (state e `terraform.tfvars` só no PC do administrador, fora do Git). A VM ignora mudanças de imagem e de cloud-init, então um `terraform apply` comum nunca a recria.                                                                                                                                                                                                                                 |
+| Tarefa                     | Como                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Liberar um amigo           | `pnpm --filter @concord/api user:add <id> <nome> --discord-id <ID do Discord>` no PC, copiar `infra/users.json` para `~/concord/infra/users.json` na VM e `docker compose -f infra/docker-compose.yml restart api`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Mudar as salas             | `ROOMS=sala-1,sala-2,sala-3` em `~/concord/infra/.env` na VM e `docker compose -f infra/docker-compose.yml up -d api`. O app mostra `sala-1` como "Sala 1".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Atualizar o servidor       | Push em `main`: o workflow **CI** roda e, se passar, o **Deploy Oracle** entra na VM por SSH e executa `infra/scripts/deploy-oracle.sh`. Commits com `[skip ci]` não disparam nada. A VM não compila o `jam-bot`: o Deploy Oracle compila o binário linux/arm64 no GitHub e o envia por SSH, e a VM só monta uma imagem de ~23 MB.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Jam                        | Ligada pelo compose (serviço `jam-bot`). `JAM_BOT_TOKEN` (opcional) no `~/concord/infra/.env` da VM chega ao api e ao bot (depois de mudá-lo, `up -d` sem nome de serviço, para recriar os dois). Áudio no volume `concord_jam-cache` (cache, até `JAM_CACHE_MAX_MB`, padrão 512; músicas fora da fila e não tocadas há `JAM_CACHE_TTL_HOURS` horas, padrão 3, saem; `0` desliga o prazo), filas no `concord_api-data`.                                                                                                                                                                                                                                                                                                                                                                            |
+| Publicar uma versão do app | Subir `version` em `apps/desktop/package.json`, criar e enviar a tag `vX.Y.Z` (igual à versão). O workflow **Release** gera `Concord-Setup-X.Y.Z.exe` e `latest.yml`, e os apps instalados atualizam sozinhos.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Versão web                 | Sai no mesmo **Deploy Oracle**: o workflow roda `pnpm --filter @concord/desktop build:web` no GitHub, envia o resultado por SSH para `~/concord/web/.incoming` e troca `~/concord/web/current` de uma vez (só fica um build; a pasta `web/` está fora do git). O Caddy serve a pasta direto, sem reiniciar nada (`caddy reload` só quando o `Caddyfile` muda). Sem CI: build no PC e `scp` (README-deploy, seção 6.3). **Ordem**: release do desktop primeiro (com o deploy automático desligado), deploy do api só depois de todos atualizarem (com o api novo, desktops até a v0.3.1 deixam de baixar as próprias músicas da Jam e ignoram quem está pelo celular), e só então divulgar o link; detalhes na seção 6.3 do README-deploy. `WEB_EXTRA_DOMAIN` no `.env` dá um segundo nome ao site. |
+| Logs e consumo             | `ssh ubuntu@<IP da VM>` (o IP sai do `terraform output`), depois `cd ~/concord && docker compose -f infra/docker-compose.yml logs -f` (ou `logs -f jam-bot`, só a Jam) e `docker stats`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Armazenamento              | Nada cresce sem limite: logs dos containers com rotação (3 × 10 MB por serviço), o deploy apaga imagens sem tag e cache de build com mais de uma semana, e o api limita o áudio da Jam (`JAM_CACHE_MAX_MB`, padrão 512; fora da fila e não tocadas há 3 h saem, conferido a cada 10 min). Conferir com `docker system df`; detalhes na seção 8.1 do [README-deploy](infra/README-deploy.md).                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Infraestrutura             | `infra/terraform` (state e `terraform.tfvars` só no PC do administrador, fora do Git). A VM ignora mudanças de imagem e de cloud-init, então um `terraform apply` comum nunca a recria.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 Segredos ficam só na VM (`~/concord/infra/.env`: segredo do LiveKit, client secret e bot token
 do Discord, segredo de sessão e, opcional, o `JAM_BOT_TOKEN` entre o api e o jam-bot) e em
@@ -159,7 +192,8 @@ perda de pacotes ficou em no máximo 0,008%.
 | Estresse: 2 salas, 28 espectadores | 22% / 44%        | 50 Mbps       |
 
 Cada sala aceita até 45 conexões (`room.max_participants` em `infra/livekit.yaml`): cada pessoa
-usa até três (janela principal, pop-out e picture-in-picture). O deploy reinicia o LiveKit quando
+usa até quatro (janela principal, pop-out, picture-in-picture e o celular, pela versão web). O
+deploy reinicia o LiveKit quando
 esse arquivo muda. Se faltar
 CPU, o Always Free permite subir para 2 OCPU e 12 GB mudando `ocpus` e `memory_in_gbs` no
 Terraform.
@@ -179,8 +213,10 @@ pnpm dev:livekit   # livekit-server local (binário oficial em infra/local/bin)
 pnpm dev:api       # concord-api em http://127.0.0.1:3000 (lê infra/.env)
 pnpm dev:jam-bot   # jam-bot em 127.0.0.1:3001 (Go); o api só liga a Jam com JAM_BOT_URL no infra/.env
 pnpm dev           # app desktop com hot reload
+pnpm --filter @concord/desktop dev:web     # versão web no Vite, com proxy de /api para o api local
 pnpm lint && pnpm typecheck && pnpm test
-pnpm --filter @concord/desktop dist   # instalador NSIS local em apps/desktop/release
+pnpm --filter @concord/desktop build:web   # versão web estática em apps/desktop/out/web
+pnpm --filter @concord/desktop dist        # instalador NSIS local em apps/desktop/release
 ```
 
 O `pnpm dev:jam-bot` (`go run`) não precisa de mais nada. Já a imagem Docker do jam-bot não
@@ -197,6 +233,14 @@ O `infra/.env.example` documenta todas as variáveis. Para testar sem a interfac
 em desenvolvimento `--user-data-dir=<pasta>` (duas instâncias lado a lado), `--server=<url>`,
 `--key=<chave>` e `--room=<sala>`; `--fake-update=<versão>` simula uma atualização (Configurações
 → Sobre → Verificar atualizações) para testar a faixa, a seta e o Sobre sem publicar nada.
+
+A versão web (`apps/desktop/src/web`) é o mesmo renderer com uma `ConcordApi` feita de `fetch`,
+`EventSource` e `localStorage`. O `dev:web` sobe o Vite com proxy de `/api` (inclusive o SSE)
+para o api local; sem o OAuth do Discord configurado, crie a sessão no console do navegador com
+uma chave do `users.json` e recarregue a página:
+`fetch('/api/auth/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: '<chave>' }) })`.
+Para abrir no celular na mesma rede, passe `--host` ao Vite; o navegador só libera a câmera em
+HTTPS ou `localhost`, então em `http://<ip-do-pc>` dá para assistir, não para publicar a câmera.
 
 ### Hospedar num PC Windows (alternativa à Oracle)
 

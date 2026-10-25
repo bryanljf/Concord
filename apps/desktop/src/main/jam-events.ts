@@ -1,8 +1,9 @@
 /**
  * Validation of the jam data that comes from concord-api: the `jam_snapshot` / `jam_updated`
- * events of the presence SSE and the tracks and items of the jam routes. Same rigor as
- * `presence-events.ts`: anything malformed is rejected (null), strings and lists are bounded and
- * unknown fields are dropped; only a bad cover URL is softened to null.
+ * events of the presence SSE (and the `jam_fetch` / `jam_fetch_ping` ones of a fetch-enabled
+ * stream) and the tracks and items of the jam routes. Same rigor as `presence-events.ts`:
+ * anything malformed is rejected (null), strings and lists are bounded and unknown fields are
+ * dropped; only a bad cover URL is softened to null.
  */
 import {
   JAM_HISTORY_MAX,
@@ -10,6 +11,8 @@ import {
   ROOM_ID_PATTERN,
   YOUTUBE_VIDEO_ID_PATTERN,
   type JamEvent,
+  type JamFetchEvent,
+  type JamFetchEventType,
   type JamItem,
   type JamItemStatus,
   type JamNowPlaying,
@@ -36,6 +39,11 @@ const ARTWORK_HOST_SUFFIXES = ['googleusercontent.com', 'ytimg.com'];
 const ITEM_STATUSES: readonly JamItemStatus[] = ['downloading', 'ready'];
 
 export const JAM_EVENT_TYPES: readonly JamEvent['type'][] = ['jam_snapshot', 'jam_updated'];
+
+export const JAM_FETCH_EVENT_TYPES: readonly JamFetchEventType[] = ['jam_fetch', 'jam_fetch_ping'];
+
+/** Ping nonces are short random tokens (base64url); printable ASCII without spaces, bounded. */
+const JAM_FETCH_NONCE_PATTERN = /^[!-~]{1,128}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -181,6 +189,34 @@ export function parseJamEvent(value: unknown): JamEvent | null {
       const state = parseJamState(value.state);
       if (!state || !isTime(value.serverTime)) return null;
       return { type: 'jam_updated', state, serverTime: value.serverTime };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Whether a decoded SSE payload claims to be a fetch request or a fetch ping (valid or not). */
+export function isJamFetchPayload(value: unknown): boolean {
+  return isRecord(value) && JAM_FETCH_EVENT_TYPES.includes(value.type as JamFetchEventType);
+}
+
+/**
+ * Validates one decoded `jam_fetch` / `jam_fetch_ping` SSE payload (a fetch-enabled stream
+ * only); returns null for anything malformed. The item gets the same checks as a queued one.
+ */
+export function parseJamFetchEvent(value: unknown): JamFetchEvent | null {
+  if (!isRecord(value)) return null;
+  switch (value.type) {
+    case 'jam_fetch': {
+      const { room } = value;
+      if (typeof room !== 'string' || !ROOM_ID_PATTERN.test(room)) return null;
+      const item = parseJamItem(value.item);
+      return item ? { type: 'jam_fetch', room, item } : null;
+    }
+    case 'jam_fetch_ping': {
+      const { nonce } = value;
+      if (typeof nonce !== 'string' || !JAM_FETCH_NONCE_PATTERN.test(nonce)) return null;
+      return { type: 'jam_fetch_ping', nonce };
     }
     default:
       return null;

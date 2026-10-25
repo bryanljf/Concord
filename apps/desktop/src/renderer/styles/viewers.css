@@ -105,8 +105,10 @@
   left: auto;
 }
 
+/* `viewers--revealed`: a tap on a touch screen (hooks/useTouchReveal.ts) instead of the hover. */
 .viewers:hover .viewers__popover,
-.viewers:focus-visible .viewers__popover {
+.viewers:focus-visible .viewers__popover,
+.viewers--revealed .viewers__popover {
   opacity: 1;
   transform: none;
 }

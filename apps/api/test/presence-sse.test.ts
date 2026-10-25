@@ -81,6 +81,7 @@ describe('GET /api/presence (SSE)', () => {
           joinedAt: 2_000,
           avatarUrl: null,
           camera: false,
+          client: 'desktop',
         },
       });
 

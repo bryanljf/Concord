@@ -278,6 +278,34 @@
   transform: translate(0, 0);
 }
 
+/* Touch screens: taller rows and a bigger "AO VIVO" target (the badge keeps its size: the extra
+   room around it is hit area, not paint). */
+@media (pointer: coarse) {
+  .room__button {
+    padding: 10px 8px;
+  }
+
+  .participant {
+    padding: 6px 8px;
+  }
+
+  .participant__live {
+    margin: -8px -6px;
+    padding: 8px 6px;
+  }
+
+  .music-button {
+    height: 32px;
+  }
+}
+
+/* Phones: the drawer's brand row (the toggle is not rendered there). */
+@media (max-width: 767px) {
+  .sidebar__brand {
+    box-shadow: none;
+  }
+}
+
 /* Collapsed: a column of room icons (Discord's server list) under the logo. */
 .sidebar__empty--icon {
   display: flex;

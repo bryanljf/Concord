@@ -83,6 +83,13 @@ describe('shouldPlayJamStarted', () => {
     expect(shouldPlayJamStarted(event, none, { ...context, mutedUsers: ['ana'] })).toBe(false);
   });
 
+  it('treats a song you asked for from your other device as your own', () => {
+    const none = snapshot({});
+    const web = { ...context, selfId: 'eu~web' };
+    expect(shouldPlayJamStarted(updatedJam(playing('sala-1', 'eu')), none, web)).toBe(false);
+    expect(shouldPlayJamStarted(updatedJam(playing('sala-1', 'ana')), none, web)).toBe(true);
+  });
+
   it('ignores snapshots', () => {
     const event: JamEvent = {
       type: 'jam_snapshot',

@@ -158,3 +158,21 @@
   background: rgba(35, 165, 89, 0.34);
   color: var(--online);
 }
+
+/* Phones: alone in the sheet, with the main column's paddings. */
+@media (max-width: 767px) {
+  .jam-recent {
+    padding: 10px 10px 12px;
+  }
+}
+
+@media (pointer: coarse) {
+  .btn.jam-recent-button {
+    height: 36px;
+  }
+
+  .icon-btn.jam-recent-card__add {
+    width: 40px;
+    height: 40px;
+  }
+}

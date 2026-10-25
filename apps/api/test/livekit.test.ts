@@ -66,6 +66,32 @@ describe('createRoomToken', () => {
       expect(Math.abs(expiresAt - exp * 1000)).toBeLessThanOrEqual(1000);
     },
   );
+
+  it('issues a visible, camera-only token under the web identity', async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const { token, expiresAt } = await createRoomToken(
+      testConfig().livekit,
+      ALICE,
+      'geral',
+      'web',
+      'Alice D.',
+    );
+    const claims = await new TokenVerifier(API_KEY, API_SECRET).verify(token);
+    expect(claims.sub).toBe('alice~web');
+    expect(claims.name).toBe('Alice D.');
+    expect(claims.video).toEqual({
+      roomJoin: true,
+      room: 'geral',
+      canSubscribe: true,
+      canPublish: true,
+      canPublishSources: ['camera'],
+      canPublishData: true,
+      canUpdateOwnMetadata: true,
+    });
+    const exp = claims.exp ?? 0;
+    expect(exp).toBeGreaterThanOrEqual(before + TOKEN_TTL_SECONDS);
+    expect(Math.abs(expiresAt - exp * 1000)).toBeLessThanOrEqual(1000);
+  });
 });
 
 describe('createJamBotToken', () => {
@@ -95,6 +121,7 @@ describe('isAuxiliaryParticipant', () => {
     ['alice', false],
     ['alice~popout', true],
     ['alice~pip', true],
+    ['alice~web', false],
     ['alice-popout', false],
   ])('%s -> %s', (identity, expected) => {
     expect(isAuxiliaryParticipant(new ParticipantInfo({ identity }))).toBe(expected);
@@ -218,6 +245,42 @@ describe('fetchRoomState', () => {
           joinedAt: 1_700_000_000_000,
           screenTracks: [],
           cameraTracks: [],
+        },
+      ],
+    });
+  });
+
+  it('keeps web identities (the same person on the phone) with their camera', async () => {
+    const roomService = {
+      listRooms: vi.fn(async () => [new Room({ name: 'geral', sid: 'RM_1' })]),
+      listParticipants: vi.fn(async () => [
+        new ParticipantInfo({ identity: 'ana', name: 'Ana', joinedAt: 1_700_000_000n }),
+        new ParticipantInfo({
+          identity: 'ana~web',
+          name: 'Ana',
+          joinedAt: 1_700_000_007n,
+          tracks: [
+            new TrackInfo({ sid: 'TR_phone', type: TrackType.VIDEO, source: TrackSource.CAMERA }),
+          ],
+        }),
+      ]),
+    };
+
+    await expect(fetchRoomState(roomService)).resolves.toEqual({
+      geral: [
+        {
+          id: 'ana',
+          name: 'Ana',
+          joinedAt: 1_700_000_000_000,
+          screenTracks: [],
+          cameraTracks: [],
+        },
+        {
+          id: 'ana~web',
+          name: 'Ana',
+          joinedAt: 1_700_000_007_000,
+          screenTracks: [],
+          cameraTracks: ['TR_phone'],
         },
       ],
     });

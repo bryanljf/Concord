@@ -31,6 +31,11 @@ export interface StageLayoutInput {
   /** Your webcam is on (its preview exists). */
   localCamera: boolean;
   fullscreen: boolean;
+  /**
+   * This client can share its screen (`capabilities.screenShare`): the free cell of an odd grid
+   * offers "Transmitir". Default true; the web client has no slot.
+   */
+  canStream?: boolean;
 }
 
 export interface WatchedTile {
@@ -71,6 +76,7 @@ export interface StageLayout {
 }
 
 export function computeStageLayout(input: StageLayoutInput): StageLayout {
+  const canStream = input.canStream ?? true;
   const live = new Set(input.liveKeys);
   const watched = new Set(input.watchedKeys);
   const elsewhere = new Set(input.elsewhereKeys);
@@ -101,7 +107,11 @@ export function computeStageLayout(input: StageLayoutInput): StageLayout {
     main = { kind: 'focus', tile: tileOf(liveWatched[0]) };
     strip = [...locals, ...cardItems];
   } else if (liveWatched.length >= 2) {
-    main = { kind: 'grid', tiles: liveWatched.map(tileOf), slot: liveWatched.length % 2 === 1 };
+    main = {
+      kind: 'grid',
+      tiles: liveWatched.map(tileOf),
+      slot: canStream && liveWatched.length % 2 === 1,
+    };
     strip = [...locals, ...cardItems];
   } else if (input.localScreen) {
     main = { kind: 'local', source: 'screen' };

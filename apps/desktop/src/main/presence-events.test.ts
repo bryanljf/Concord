@@ -84,6 +84,21 @@ describe('parsePresenceEvent', () => {
     ).toEqual({ type: 'snapshot', data: { rooms: { geral: [{ ...anaParsed, camera: true }] } } });
   });
 
+  it('keeps client only when it is a known value', () => {
+    const parse = (value: unknown) => {
+      const event = parsePresenceEvent({
+        type: 'participant_joined',
+        room: 'geral',
+        participant: { ...ana, client: value },
+      });
+      return event?.type === 'participant_joined' ? event.participant : null;
+    };
+    expect(parse('web')).toEqual({ ...anaParsed, client: 'web' });
+    expect(parse('desktop')).toEqual({ ...anaParsed, client: 'desktop' });
+    expect(parse('phone')).toEqual(anaParsed);
+    expect(parse(undefined)).not.toHaveProperty('client');
+  });
+
   it('rejects malformed payloads', () => {
     expect(parsePresenceEvent(null)).toBeNull();
     expect(parsePresenceEvent('snapshot')).toBeNull();

@@ -1,9 +1,13 @@
 import {
   applyPresenceEvent,
+  PRESENCE_FETCH_QUERY,
   PRESENCE_JAM_QUERY,
   SSE_HEARTBEAT_MS,
+  type JamFetchEvent,
+  type JamItem,
   type PresenceEvent,
   type PresenceSnapshot,
+  type RoomId,
 } from '@concord/shared';
 import type { ReadableStreamReadResult } from 'node:stream/web';
 import type { PresenceConnectionStatus, PresenceState } from '../preload/api';
@@ -16,8 +20,9 @@ import {
   timeoutErrorMessage,
   UNAUTHORIZED_MESSAGE,
   unexpectedStatusMessage,
+  type ApiClient,
 } from './api-client';
-import { isJamPayload, parseJamEvent } from './jam-events';
+import { isJamFetchPayload, isJamPayload, parseJamEvent, parseJamFetchEvent } from './jam-events';
 import { createJamStore, type JamStore } from './jam/store';
 import { log } from './log';
 import { parsePresenceEvent } from './presence-events';
@@ -62,10 +67,19 @@ export interface PresenceClientOptions {
   backoff?: (attempt: number) => number;
   /** Where the jam events of the same stream go (default: a store of its own). */
   jam?: JamStore;
+  /**
+   * Whether this app downloads jam songs for clients that cannot (true on Windows): the stream
+   * then also carries the server's fetch requests and pings (`?fetch=1`). Default: never.
+   */
+  fetch?: () => boolean;
+  /** Answers the fetch pings (`POST /api/jam/fetch/pong`); needed whenever `fetch` can be true. */
+  api?: Pick<ApiClient, 'jamFetchPong'>;
 }
 
 export type PresenceEventListener = (event: PresenceEvent) => void;
 export type PresenceStatusListener = (status: PresenceConnectionStatus) => void;
+/** The server asked this app to download `item`'s audio for `room`'s jam and send it. */
+export type JamFetchRequestListener = (room: RoomId, item: JamItem) => void;
 
 const EMPTY_SNAPSHOT: PresenceSnapshot = { rooms: {} };
 
@@ -77,8 +91,10 @@ class StallSignal extends Error {
 /**
  * Keeps one `GET /api/presence?jam=1` SSE connection alive while `connect()`ed, applying every
  * event to a local `PresenceSnapshot` and re-emitting it; the jam events of the same stream go
- * to `jam`. Reconnects with exponential backoff on any failure except 401, which stops retrying
- * (`retryInMs: 0`) until `reconnect()`.
+ * to `jam`. With `fetch` on (`&fetch=1`) the stream also brings the server's fetch pings
+ * (answered right away) and fetch requests (`onFetchRequest`); neither reaches the event
+ * listeners or the jam store. Reconnects with exponential backoff on any failure except 401,
+ * which stops retrying (`retryInMs: 0`) until `reconnect()`.
  */
 export class PresenceClient {
   /** The rooms' jams, fed by this stream (the server resends a snapshot on every connection). */
@@ -97,6 +113,7 @@ export class PresenceClient {
   private stallTimer: NodeJS.Timeout | null = null;
   private readonly eventListeners = new Set<PresenceEventListener>();
   private readonly statusListeners = new Set<PresenceStatusListener>();
+  private readonly fetchListeners = new Set<JamFetchRequestListener>();
   private readonly fetchImpl: typeof fetch;
   private readonly stallTimeoutMs: number;
   private readonly connectTimeoutMs: number;
@@ -137,6 +154,14 @@ export class PresenceClient {
     this.statusListeners.add(listener);
     return () => {
       this.statusListeners.delete(listener);
+    };
+  }
+
+  /** The server's requests to download a song for someone else (fetch-enabled streams only). */
+  onFetchRequest(listener: JamFetchRequestListener): () => void {
+    this.fetchListeners.add(listener);
+    return () => {
+      this.fetchListeners.delete(listener);
     };
   }
 
@@ -233,10 +258,14 @@ export class PresenceClient {
     const connectTimer = setTimeout(() => {
       controller.abort(new DOMException('connect timeout', 'TimeoutError'));
     }, this.connectTimeoutMs);
+    // Old servers ignore the query (no jam events, no fetch requests): the jam then stays
+    // unavailable.
+    const query = this.options.fetch?.()
+      ? `${PRESENCE_JAM_QUERY}&${PRESENCE_FETCH_QUERY}`
+      : PRESENCE_JAM_QUERY;
     let res: Response;
     try {
-      // Old servers ignore the query (no jam events): the jam then stays unavailable.
-      res = await this.fetchImpl(`${base}/api/presence?${PRESENCE_JAM_QUERY}`, {
+      res = await this.fetchImpl(`${base}/api/presence?${query}`, {
         headers: {
           Authorization: `Bearer ${key}`,
           Accept: 'text/event-stream',
@@ -322,6 +351,12 @@ export class PresenceClient {
       else logger.warn('ignoring malformed jam event');
       return;
     }
+    if (isJamFetchPayload(json)) {
+      const fetchEvent = parseJamFetchEvent(json);
+      if (fetchEvent) this.handleFetchEvent(fetchEvent);
+      else logger.warn('ignoring malformed jam fetch event');
+      return;
+    }
     const event = parsePresenceEvent(json);
     if (!event) {
       logger.warn('ignoring malformed presence event');
@@ -329,6 +364,25 @@ export class PresenceClient {
     }
     this.snapshot = applyPresenceEvent(this.snapshot, event);
     this.emitEvent(event);
+  }
+
+  /** Pings are answered at once (that is how the server ranks this app); requests go to the jam. */
+  private handleFetchEvent(event: JamFetchEvent): void {
+    if (event.type === 'jam_fetch_ping') {
+      const { api } = this.options;
+      if (!api) {
+        logger.warn('fetch ping received without an api client to answer it');
+        return;
+      }
+      api.jamFetchPong(event.nonce).catch((err: unknown) => {
+        logger.warn('could not answer the fetch ping', err);
+      });
+      return;
+    }
+    logger.info(
+      `asked to fetch jam item ${event.item.id} (${event.item.track.videoId}) for ${event.room}`,
+    );
+    for (const listener of this.fetchListeners) listener(event.room, event.item);
   }
 
   private scheduleRetry(message: string): void {

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { RemoteVideoTrack } from 'livekit-client';
+import { capabilities } from '../../lib/capabilities';
 
 interface VideoSurfaceProps {
   track: RemoteVideoTrack | null;
@@ -10,7 +11,8 @@ interface VideoSurfaceProps {
 /**
  * The <video> a remote screen share plays in. `track.attach()` is required (not just
  * `srcObject`): with adaptive stream livekit watches this element's size and visibility to
- * pick the simulcast layer and to pause the subscription while it is hidden.
+ * pick the simulcast layer and to pause the subscription while it is hidden. The browser's own
+ * picture-in-picture stays off except where it is the client's PiP (`lib/nativePip.ts`).
  */
 export function VideoSurface({ track, className, onDoubleClick }: VideoSurfaceProps) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -31,7 +33,7 @@ export function VideoSurface({ track, className, onDoubleClick }: VideoSurfacePr
       muted
       autoPlay
       playsInline
-      disablePictureInPicture
+      disablePictureInPicture={!capabilities().nativeVideoPip}
       onDoubleClick={onDoubleClick}
     />
   );

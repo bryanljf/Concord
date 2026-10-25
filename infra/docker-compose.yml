@@ -18,7 +18,7 @@
 #   livekit  SFU WebRTC             rede do host   1,0 CPU / 1 GB
 #   api      concord-api            rede do host   0,25 CPU / 256 MB   só 127.0.0.1:3000
 #   jam-bot  toca a Jam no LiveKit  rede do host   0,25 CPU / 128 MB   só 127.0.0.1:3001
-#   caddy    HTTPS (Let's Encrypt)  rede do host   0,25 CPU / 128 MB   portas 80 e 443 do host
+#   caddy    HTTPS + versão web     rede do host   0,25 CPU / 128 MB   portas 80 e 443 do host
 #
 # Logs: json-file com rotação em todos (x-logging abaixo): 3 arquivos de 10 MB, ~30 MB por
 # serviço. Sem isso o log do api crescia ~55 MB/dia. Mudar essas opções RECRIA todos os
@@ -48,6 +48,11 @@
 #   - caddy também usa network_mode: host: assim o Caddyfile funciona como está
 #     (reverse_proxy para 127.0.0.1:3000 e 127.0.0.1:7880 do host) e ele escuta direto nas
 #     portas 80/443 (TCP e, para HTTP/3, UDP 443) do host; por isso não há `ports:` nele.
+#     A versão web (arquivos estáticos, segundo build de apps/desktop) vem da pasta web/ da raiz
+#     do repo na VM, montada só para leitura em /srv/web: o Caddy serve /srv/web/current em tudo
+#     que não é /api/* nem /rtc*. Quem enche essa pasta é o workflow Deploy Oracle (passo "Upload
+#     the web app"; à mão, infra/README-deploy.md, seção 6.3); ela fica fora do git e só guarda
+#     um build de cada vez.
 #   - O servidor de Minecraft (porta 25565) NÃO é tocado: nenhum serviço aqui usa essa porta e
 #     nada neste arquivo referencia o container/serviço dele. Nunca rode `docker compose down`
 #     fora deste arquivo, `docker stop $(docker ps -q)` ou `docker system prune` na VM.
@@ -160,8 +165,19 @@ services:
     mem_limit: 128m
     environment:
       DOMAIN: '${DOMAIN:?defina DOMAIN em infra/.env}'
+      # Opcional (infra/.env): segundo nome para o mesmo site, ex.: um domínio próprio além do
+      # DuckDNS. Vazio por padrão: o placeholder some do Caddyfile antes de ele ser lido
+      # (comentário lá). Depois de mudar: `up -d caddy` (recria só o Caddy).
+      WEB_EXTRA_DOMAIN: '${WEB_EXTRA_DOMAIN:-}'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Versão web: a pasta web/ da raiz do repo na VM (fora do git), com o build em web/current,
+      # que o deploy troca inteira a cada envio (por isso se monta a pasta-mãe: um bind mount de
+      # web/current ficaria preso à pasta antiga depois do rename). Crie-a antes do primeiro `up`
+      # (mkdir -p ~/concord/web): uma pasta de bind mount que não existe é criada pelo Docker como
+      # root, e aí o deploy (usuário ubuntu) não consegue gravar nela. Sem o build dentro, / responde
+      # 404 e o app desktop continua funcionando.
+      - ../web:/srv/web:ro
       - caddy_data:/data # certificados Let's Encrypt: não apagar (evita re-emissão e rate limit)
       - caddy_config:/config
     depends_on:

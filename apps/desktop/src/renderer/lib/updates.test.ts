@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEV_BUILD_REASON, describeUpdateStatus } from './updates';
+import {
+  DEV_BUILD_REASON,
+  WEB_UPDATE_REASON,
+  WEB_UPDATE_STATUS,
+  describeUpdateStatus,
+} from './updates';
 
 describe('describeUpdateStatus', () => {
   it('lets the user check again when idle, up to date or after an error', () => {
@@ -55,5 +60,15 @@ describe('describeUpdateStatus', () => {
       describeUpdateStatus({ state: 'unsupported', reason: 'Sem atualizador nesta plataforma.' })
         .label,
     ).toBe('Sem atualizador nesta plataforma.');
+  });
+
+  it('tells the web client that deploying is the update, with nothing to check', () => {
+    expect(describeUpdateStatus(WEB_UPDATE_STATUS)).toEqual({
+      label: WEB_UPDATE_REASON,
+      tone: 'muted',
+      busy: false,
+      canCheck: false,
+      canInstall: false,
+    });
   });
 });

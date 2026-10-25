@@ -377,6 +377,7 @@
 
 .tile-mini:hover .tile-grid__volume,
 .tile-mini:focus-within .tile-grid__volume,
+.tile-mini--revealed .tile-grid__volume,
 .tile-grid__volume--muted {
   opacity: 1;
 }
@@ -391,14 +392,17 @@
 }
 
 .tile-mini:hover .tile-grid__volume--muted,
-.tile-mini:focus-within .tile-grid__volume--muted {
+.tile-mini:focus-within .tile-grid__volume--muted,
+.tile-mini--revealed .tile-grid__volume--muted {
   padding-right: 10px;
 }
 
 .tile-mini:hover .tile-grid__volume--muted .range,
 .tile-mini:hover .tile-grid__volume--muted .volume__value,
 .tile-mini:focus-within .tile-grid__volume--muted .range,
-.tile-mini:focus-within .tile-grid__volume--muted .volume__value {
+.tile-mini:focus-within .tile-grid__volume--muted .volume__value,
+.tile-mini--revealed .tile-grid__volume--muted .range,
+.tile-mini--revealed .tile-grid__volume--muted .volume__value {
   display: revert;
 }
 
@@ -493,8 +497,10 @@
     background-color var(--transition);
 }
 
+/* Revealed by a tap on a touch screen (`tile-mini--revealed`, hooks/useTouchReveal.ts). */
 .tile-mini:hover .tile-mini__close,
-.tile-mini:focus-within .tile-mini__close {
+.tile-mini:focus-within .tile-mini__close,
+.tile-mini--revealed .tile-mini__close {
   opacity: 1;
 }
 
@@ -745,5 +751,99 @@
   .stage__live-dot,
   .bottom-bar__live-dot {
     animation: none;
+  }
+}
+
+/* One column (a phone held upright): the tiles stack at the top and scroll. */
+.stage__grid--column {
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.stage__grid--column .stage__grid-cells {
+  align-content: start;
+}
+
+/* Phones: tighter paddings, a lower strip; the page never scrolls sideways. */
+@media (max-width: 767px) {
+  .stage {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .stage__live-pill {
+    right: 8px;
+  }
+
+  .stage__strip {
+    height: 100px;
+  }
+
+  .stage__strip li {
+    width: 160px;
+  }
+
+  .stage__cards {
+    padding: 4px 0;
+  }
+
+  .stage__cards-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .elsewhere {
+    padding: 40px 8px 8px;
+  }
+
+  /* The viewer list opens inside the tile: short, so the tile's top does not cut it. */
+  .tile .viewers__popover {
+    max-height: 160px;
+  }
+}
+
+/* Held upright, the stream in destaque keeps 16:9 at the top (the strip below it); fullscreen,
+   or held sideways, it fills the stage as on the desktop. */
+@media (max-width: 767px) and (orientation: portrait) {
+  .stage__focus {
+    flex: none;
+    aspect-ratio: 16 / 9;
+    max-height: 100%;
+  }
+
+  .shell--immersive .stage__focus {
+    flex: 1;
+    aspect-ratio: auto;
+  }
+}
+
+/* Touch screens: the tiles' small buttons grow (the × of a mini tile, of a grid tile), a long
+   press opens the menu (no callout meanwhile), the strip pans with the finger. */
+@media (pointer: coarse) {
+  .tile,
+  .tile__video {
+    -webkit-touch-callout: none;
+  }
+
+  .tile-mini__close {
+    top: 4px;
+    right: 4px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .tile-grid__close {
+    top: 8px;
+    right: 8px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .stage__strip {
+    scroll-snap-type: x proximity;
+  }
+
+  .stage__strip li {
+    scroll-snap-align: start;
   }
 }

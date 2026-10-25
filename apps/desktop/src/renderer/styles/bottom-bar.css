@@ -96,6 +96,23 @@
   font-size: 13px;
 }
 
+/* Phones: the bar clears the home bar; the quality note (a screen-share thing) goes. */
+@media (max-width: 767px) {
+  .bottom-bar {
+    gap: 8px;
+    padding: 0 12px env(safe-area-inset-bottom, 0px);
+    overflow-x: auto;
+  }
+
+  .bottom-bar__quality {
+    display: none;
+  }
+
+  .bottom-bar__live strong {
+    max-width: 120px;
+  }
+}
+
 .bottom-bar__quality strong {
   color: var(--text-normal);
   font-weight: 600;

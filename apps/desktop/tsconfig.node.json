@@ -3,5 +3,11 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["electron.vite.config.ts", "vitest.config.ts", "src/main", "src/preload"]
+  "include": [
+    "electron.vite.config.ts",
+    "vite.web.config.ts",
+    "vitest.config.ts",
+    "src/main",
+    "src/preload"
+  ]
 }

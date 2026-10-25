@@ -8,6 +8,7 @@ import { app } from 'electron';
 import { join } from 'node:path';
 import type { ApiClient } from '../api-client';
 import { log } from '../log';
+import type { PresenceClient } from '../presence-client';
 import { createYtDlpTemp, runYtDlpVersion, startJamDownload, type JamDownload } from './download';
 import { createJamPrefetcher } from './prefetch';
 import { createJamService, type JamService } from './service';
@@ -26,6 +27,8 @@ export interface JamOptions {
   api: ApiClient;
   /** The presence client's jam store (`PresenceClient.jam`). */
   store: JamStore;
+  /** The server's requests to download songs for other clients (`PresenceClient.onFetchRequest`). */
+  onFetchRequest: PresenceClient['onFetchRequest'];
 }
 
 export interface Jam extends JamService {
@@ -69,6 +72,8 @@ export function createJam(options: JamOptions): Jam {
     slots,
     runVersion: (exePath, signal) => runYtDlpVersion(exePath, { temp, signal }),
   });
+  // Songs the server asks this app to download for someone else (silent; declined off Windows).
+  const stopFetching = options.onFetchRequest((room, item) => service.fetch(room, item));
   return {
     ...service,
     async cleanUp() {
@@ -76,6 +81,7 @@ export function createJam(options: JamOptions): Jam {
       await ytdlp.removeIfUnused();
     },
     destroy() {
+      stopFetching();
       warmUp.destroy();
       service.destroy();
       ytdlp.destroy();

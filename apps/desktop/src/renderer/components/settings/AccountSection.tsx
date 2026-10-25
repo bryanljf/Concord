@@ -8,7 +8,8 @@ import { SettingsSection } from './SettingsSection';
 
 interface AccountSectionProps {
   user: UserInfo;
-  serverUrl: string;
+  /** The server typed at onboarding; null where it cannot be chosen (the web: its own origin). */
+  serverUrl: string | null;
   /** Focus the display-name field on mount (opened from the user panel). */
   focusNickname?: boolean;
   onRekey(): void;
@@ -90,10 +91,12 @@ export function AccountSection({
           {user.admin && <span className="settings__tag">admin</span>}
         </span>
       </div>
-      <div className="settings__row">
-        <span className="settings__label">Servidor</span>
-        <span className="settings__value selectable">{serverUrl}</span>
-      </div>
+      {serverUrl !== null && (
+        <div className="settings__row">
+          <span className="settings__label">Servidor</span>
+          <span className="settings__value selectable">{serverUrl}</span>
+        </div>
+      )}
 
       <form className="field settings__nickname" onSubmit={handleSubmit} noValidate>
         <label className="field__label" htmlFor="settings-nickname">

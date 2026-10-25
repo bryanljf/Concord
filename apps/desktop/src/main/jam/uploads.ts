@@ -10,6 +10,11 @@
  * server. On failure the song is removed from the queue (best effort) and the job ends in
  * `error` with a pt-BR message. yt-dlp's processes are shared with the prefetches, jobs first
  * (`YtDlpSlots`); finished statuses are kept a few minutes for `getJamUploads`.
+ *
+ * Delegated jobs (`delegated: true`) send someone else's song, at the server's request (a client
+ * without yt-dlp added it): the same pipeline, but silent: never listed, no status emitted, no
+ * message for anyone; on failure the fetch is declined (the server asks another app) instead of
+ * the song being removed.
  */
 import type { JamItem, JamSnapshot, RoomId } from '@concord/shared';
 import type { JamUploadStatus } from '../../preload/api';
@@ -21,7 +26,7 @@ import { JamDownloadError, type JamDownload } from './download';
 import type { JamPrefetcher, PrefetchedAudio } from './prefetch';
 import type { YtDlpSlots } from './slots';
 import type { JamStore } from './store';
-import type { YtDlpManager } from './ytdlp';
+import { YtDlpError, type YtDlpManager } from './ytdlp';
 
 const logger = log('jam-uploads');
 
@@ -35,20 +40,29 @@ export const JAM_UPLOAD_FAILED_MESSAGE = 'Não foi possível enviar a música pa
 
 export type JamUploadListener = (status: JamUploadStatus) => void;
 
+export interface JamUploadStartOptions {
+  /** The server asked for this song on someone else's behalf: silent, declined on failure. */
+  delegated?: boolean;
+}
+
 export interface JamUploads {
   /** Starts sending `item`'s audio in the background (ignored when already known). */
-  start(room: RoomId, item: JamItem): void;
+  start(room: RoomId, item: JamItem, options?: JamUploadStartOptions): void;
   /** Whether a job is still sending `videoId` (prefetching it would be wasted). */
   isSending(videoId: string): boolean;
+  /** Statuses of this app's own songs (delegated jobs are nobody's business here). */
   list(): JamUploadStatus[];
   onStatus(listener: JamUploadListener): () => void;
-  /** Stops every job (logout, quit), dropping their statuses; their songs are removed if possible. */
+  /**
+   * Stops every job (logout, quit), dropping their statuses; their songs are removed if
+   * possible, and the delegated ones handed back to the server.
+   */
   cancelAll(): void;
   destroy(): void;
 }
 
 export interface JamUploadsDeps {
-  api: Pick<ApiClient, 'jamUpload' | 'jamRemove'>;
+  api: Pick<ApiClient, 'jamUpload' | 'jamRemove' | 'jamFetchDecline'>;
   ytdlp: Pick<YtDlpManager, 'ensure' | 'needsInstall'>;
   /** Starts yt-dlp for `videoId` (a process slot is held for it). */
   startDownload(exePath: string, videoId: string): JamDownload;
@@ -72,6 +86,8 @@ class JobAbort extends Error {
 interface Job {
   status: JamUploadStatus;
   readonly videoId: string;
+  /** Sent for the server (someone else's song): silent, declined instead of removed. */
+  readonly delegated: boolean;
   readonly controller: AbortController;
   /** Seen in the jam state: from then on, missing from it means it left the queue. */
   seen: boolean;
@@ -111,6 +127,14 @@ function failureMessage(err: unknown): string {
   return JAM_UPLOAD_FAILED_MESSAGE;
 }
 
+/** What a delegated job tells the server when it gives up (its log only, never a UI). */
+function declineReason(err: unknown): string {
+  if (err instanceof JamDownloadError) return `download failed: ${err.reason}`;
+  if (err instanceof YtDlpError) return 'yt-dlp unavailable';
+  if (err instanceof ApiClientError) return `upload failed: ${err.code ?? err.kind}`;
+  return 'unexpected failure';
+}
+
 export function createJamUploads(deps: JamUploadsDeps): JamUploads {
   const { api, ytdlp, store, slots } = deps;
   const statusTtlMs = deps.statusTtlMs ?? JAM_UPLOAD_STATUS_TTL_MS;
@@ -120,6 +144,7 @@ export function createJamUploads(deps: JamUploadsDeps): JamUploads {
 
   // --- Statuses ------------------------------------------------------------------------------
   function emit(job: Job): void {
+    if (job.delegated) return;
     const status = { ...job.status };
     for (const listener of listeners) listener(status);
   }
@@ -145,6 +170,15 @@ export function createJamUploads(deps: JamUploadsDeps): JamUploads {
   function removeQuietly(room: RoomId, itemId: string): void {
     api.jamRemove(room, itemId).catch((err: unknown) => {
       logger.warn(`could not remove jam item ${itemId} after its failure`, err);
+    });
+  }
+
+  /** Hands a delegated song back to the server (which asks another app). */
+  function declineQuietly(room: RoomId, itemId: string, reason: string): void {
+    api.jamFetchDecline(room, itemId, reason).catch((err: unknown) => {
+      // Gone, or already handed to someone else: nothing left to decline.
+      if (err instanceof ApiClientError && err.code === 'item_not_found') return;
+      logger.warn(`could not decline the fetch of jam item ${itemId}`, err);
     });
   }
 
@@ -255,7 +289,11 @@ export function createJamUploads(deps: JamUploadsDeps): JamUploads {
         return;
       }
       const gone = err instanceof ApiClientError && err.code === 'item_not_found';
-      if (!gone) removeQuietly(room, item.id);
+      if (!gone) {
+        // Someone else's song (delegated): the server asks another app instead of dropping it.
+        if (job.delegated) declineQuietly(room, item.id, declineReason(err));
+        else removeQuietly(room, item.id);
+      }
       const message = gone ? JAM_ITEM_GONE_MESSAGE : failureMessage(err);
       logger.warn(`jam item ${item.id} (${videoId}) failed: ${message}`);
       finish(job, 'error', message);
@@ -277,8 +315,9 @@ export function createJamUploads(deps: JamUploadsDeps): JamUploads {
   });
 
   return {
-    start(room, item) {
+    start(room, item, options = {}) {
       if (jobs.has(item.id)) return;
+      const delegated = options.delegated === true;
       const { videoId } = item.track;
       const prefetched = deps.prefetches?.take(videoId) ?? null;
       let state: JamUploadStatus['state'];
@@ -288,6 +327,7 @@ export function createJamUploads(deps: JamUploadsDeps): JamUploads {
       const job: Job = {
         status: { itemId: item.id, room, title: item.track.title, state, message: null },
         videoId,
+        delegated,
         controller: new AbortController(),
         seen: isInJam(store.get(), room, item.id),
         finished: false,
@@ -295,14 +335,15 @@ export function createJamUploads(deps: JamUploadsDeps): JamUploads {
       };
       jobs.set(item.id, job);
       logger.info(
-        `sending the audio of jam item ${item.id} (${videoId}) to ${room}${prefetched ? ` (prefetched: ${prefetched.download.size} bytes so far)` : ''}`,
+        `sending the audio of jam item ${item.id} (${videoId}) to ${room}${delegated ? ' for the server' : ''}${prefetched ? ` (prefetched: ${prefetched.download.size} bytes so far)` : ''}`,
       );
       emit(job);
       void run(job, room, item, prefetched);
     },
     isSending: (videoId) =>
       [...jobs.values()].some((job) => !job.finished && job.videoId === videoId),
-    list: () => [...jobs.values()].map((job) => ({ ...job.status })),
+    list: () =>
+      [...jobs.values()].filter((job) => !job.delegated).map((job) => ({ ...job.status })),
     onStatus(listener) {
       listeners.add(listener);
       return () => {
@@ -315,8 +356,10 @@ export function createJamUploads(deps: JamUploadsDeps): JamUploads {
         if (!job.finished) {
           job.finished = true;
           job.controller.abort(new JobAbort(null));
-          // Otherwise the song would wait for the server's upload timeout.
-          removeQuietly(job.status.room, job.status.itemId);
+          // Otherwise the song would wait for the server's upload timeout (a delegated one is
+          // handed to another app right away instead).
+          if (job.delegated) declineQuietly(job.status.room, job.status.itemId, 'app stopped');
+          else removeQuietly(job.status.room, job.status.itemId);
         }
       }
       jobs.clear();

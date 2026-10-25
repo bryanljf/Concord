@@ -17,6 +17,11 @@ export interface UpdateView {
 export const DEV_BUILD_REASON =
   'Atualização automática indisponível nesta versão de desenvolvimento.';
 
+/** The web client has no updater: every deploy is the update. */
+export const WEB_UPDATE_REASON = 'A versão web atualiza sozinha a cada publicação.';
+
+export const WEB_UPDATE_STATUS: UpdateStatus = { state: 'unsupported', reason: WEB_UPDATE_REASON };
+
 export function describeUpdateStatus(status: UpdateStatus): UpdateView {
   switch (status.state) {
     case 'idle':

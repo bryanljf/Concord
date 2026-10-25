@@ -50,6 +50,16 @@ describe('shouldPlayLiveStarted', () => {
     ).toBe(true);
   });
 
+  it('mutes a person whatever device they go live from, and knows your own web identity', () => {
+    expect(
+      shouldPlayLiveStarted(started('sala-1', 'ana~web'), { ...context, mutedUsers: ['ana'] }),
+    ).toBe(false);
+    expect(shouldPlayLiveStarted(started('sala-1', 'ana~web'), context)).toBe(true);
+    expect(
+      shouldPlayLiveStarted(started('sala-1', 'eu~web'), { ...context, selfId: 'eu~web' }),
+    ).toBe(false);
+  });
+
   it('ignores everything but live transitions (lives already running when you join)', () => {
     const snapshot: PresenceEvent = {
       type: 'snapshot',

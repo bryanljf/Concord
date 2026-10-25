@@ -6,9 +6,13 @@ import {
   type ReactNode,
 } from 'react';
 import { useAutoHide } from '../hooks/useAutoHide';
+import { useLongPress } from '../hooks/useLongPress';
 import type { RemoteStream } from '../hooks/useRemoteStreams';
 import { useStreamStats } from '../hooks/useStreamStats';
+import { useTouchReveal } from '../hooks/useTouchReveal';
+import { useViewport } from '../hooks/useViewport';
 import { formatStats } from '../lib/streamStats';
+import { dispatchContextMenu, usesVideoFullscreen } from '../lib/touch';
 import { Avatar } from './Avatar';
 import type { Viewer } from '../lib/viewers';
 import type { VolumeSetting } from '../lib/volume';
@@ -43,6 +47,11 @@ interface FocusedTileProps {
   // Optional actions: each button is only rendered when its callback is given.
   /** Stage: open in another window (the pop-out for a screen share, the PiP for a webcam). */
   onPopout?(): void;
+  /**
+   * `onPopout` opens the browser's own picture-in-picture of this stream instead of another
+   * window (the web client): the button says so.
+   */
+  popoutNative?: boolean;
   /** Stage: "Parar de assistir" (also in the right-click menu). */
   onStopWatching?(): void;
   /** Stage with 2+ watched lives: "Voltar à grade". */
@@ -58,7 +67,7 @@ interface FocusedTileProps {
   onDragStart?(event: PointerEvent<HTMLElement>): void;
   /** Shown after the name in the top strip (the pop-out shows the room). */
   subtitle?: string;
-  /** Right click: opens the watched-live menu. */
+  /** Right click (or a long press on a touch screen): opens the watched-live menu. */
   onContextMenu(event: MouseEvent<HTMLElement>): void;
   /** ContextMenu key / Shift+F10 while the tile has the focus. */
   onKeyDown(event: KeyboardEvent<HTMLElement>): void;
@@ -68,7 +77,8 @@ interface FocusedTileProps {
 
 /**
  * The watched live on the stage (or filling the pop-out): video at full quality, auto-hiding
- * controls, stats on hover. Focusable so its context menu also opens from the keyboard.
+ * controls, stats on hover. Focusable so its context menu also opens from the keyboard. On a
+ * touch screen a tap shows the controls for a moment and a long press opens the menu.
  */
 export function FocusedStreamTile({
   stream,
@@ -79,6 +89,7 @@ export function FocusedStreamTile({
   fullscreen,
   onToggleFullscreen,
   onPopout,
+  popoutNative = false,
   onStopWatching,
   onShowGrid,
   onReturnToMain,
@@ -92,13 +103,36 @@ export function FocusedStreamTile({
   children,
 }: FocusedTileProps) {
   const tile = useRef<HTMLDivElement>(null);
-  // The bars stay while the pointer rests on them (checked live when the timer runs out).
+  const { touch } = useViewport();
+  // The bars stay while the pointer rests on them (checked live when the timer runs out). Not on
+  // a touch screen, where `:hover` sticks to the last thing tapped and would never let them go.
   const controls = useAutoHide(3000, true, () =>
-    Boolean(tile.current?.querySelector('.tile__top:hover, .tile__controls:hover')),
+    Boolean(!touch && tile.current?.querySelector('.tile__top:hover, .tile__controls:hover')),
   );
   const stats = useStreamStats(stream.videoTrack, controls.visible);
   const statsText = stats ? formatStats(stats) : null;
   const camera = stream.kind === 'camera';
+  const longPress = useLongPress(dispatchContextMenu);
+
+  // On an iPhone the page cannot go fullscreen, but the video itself can.
+  const toggleFullscreen = (): void => {
+    const video = tile.current?.querySelector('video') ?? null;
+    if (!fullscreen && usesVideoFullscreen(document, video)) {
+      try {
+        (video as HTMLVideoElement & { webkitEnterFullscreen(): void }).webkitEnterFullscreen();
+        return;
+      } catch {
+        // Not playing yet: the usual way, which the owner reports.
+      }
+    }
+    onToggleFullscreen();
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
+    longPress.onPointerDown(event);
+    // A tap shows the controls like the mouse moving does; the next tap acts on them.
+    if (event.pointerType === 'touch') controls.poke();
+  };
 
   return (
     <div
@@ -113,15 +147,18 @@ export function FocusedStreamTile({
       aria-haspopup="menu"
       aria-keyshortcuts="Shift+F10 ContextMenu"
       data-focused-live=""
+      data-stream-key={stream.key}
       onMouseMove={controls.poke}
       onMouseLeave={controls.hide}
+      {...longPress}
+      onPointerDown={onPointerDown}
       onContextMenu={onContextMenu}
       onKeyDown={onKeyDown}
     >
       <VideoSurface
         track={stream.videoTrack}
         className="tile__video"
-        onDoubleClick={onToggleFullscreen}
+        onDoubleClick={toggleFullscreen}
       />
       <StreamStatus stream={stream} />
       <div
@@ -178,9 +215,13 @@ export function FocusedStreamTile({
               type="button"
               className="icon-btn icon-btn--overlay"
               aria-label={
-                camera ? 'Abrir as câmeras em picture-in-picture' : 'Abrir em janela separada'
+                popoutNative
+                  ? 'Abrir em picture-in-picture'
+                  : camera
+                    ? 'Abrir as câmeras em picture-in-picture'
+                    : 'Abrir em janela separada'
               }
-              data-tooltip={camera ? 'Picture-in-picture' : 'Janela separada'}
+              data-tooltip={popoutNative || camera ? 'Picture-in-picture' : 'Janela separada'}
               onClick={onPopout}
             >
               <PopOutIcon size={18} />
@@ -218,7 +259,7 @@ export function FocusedStreamTile({
             className="icon-btn icon-btn--overlay"
             aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
             data-tooltip={fullscreen ? 'Sair da tela cheia (Esc)' : 'Tela cheia (F11)'}
-            onClick={onToggleFullscreen}
+            onClick={toggleFullscreen}
           >
             {fullscreen ? <ExitFullscreenIcon size={18} /> : <FullscreenIcon size={18} />}
           </button>
@@ -258,12 +299,29 @@ function streamLabel(stream: RemoteStream): string {
   return `${stream.kind === 'camera' ? 'a câmera' : 'a transmissão'} de ${stream.name}`;
 }
 
+/**
+ * The × and volume of a small tile show on hover; on a touch screen the first tap shows them for
+ * a moment (`tile-mini--revealed`) and the next tap acts on the tile.
+ */
+function useSmallTileTouch() {
+  const { touch } = useViewport();
+  const reveal = useTouchReveal();
+  const longPress = useLongPress(dispatchContextMenu);
+  const revealed = touch && reveal.revealed;
+  /** Wraps the tile's tap action: the first tap on a touch screen only reveals. */
+  const onTap = (act: () => void) => (): void => {
+    if (touch && reveal.tap()) return;
+    act();
+  };
+  return { revealed, longPress, onTap, keep: reveal.show };
+}
+
 interface MiniTileProps {
   stream: RemoteStream;
   onSelect(): void;
   /** The small × in the corner (also in the right-click menu). */
   onStopWatching(): void;
-  /** Right click: opens the watched-stream menu. */
+  /** Right click (or a long press on a touch screen): opens the watched-stream menu. */
   onContextMenu(event: MouseEvent<HTMLElement>): void;
   /** ContextMenu key / Shift+F10 while the tile has the focus. */
   onKeyDown(event: KeyboardEvent<HTMLElement>): void;
@@ -280,8 +338,12 @@ export function MiniStreamTile({
   onContextMenu,
   onKeyDown,
 }: MiniTileProps) {
+  const { revealed, longPress, onTap } = useSmallTileTouch();
   return (
-    <div className="tile-mini">
+    <div
+      className={revealed ? 'tile-mini tile-mini--revealed' : 'tile-mini'}
+      data-stream-key={stream.key}
+    >
       <button
         type="button"
         className={tileClass('tile tile--mini', stream)}
@@ -289,7 +351,8 @@ export function MiniStreamTile({
         aria-haspopup="menu"
         aria-keyshortcuts="Shift+F10 ContextMenu"
         data-tooltip="Clique para destacar · botão direito: opções"
-        onClick={onSelect}
+        {...longPress}
+        onClick={onTap(onSelect)}
         onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
       >
@@ -347,15 +410,20 @@ export function GridStreamTile({
   onVolume,
   onToggleMute,
 }: GridTileProps) {
+  const { revealed, longPress, onTap, keep } = useSmallTileTouch();
   return (
-    <div className="tile-mini tile-grid">
+    <div
+      className={revealed ? 'tile-mini tile-grid tile-mini--revealed' : 'tile-mini tile-grid'}
+      data-stream-key={stream.key}
+    >
       <button
         type="button"
         className={tileClass('tile tile--grid', stream)}
         aria-label={`Destacar ${streamLabel(stream)}`}
         aria-haspopup="menu"
         aria-keyshortcuts="Shift+F10 ContextMenu"
-        onClick={onSelect}
+        {...longPress}
+        onClick={onTap(onSelect)}
         onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
       >
@@ -383,6 +451,8 @@ export function GridStreamTile({
           className={
             volume.muted ? 'tile-grid__volume tile-grid__volume--muted' : 'tile-grid__volume'
           }
+          // Using the revealed slider keeps it on screen.
+          onPointerDown={keep}
         >
           <VolumeControl
             setting={volume}

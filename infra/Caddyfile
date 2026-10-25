@@ -1,19 +1,67 @@
-# Caddy na VM Oracle: HTTPS automático (Let's Encrypt) na frente do api e do LiveKit.
-# Roda com network_mode: host (infra/docker-compose.yml), por isso os upstreams são portas do
-# host: 3000 = api (publicada só em 127.0.0.1) e 7880 = livekit-server (sinalização WebSocket).
-# HTTPS automático via Let's Encrypt para {$DOMAIN} (variável DOMAIN do infra/.env). Exige que
-# o DNS já aponte para a VM e que as portas 80 e 443 estejam abertas (Security List + iptables).
-{$DOMAIN} {
-	# concord-api: /api/health, /api/me, /api/rooms, /api/token, /api/presence (SSE).
-	# O webhook do LiveKit vai direto em 127.0.0.1:3000 e nem passa por aqui.
+# Caddy na VM Oracle: HTTPS automático (Let's Encrypt) na frente do api, do LiveKit e da versão
+# web do Concord. Roda com network_mode: host (infra/docker-compose.yml), por isso os upstreams
+# são portas do host: 3000 = api (publicada só em 127.0.0.1) e 7880 = livekit-server
+# (sinalização WebSocket). HTTPS automático via Let's Encrypt para {$DOMAIN} (variável DOMAIN do
+# infra/.env). Exige que o DNS já aponte para a VM e que as portas 80 e 443 estejam abertas
+# (Security List + iptables).
+#
+# WEB_EXTRA_DOMAIN (opcional, infra/.env; o compose o repassa vazio por padrão) acrescenta um
+# segundo nome ao MESMO site (ex.: um domínio próprio além do DuckDNS), com certificado próprio.
+# Os placeholders {$VAR} são substituídos no texto antes de o Caddyfile ser interpretado: vazio,
+# o segundo nome simplesmente some da lista de endereços. O DNS do nome extra também precisa
+# apontar para a VM, senão o Caddy fica repetindo erros ACME para ele.
+#
+# Conferir a sintaxe antes de um deploy, com o Docker (na VM ou num PC), a partir da raiz do repo:
+#   docker run --rm -e DOMAIN=exemplo.duckdns.org -e WEB_EXTRA_DOMAIN= \
+#     -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile
+# Na VM, o infra/scripts/deploy-oracle.sh faz um `caddy reload` (sem derrubar conexões) sempre
+# que este arquivo muda; um Caddyfile inválido faz o reload falhar e a configuração anterior
+# continua no ar.
+{$DOMAIN} {$WEB_EXTRA_DOMAIN} {
+	# concord-api: /api/health, /api/me, /api/rooms, /api/token, /api/presence (SSE), a Jam e o
+	# login com Discord (o callback OAuth, /api/auth/discord/callback, redireciona a versão web
+	# para / com o cookie de sessão). O webhook do LiveKit vai direto em 127.0.0.1:3000 e nem
+	# passa por aqui.
 	handle /api/* {
 		reverse_proxy 127.0.0.1:3000
 	}
 
-	# Todo o resto é o LiveKit (wss://<domínio>/rtc ...). O reverse_proxy repassa o upgrade
-	# para WebSocket sozinho. A mídia WebRTC (UDP 50000-50200 / TCP 7881) vai direto ao
-	# livekit-server, sem passar pelo Caddy.
-	handle {
+	# Sinalização do LiveKit (wss://<domínio>/rtc e /rtc/validate; o cliente só usa esses dois
+	# caminhos). O reverse_proxy repassa o upgrade para WebSocket sozinho. A mídia WebRTC
+	# (UDP 50000-50200 / TCP 7881) vai direto ao livekit-server, sem passar pelo Caddy.
+	handle /rtc* {
 		reverse_proxy 127.0.0.1:7880
+	}
+
+	# Todo o resto é a versão web (apps/desktop, build `pnpm --filter @concord/desktop build:web`):
+	# arquivos estáticos em /srv/web/current, que o compose monta da pasta web/ da raiz do repo na
+	# VM (fora do git; o workflow Deploy Oracle troca web/current a cada deploy, e só existe um
+	# build lá). Enquanto a pasta não existe, / responde 404 e o app desktop continua funcionando.
+	handle {
+		root * /srv/web/current
+		encode zstd gzip
+
+		# Vite dá nome com hash a tudo em /assets/: pode ficar um ano no cache do navegador. O
+		# resto (index.html, manifest.webmanifest, ícones) é revalidado a cada visita (no-cache
+		# não é "sem cache": o navegador pergunta e recebe 304 quando nada mudou), então um deploy
+		# novo aparece na próxima abertura, sem service worker.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@shell not path /assets/*
+		header @shell Cache-Control no-cache
+
+		# Só nas respostas da versão web (as do api e do LiveKit passam intactas). O index.html já
+		# traz a CSP numa meta; frame-ancestors não funciona em meta, daí o X-Frame-Options.
+		header {
+			X-Content-Type-Options nosniff
+			X-Frame-Options DENY
+			Referrer-Policy strict-origin-when-cross-origin
+			Strict-Transport-Security "max-age=2592000"
+		}
+
+		# SPA: um caminho que não é arquivo (ex.: / depois do login, ou /?login_error=...) recebe o
+		# index.html; o app cuida do resto.
+		try_files {path} /index.html
+		file_server
 	}
 }

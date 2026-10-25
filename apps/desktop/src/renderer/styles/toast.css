@@ -47,3 +47,15 @@
     animation: none;
   }
 }
+
+/* Phones: above the bar and the home bar, as wide as the screen allows. */
+@media (max-width: 767px) {
+  .toasts {
+    bottom: calc(var(--bottombar-height) + 16px + env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 32px);
+  }
+
+  .toast {
+    max-width: 100%;
+  }
+}

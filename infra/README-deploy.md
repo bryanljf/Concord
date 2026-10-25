@@ -4,7 +4,9 @@
 >
 > - VM `VM.Standard.A1.Flex` (1 OCPU, 6 GB, Always Free) em `sa-saopaulo-1`, criada pelo
 >   Terraform em [`infra/terraform`](terraform), IP no `terraform output`.
-> - Domínio `https://<seu-dominio>.duckdns.org` (certificado Let's Encrypt via Caddy).
+> - Domínio `https://<seu-dominio>.duckdns.org` (certificado Let's Encrypt via Caddy). A **versão
+>   web** (celular/navegador) fica no mesmo endereço: arquivos estáticos em `~/concord/web/current`,
+>   que o deploy envia (seção 6.3 para fazer à mão e para a ordem de lançamento).
 > - Deploy automático: cada push em `main` com CI verde roda o workflow `Deploy Oracle`, que
 >   entra na VM com uma chave SSH só de deploy (secret do environment `production`).
 > - O Minecraft não roda nesta conta: as ressalvas sobre ele abaixo valem só para uma VM
@@ -50,8 +52,10 @@ Fluxo recomendado:
 
 Depois que o workflow `CI` termina com sucesso para `main` (ou por disparo manual), o workflow
 chama [`deploy-oracle.sh`](scripts/deploy-oracle.sh), que faz fetch do branch, valida o Compose,
-executa somente `docker compose -f infra/docker-compose.yml up -d --build` e verifica os
-healthchecks. Ele não usa `docker compose down`, `docker system prune`, `docker stop` global ou
+executa somente `docker compose -f infra/docker-compose.yml up -d --build`, recarrega o Caddy
+(`caddy reload`, sem derrubar conexões) quando o `infra/Caddyfile` mudou e reinicia o LiveKit
+quando o `infra/livekit.yaml` mudou (um hash de cada arquivo fica em `~/.concord-*.sha256`), e
+verifica os healthchecks. Ele não usa `docker compose down`, `docker system prune`, `docker stop` global ou
 qualquer comando que possa afetar outro projeto. `.env`, `users.json`, volumes do Caddy e estado
 do Terraform permanecem fora do Git. O `CI` também formata, testa e compila o `jam-bot` (Go,
 inclusive para linux/arm64): um erro nele também segura o deploy.
@@ -65,6 +69,15 @@ e renomeia). Essa pasta fica fora do Git, e o script não roda `git clean`: o bi
 sem compilação); sem ele, o script para com `jam-bot-linux-arm64 is missing`. Para fazer o mesmo à
 mão, veja a seção 6.1.
 
+**A VM também não compila a versão web** (não tem Node). O mesmo workflow instala o monorepo no
+runner (sem baixar o binário do Electron), roda `pnpm --filter @concord/desktop build:web` e envia
+o resultado (`apps/desktop/out/web`, um `.tgz` de poucos MB) por SSH para
+`~/concord/web/.incoming`; confere o SHA-256 e o `index.html` e só então troca
+`~/concord/web/current` pela pasta nova e apaga a anterior (passo "Upload the web app"). Um envio
+que falha nunca deixa o site vazio, e a pasta `web/` (fora do git, montada só para leitura em
+`/srv/web` do Caddy) só guarda um build. O Caddy serve a pasta direto: o site novo está no ar
+assim que o rename acontece, sem reiniciar nada. À mão: seção 6.3.
+
 O `up -d --build` monta todas as imagens; o cache do Docker pula o que não mudou (o jam-bot só é
 recriado quando o binário muda). Mudanças no `deploy-oracle.sh` só valem a partir do deploy
 **seguinte** ao que as traz (o `git reset` troca o arquivo, mas o bash continua lendo a cópia
@@ -76,12 +89,12 @@ e firewall. A CI existente deve ser exigida como check obrigatório antes de per
 
 ## O que sobe
 
-| Serviço   | Imagem                                        | Rede                      | Limites           | Função                                                                       |
-| --------- | --------------------------------------------- | ------------------------- | ----------------- | ---------------------------------------------------------------------------- |
-| `livekit` | `livekit/livekit-server:v1.13.9`              | host                      | 1,0 CPU / 1 GB    | SFU WebRTC: sinalização 7880 (só loopback), mídia UDP 50000–50200, TCP 7881  |
-| `api`     | build de `apps/api/Dockerfile`                | host, só `127.0.0.1:3000` | 0,25 CPU / 256 MB | chaves de acesso, tokens, presença (SSE), webhook do LiveKit, filas da Jam   |
-| `jam-bot` | `apps/jam-bot/Dockerfile` (binário do deploy) | host, só `127.0.0.1:3001` | 0,25 CPU / 128 MB | toca a Jam de cada sala no LiveKit; só lê o cache de áudio que o api grava   |
-| `caddy`   | `caddy:2`                                     | host                      | 0,25 CPU / 128 MB | HTTPS automático (Let's Encrypt) nas portas 80/443, proxy para api e LiveKit |
+| Serviço   | Imagem                                        | Rede                      | Limites           | Função                                                                                                                                                                         |
+| --------- | --------------------------------------------- | ------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `livekit` | `livekit/livekit-server:v1.13.9`              | host                      | 1,0 CPU / 1 GB    | SFU WebRTC: sinalização 7880 (só loopback), mídia UDP 50000–50200, TCP 7881                                                                                                    |
+| `api`     | build de `apps/api/Dockerfile`                | host, só `127.0.0.1:3000` | 0,25 CPU / 256 MB | chaves de acesso, tokens, presença (SSE), webhook do LiveKit, filas da Jam                                                                                                     |
+| `jam-bot` | `apps/jam-bot/Dockerfile` (binário do deploy) | host, só `127.0.0.1:3001` | 0,25 CPU / 128 MB | toca a Jam de cada sala no LiveKit; só lê o cache de áudio que o api grava                                                                                                     |
+| `caddy`   | `caddy:2`                                     | host                      | 0,25 CPU / 128 MB | HTTPS automático (Let's Encrypt) nas portas 80/443: proxy para o api (`/api/*`) e o LiveKit (`/rtc*`), e a versão web (arquivos estáticos de `~/concord/web/current`) no resto |
 
 Total: **≤ 1,75 CPU e ≤ 1,5 GB de RAM**, ao lado do Minecraft.
 
@@ -90,10 +103,19 @@ gravados pelo api), `concord_jam-cache` (áudio da Jam: o api grava, o jam-bot s
 caminho `/var/lib/concord-jam` nos dois) e `concord_caddy_data` / `concord_caddy_config`
 (certificados).
 
-Fluxo: no app, os amigos usam `https://<domínio>` como "URL do servidor". O Caddy manda
-`/api/*` para o api e todo o resto (`wss://<domínio>`) para o LiveKit; a mídia WebRTC vai
-direto do app para o `livekit-server` (UDP 50000–50200, ou TCP 7881 quando o UDP está
-bloqueado). As portas 3000 (api), 3001 (jam-bot) e 7880 (sinalização) ficam só no loopback da
+Pasta `~/concord/web/` (fora do git, bind mount só de leitura em `/srv/web` do Caddy): `current/`
+é o build da versão web. O deploy extrai o build novo em `.incoming/`, confere e troca a pasta
+inteira (`current` → `previous` → apagada), por isso o compose monta a pasta-mãe e não
+`web/current`. Crie-a antes do primeiro `up` com o compose novo (`mkdir -p ~/concord/web`): se o
+Docker criar a pasta do bind mount, ela nasce de `root` e o deploy (usuário `ubuntu`) não consegue
+gravar nela.
+
+Fluxo: no app, os amigos usam `https://<domínio>` como "URL do servidor"; no celular, abrem
+`https://<domínio>/` no navegador. O Caddy manda `/api/*` para o api, `/rtc*` (a sinalização
+`wss://<domínio>/rtc` e `/rtc/validate`) para o LiveKit e serve a versão web em todo o resto
+(`/` → `index.html`, `/assets/*` com cache de um ano, nomes com hash do Vite); a mídia WebRTC
+vai direto do app ou do navegador para o `livekit-server` (UDP 50000–50200, ou TCP 7881 quando o
+UDP está bloqueado). As portas 3000 (api), 3001 (jam-bot) e 7880 (sinalização) ficam só no loopback da
 VM. Como os containers se enxergam (host x bridge, `host.docker.internal`, webhook) está
 explicado nos comentários do `infra/docker-compose.yml`.
 
@@ -157,13 +179,13 @@ Console > Networking > Virtual Cloud Networks > a VCN da VM > Security Lists > a
 subnet da VM > **Ingress Rules** > Add Ingress Rules. Todas com Source CIDR `0.0.0.0/0`,
 _stateless_ desmarcado:
 
-| Protocolo | Porta de destino | Para quê                                 |
-| --------- | ---------------- | ---------------------------------------- |
-| TCP       | 80               | Caddy: redirecionamento e desafio ACME   |
-| TCP       | 443              | Caddy: HTTPS (api) e WSS (LiveKit)       |
-| TCP       | 7881             | LiveKit: ICE sobre TCP (fallback do UDP) |
-| UDP       | 50000–50200      | LiveKit: mídia                           |
-| UDP       | 443              | (opcional) HTTP/3 do Caddy               |
+| Protocolo | Porta de destino | Para quê                                        |
+| --------- | ---------------- | ----------------------------------------------- |
+| TCP       | 80               | Caddy: redirecionamento e desafio ACME          |
+| TCP       | 443              | Caddy: HTTPS (api e versão web) e WSS (LiveKit) |
+| TCP       | 7881             | LiveKit: ICE sobre TCP (fallback do UDP)        |
+| UDP       | 50000–50200      | LiveKit: mídia                                  |
+| UDP       | 443              | (opcional) HTTP/3 do Caddy                      |
 
 **Manter** a regra existente do Minecraft (TCP 25565) e as demais (SSH 22). Não abrir 3000 nem
 7880: ficam atrás do Caddy. Se a VM usa Network Security Groups em vez de Security List, as
@@ -247,6 +269,13 @@ Deixe o bloco A comentado. `HOST`, `PORT`, `TRUST_PROXY`, `USERS_FILE`, `PROFILE
 `LIVEKIT_API_URL`, `JAM_BOT_URL`, `JAM_CACHE_DIR` e `JAM_STATE_FILE` não entram aqui: o
 `docker-compose.yml` os fixa (eles dependem de como os containers são montados).
 
+Opcional: `WEB_EXTRA_DOMAIN=<outro-dominio>` acrescenta um segundo nome ao mesmo site (um domínio
+próprio além do DuckDNS, com certificado próprio; o DNS dele também tem que apontar para a VM).
+Vazio ou ausente, só o `DOMAIN` vale. Depois de mudar: `docker compose -f
+infra/docker-compose.yml up -d caddy`. O `DISCORD_REDIRECT_URI` continua um só: quem entra pelo
+nome extra termina o login em `https://<DOMAIN>/` (o cookie de sessão é desse nome), então o nome
+extra serve como porta de entrada, não como segundo endereço independente.
+
 ### 5.3.1 OAuth2 oficial do Discord
 
 O login OAuth2 exige uma aplicação criada no
@@ -267,6 +296,11 @@ não deve ser colocado no desktop, no repositório ou enviado pelo chat. O deskt
 OAuth em modo sandbox, valida a resposta do callback e armazena somente o token de sessão
 assinado pelo Concord (com `safeStorage`). Para autorizar uma pessoa, inclua seu ID numérico
 em `discordUserId` no `users.json`; a chave legada continua disponível para compatibilidade.
+
+O mesmo redirect URI atende a versão web: o site chama `/api/auth/discord/login?client=web`, e o
+callback, nesse caso, grava o cookie de sessão `concord_session` (HttpOnly, `SameSite=Lax`,
+`Secure`, com o mesmo prazo `AUTH_SESSION_TTL`) e redireciona para `/`; se a conta não estiver
+liberada, para `/?login_error=not_allowlisted`, e o site mostra o motivo. Nada muda no Portal.
 
 ### 5.3.2 Nomes, avatares e apelidos (opcional: `DISCORD_BOT_TOKEN`)
 
@@ -423,10 +457,61 @@ Com o `token` da resposta, abra <https://livekit.io/connection-test>, informe
 `wss://concord.duckdns.org` e o token e rode: todos os passos têm que passar, inclusive os de
 mídia (eles validam a faixa UDP 50000–50200 / TCP 7881). Por fim, o teste real: dois amigos
 colocam `https://concord.duckdns.org` e a chave no app, entram na sala `geral` e um transmite.
-Para a Jam: um deles busca e adiciona uma música, o outro clica em **Ouvir**.
+Para a Jam: um deles busca e adiciona uma música, o outro clica em **Ouvir**. Para a versão web:
+um terceiro abre `https://concord.duckdns.org/` no celular, entra com o Discord e assiste.
 
 Uso de recursos: `docker stats --no-stream` mostra CPU/RAM de todos os containers (inclusive o
 do Minecraft, se for container). Os limites do compose aparecem na coluna `LIMIT`.
+
+### 6.3 Versão web: à mão, Caddyfile e ordem de lançamento
+
+O workflow `Deploy Oracle` compila e envia o site sozinho (seção 0); o jeito mais simples de
+refazer só isso é **Actions → Deploy Oracle → Run workflow**. Sem o GitHub Actions, faça o mesmo de
+um PC com Node e pnpm, **a partir do mesmo commit** que está na VM:
+
+```bash
+pnpm install
+pnpm --filter @concord/desktop build:web          # gera apps/desktop/out/web
+tar -C apps/desktop/out/web -czf web.tgz .
+ssh ubuntu@<ip-da-vm> 'mkdir -p ~/concord/web && rm -rf ~/concord/web/.incoming && mkdir ~/concord/web/.incoming'
+scp web.tgz ubuntu@<ip-da-vm>:concord/web/.incoming.tgz
+ssh ubuntu@<ip-da-vm> 'cd ~/concord/web && tar -C .incoming -xzf .incoming.tgz && rm .incoming.tgz && test -f .incoming/index.html && rm -rf previous && if [ -d current ]; then mv current previous; fi && mv .incoming current && rm -rf previous'
+```
+
+(No PowerShell, `tar`, `scp` e `ssh` existem no Windows 10/11; mantenha as aspas simples dos
+`ssh`.) O Caddy serve a pasta direto: nada precisa reiniciar. Para conferir, de qualquer PC:
+
+```bash
+curl -sI https://concord.duckdns.org/ | head -1               # HTTP/2 200
+curl -sI https://concord.duckdns.org/ | grep -i content-type   # text/html
+```
+
+Mudanças no `infra/Caddyfile` chegam pelo deploy: o script faz `caddy reload` (sem derrubar
+conexões) sempre que o arquivo muda; um Caddyfile inválido faz o reload falhar e a configuração
+anterior continua no ar. Antes de dar push num Caddyfile mexido, valide a sintaxe com o Docker
+(na VM ou num PC; só lê o arquivo):
+
+```bash
+docker run --rm -e DOMAIN=concord.duckdns.org -e WEB_EXTRA_DOMAIN= \
+  -v "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile
+```
+
+Para aplicar à mão depois de um `git pull`:
+`docker compose -f infra/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile`.
+
+**Ordem de lançamento da versão web** (na primeira vez e em qualquer versão que mude o contrato
+entre api, desktop e site):
+
+1. **Release do desktop primeiro**, com o api antigo ainda no ar: o desktop novo funciona com ele
+   (o api antigo ignora o `fetch=1`). Como todo push em `main` com CI verde já faz deploy, desligue
+   antes a variável `ORACLE_DEPLOY_ENABLED` (Settings → Variables), faça o push, crie a tag
+   `vX.Y.Z` e espere **todo mundo atualizar** (Configurações → Sobre mostra a versão).
+2. **Deploy do api**: religue `ORACLE_DEPLOY_ENABLED` e rode `Actions → Deploy Oracle → Run
+workflow`. Com o api novo, um desktop até a v0.3.1 não baixa mais as músicas que adiciona: o
+   api o trata como a versão web e pede a um desktop atualizado (sem nenhum aberto, a música é
+   recusada com "Ninguém com o Concord aberto no PC…"). Desktops antigos também ignoram os
+   participantes `~web` (não mostram quem está pelo celular nem a câmera dele).
+3. Só então divulgar o link `https://<domínio>/` no grupo.
 
 ## 7. Verificar que o Minecraft continua funcionando (obrigatório)
 
@@ -445,11 +530,13 @@ compose não encontra o projeto e nada acontece — ou, pior, acerta outro proje
 - **Logs**: `docker compose -f infra/docker-compose.yml logs -f` (ou `logs -f api`, `jam-bot`,
   `livekit`, `caddy`).
 - **Atualizar o Concord**: o deploy automático (push em `main`). À mão: `git pull`, o binário
-  novo do jam-bot (seção 6.1, se `apps/jam-bot` mudou) e
+  novo do jam-bot (seção 6.1, se `apps/jam-bot` mudou), o build novo da versão web (seção 6.3,
+  se `apps/desktop` ou `packages/shared` mudaram) e
   `docker compose -f infra/docker-compose.yml up -d --build`. Só o api e o jam-bot são
   reconstruídos (o api quando o código dele mudou, o jam-bot quando o binário mudou); o LiveKit e
-  o Caddy só reiniciam se o compose mudou. Reiniciar o jam-bot interrompe a música da Jam
-  enquanto ele sobe de novo.
+  o Caddy só reiniciam se o compose mudou (um `Caddyfile` mudado pede um `caddy reload`, seção
+  6.3; o deploy faz isso sozinho). Reiniciar o jam-bot interrompe a música da Jam enquanto ele
+  sobe de novo.
 - **Atualizar o LiveKit**: mude a tag em `infra/docker-compose.yml` (e mantenha igual em
   `infra/local/start.ps1` e `infra/docker-compose.dev.yml`), leia as notas da release em
   <https://github.com/livekit/livekit/releases> e rode `up -d`. O `infra/livekit.yaml` é
@@ -458,8 +545,8 @@ compose não encontra o projeto e nada acontece — ou, pior, acerta outro proje
   rode `docker compose -f infra/docker-compose.yml restart api`. O api recarrega o arquivo
   sozinho quando ele é editado no lugar, mas editores que gravam um arquivo novo (e `scp`)
   trocam o inode e o container continua vendo o antigo — o `restart` resolve sempre.
-- **Mudar o `.env`** (salas, segredo, domínio, `JAM_BOT_TOKEN`): `docker compose -f
-infra/docker-compose.yml up -d` recria só os containers afetados.
+- **Mudar o `.env`** (salas, segredo, domínio, `WEB_EXTRA_DOMAIN`, `JAM_BOT_TOKEN`): `docker
+compose -f infra/docker-compose.yml up -d` recria só os containers afetados.
 - **Backup**: `infra/.env` e `infra/users.json` (fora do git). Os apelidos e os nomes/avatares
   importados do Discord ficam no volume `concord_api-data` (`profiles.json`); se ele se perder,
   nomes e avatares voltam no próximo login ou sincronização, mas os apelidos não. As filas da
@@ -482,6 +569,7 @@ Nada do Concord deve crescer sem limite no disco da VM. O que segura cada parte:
 | Imagens antigas                          | O deploy roda `docker image prune -f`: só imagens sem tag (as versões anteriores do api e do jam-bot). Nunca `docker system prune`, nunca volumes, nunca imagens com tag de outros projetos.                                                                                    |
 | Áudio da Jam (`concord_jam-cache`)       | O api apaga as músicas fora da fila que ninguém tocou nas últimas `JAM_CACHE_TTL_HOURS` horas (padrão 3; `0` desliga o prazo) e, quando o cache passa de `JAM_CACHE_MAX_MB` (padrão 512), as tocadas há mais tempo. Confere ao subir, a cada 10 minutos e depois de cada envio. |
 | `concord_api-data`, `concord_caddy_data` | Pequenos (perfis, filas da Jam, certificados); não precisam de limpeza.                                                                                                                                                                                                         |
+| Versão web (`~/concord/web`)             | Só um build (poucos MB): a cada deploy, `.incoming` é apagado antes do envio e a pasta `current` anterior é apagada logo depois da troca. Nada mais fica lá.                                                                                                                    |
 
 O journald (logs do sistema) é gerenciado pelo Ubuntu, fora do Concord. As duas limpezas ficam
 no `deploy-oracle.sh` e só rodam depois de um `up -d --build` bem-sucedido; como toda mudança no
@@ -522,3 +610,7 @@ _Pay As You Go_ (mesmo sem gastar nada) não sofrem essa regra.
 | Build falha em `corepack` (`Cannot find matching keyid`)                                               | Imagem base antiga: `docker pull node:22-alpine` e repita o build (ver comentário no Dockerfile).                                                                                                                                                                                                                                                                                                                                                |
 | `docker compose` reclama de `ports` com `network_mode: host`                                           | Versão antiga do Compose; é preciso o plugin v2 (`docker compose version`). Nenhum serviço tem `ports`, de propósito.                                                                                                                                                                                                                                                                                                                            |
 | Minecraft lento/travando depois do deploy                                                              | `docker stats`: se `livekit` bate em 1 CPU com várias transmissões, reduza os presets no app ou o número de streams; os limites do compose protegem o resto da VM, mas não a rede.                                                                                                                                                                                                                                                               |
+| `https://<domínio>/` responde 404 (o app desktop funciona)                                             | Não há build em `~/concord/web/current`: veja o passo "Upload the web app" do workflow `Deploy Oracle` ou envie à mão (seção 6.3). O deploy avisa `web/current/index.html is missing`. Se a pasta `web/` nasceu de `root` (criada pelo Docker), `sudo chown -R ubuntu:ubuntu ~/concord/web`.                                                                                                                                                     |
+| Deploy para em `caddy reload` (`infra/Caddyfile changed: reloading caddy`)                             | Caddyfile inválido: a configuração anterior continua no ar. Valide com o `caddy validate` da seção 6.3, corrija e dê push; `logs caddy` mostra a linha do erro.                                                                                                                                                                                                                                                                                  |
+| Na versão web, o login volta para `/?login_error=...`                                                  | `oauth_exchange_failed` / `invalid_oauth_state`: `DISCORD_REDIRECT_URI` diferente do registrado no Portal, ou cookies bloqueados no navegador (o estado do OAuth é um cookie). `not_allowlisted`: ID do Discord fora do `users.json`.                                                                                                                                                                                                            |
+| Na versão web, "Ninguém com o Concord aberto no PC para baixar essa música agora" (`no_downloader`)    | Normal quando nenhum desktop (Windows) está com o Concord aberto e conectado: só eles baixam do YouTube (o IP da VM é bloqueado). Não é erro do servidor.                                                                                                                                                                                                                                                                                        |

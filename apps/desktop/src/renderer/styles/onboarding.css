@@ -1,5 +1,8 @@
 .onboarding {
   display: grid;
+  /* One sized track: the card's width follows the window (an auto track would take the card's
+     content width and run off a phone's screen). */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   height: 100%;
   padding: 24px;
@@ -12,6 +15,7 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
+  min-width: 0;
   max-width: 500px;
   padding: 32px;
   border-radius: var(--radius-lg);
@@ -78,4 +82,16 @@
 .input-group__btn {
   width: 40px;
   height: 40px;
+}
+
+/* Phones: the card fills the width, clear of the notch and the home bar. */
+@media (max-width: 767px) {
+  .onboarding {
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px
+      calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .onboarding__card {
+    padding: 24px 20px;
+  }
 }

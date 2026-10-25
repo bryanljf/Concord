@@ -110,3 +110,115 @@
   grid-template-rows: minmax(0, 1fr);
   background: #000;
 }
+
+/* The drawer's button (phones only), at the header's left end. */
+.shell__menu {
+  display: none;
+}
+
+/*
+ * Phones (`PHONE_QUERY` in lib/touch.ts): one column, the header and the stage under the banner;
+ * the sidebar (brand row and user panel included) is a drawer over everything but the overlays
+ * (Settings 50, the picker and the Jam dialog 60, toasts 100, menus 150), slid in from the left.
+ * The notch and the home bar (`env(safe-area-inset-*)`) are kept clear.
+ */
+@media (max-width: 767px) {
+  .shell,
+  .shell--sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto calc(var(--header-height) + env(safe-area-inset-top, 0px)) minmax(
+        0,
+        1fr
+      );
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .shell__header {
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .shell__menu {
+    display: inline-grid;
+    width: 40px;
+    height: 40px;
+    margin-left: 6px;
+  }
+
+  .shell__main {
+    grid-column: 1;
+    grid-row: 3;
+    grid-template-rows: minmax(0, 1fr) calc(
+        var(--bottombar-height) + env(safe-area-inset-bottom, 0px)
+      );
+  }
+
+  .shell__sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 48;
+    width: min(85vw, 320px);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    box-shadow: var(--shadow);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform var(--transition-slow) ease,
+      visibility 0s linear var(--transition-slow);
+  }
+
+  .shell__sidebar--open {
+    transform: none;
+    visibility: visible;
+    transition:
+      transform var(--transition-slow) ease,
+      visibility 0s;
+  }
+
+  /* The brand row heads the drawer, with the × at its right end. */
+  .shell__drawer-head {
+    display: grid;
+    flex: none;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .shell__drawer-close {
+    width: 40px;
+    height: 40px;
+    margin-right: 6px;
+  }
+
+  .shell__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 47;
+    background: var(--bg-overlay);
+    animation: shell-backdrop-in var(--transition-slow) ease;
+  }
+
+  /* The sidebar never slides as a column here (the drawer has its own motion). */
+  .shell--sidebar-animated {
+    transition: none;
+  }
+}
+
+@keyframes shell-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell__backdrop {
+    animation: none;
+  }
+}

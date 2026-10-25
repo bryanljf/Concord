@@ -56,6 +56,37 @@ jobs:
           ls -l jam-bot-linux-arm64
           sha256sum jam-bot-linux-arm64
 
+      # The web app (a second Vite build of apps/desktop: static files served by Caddy) is also
+      # built here, never on the VM (no Node there). ELECTRON_SKIP_BINARY_DOWNLOAD: the install
+      # runs Electron's postinstall but skips the ~100 MB binary, which this build never needs.
+      # Same pnpm store cache as CI, so the install is usually a cache hit.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable pnpm (corepack)
+        run: corepack enable
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Build the web app
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm --filter @concord/desktop build:web
+          test -f apps/desktop/out/web/index.html
+          du -sh apps/desktop/out/web
+
       - name: Install SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.ORACLE_SSH_PRIVATE_KEY }}
@@ -96,6 +127,42 @@ jobs:
             mv -f .jam-bot-linux-arm64.upload jam-bot-linux-arm64" \
             < "$binary"
 
+      # Packed on the runner and streamed over SSH into ~/concord/web/.incoming (hash checked,
+      # index.html must be there), then swapped into ~/concord/web/current with two renames: a
+      # failed upload never leaves an empty site, and the folder only ever holds one build (the
+      # previous one is deleted right after the swap; nothing accumulates). Caddy serves
+      # web/current straight from the bind mount, so the new build is live as soon as the rename
+      # lands; the deploy script below only reloads Caddy when the Caddyfile itself changed.
+      - name: Upload the web app
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USER: ${{ secrets.ORACLE_USER }}
+          ORACLE_SSH_PORT: ${{ secrets.ORACLE_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          port="${ORACLE_SSH_PORT:-22}"
+          user="${ORACLE_USER:-ubuntu}"
+          tar -C apps/desktop/out/web -czf web.tgz .
+          sum="$(sha256sum web.tgz | cut -d ' ' -f 1)"
+          ssh -i ~/.ssh/concord_oracle -p "$port" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$user@$ORACLE_HOST" \
+            "set -eu
+            mkdir -p ~/concord/web
+            cd ~/concord/web
+            rm -rf .incoming .incoming.tgz previous
+            mkdir .incoming
+            cat > .incoming.tgz
+            echo '$sum  .incoming.tgz' | sha256sum --check --quiet
+            tar -C .incoming -xzf .incoming.tgz
+            rm -f .incoming.tgz
+            test -f .incoming/index.html
+            if [ -d current ]; then mv current previous; fi
+            mv .incoming current
+            rm -rf previous
+            du -sh current" \
+            < web.tgz
+
       - name: Deploy Concord
         env:
           ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
@@ -119,3 +186,11 @@ jobs:
           test -n "$CONCORD_PUBLIC_URL"
           curl --fail --silent --show-error --retry 10 --retry-delay 5 \
             "$CONCORD_PUBLIC_URL/api/health" > /dev/null
+          # The web app: the root must answer 200 with HTML (index.html served by Caddy from
+          # web/current). Only the content type is printed, never the URL (it is a secret).
+          content_type="$(curl --fail --silent --show-error --retry 10 --retry-delay 5 \
+            --output /dev/null --write-out '%{content_type}' "$CONCORD_PUBLIC_URL/")"
+          case "$content_type" in
+            text/html*) ;;
+            *) echo "unexpected Content-Type for /: $content_type" >&2; exit 1 ;;
+          esac

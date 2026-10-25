@@ -1,3 +1,6 @@
+import type { MouseEvent } from 'react';
+import { useTouchReveal } from '../../hooks/useTouchReveal';
+import { useViewport } from '../../hooks/useViewport';
 import {
   viewerStack,
   viewersEmptyText,
@@ -32,7 +35,7 @@ function classes(...names: (string | false | undefined)[]): string {
 /**
  * Who is watching a live (or listening to a music), as in Discord's Go Live: icon + count +
  * slightly overlapped avatars (yours too while you are among them); hovering or focusing it lists
- * everyone.
+ * everyone. On a touch screen a tap lists them for a moment, the next tap hides the list.
  */
 export function ViewerList({
   viewers,
@@ -45,6 +48,14 @@ export function ViewerList({
 }: ViewerListProps) {
   const label = viewersLabel(viewers, kind);
   const Icon = kind === 'listening' ? HeadphonesIcon : EyeIcon;
+  const { touch } = useViewport();
+  const reveal = useTouchReveal();
+  const onClick = (event: MouseEvent<HTMLDivElement>): void => {
+    if (!touch) return;
+    // The tap is about the list, never about what the list sits on (the Jam card opens on click).
+    event.stopPropagation();
+    if (!reveal.tap()) reveal.hide();
+  };
   if (variant === 'compact') {
     return (
       <span
@@ -70,11 +81,13 @@ export function ViewerList({
         tone === 'surface' && 'viewers--surface',
         placement === 'below' && 'viewers--below',
         align === 'end' && 'viewers--end',
+        touch && reveal.revealed && 'viewers--revealed',
         className,
       )}
       role="group"
       tabIndex={0}
       aria-label={label}
+      onClick={onClick}
     >
       <Icon size={16} />
       <span className="viewers__count">{viewers.length}</span>

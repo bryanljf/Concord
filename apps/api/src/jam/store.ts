@@ -24,6 +24,15 @@ function emptyJam(room: RoomId): RoomJam {
   return { room, current: null, queue: [], history: [] };
 }
 
+/** The desktop app asked to download a song for a requester who cannot (the web client). */
+export interface PendingFetcher {
+  userId: string;
+  /** The presence connection the request went to (gone: the app disconnected). */
+  connectionId: string;
+  /** Server clock: when it was asked. */
+  assignedAt: number;
+}
+
 /**
  * The audio of a song nobody has sent yet. One per videoId (the cache is shared by every room):
  * the first item that needs it uploads it, later duplicates (in any room) wait for the same file.
@@ -32,7 +41,7 @@ function emptyJam(room: RoomId): RoomJam {
  */
 export interface PendingUpload {
   videoId: string;
-  /** The item whose requester's app sends the audio. */
+  /** The item whose requester's app (or assigned fetcher) sends the audio. */
   itemId: string;
   room: RoomId;
   requestedBy: string;
@@ -40,6 +49,16 @@ export interface PendingUpload {
   deadline: number;
   /** An upload is being received right now. */
   receiving: boolean;
+  /**
+   * The app asked to download it in the requester's stead; null while the requester's own app is
+   * expected to (or, for a delegated song restored from the state file, until the sweep asks
+   * someone again).
+   */
+  fetcher: PendingFetcher | null;
+  /** How many apps were asked so far: 0 means the requester uploads it themselves. */
+  assignments: number;
+  /** Users already asked (each is asked once per song). */
+  tried: string[];
 }
 
 export interface JamUpdate {
@@ -74,6 +93,10 @@ export function withoutReadySongs(data: PersistedJam, videoIds: ReadonlySet<stri
       history: (state.history ?? []).filter((item) => !videoIds.has(item.track.videoId)),
     })),
   };
+}
+
+function copyUpload(upload: PendingUpload): PendingUpload {
+  return { ...upload, fetcher: upload.fetcher && { ...upload.fetcher }, tried: [...upload.tried] };
 }
 
 export interface EnqueueResult {
@@ -203,7 +226,18 @@ export class JamStore {
   }
 
   pendingUploads(): PendingUpload[] {
-    return [...this.uploads.values()].map((upload) => ({ ...upload }));
+    return [...this.uploads.values()].map(copyUpload);
+  }
+
+  /** Whether a song's audio is still awaited (so another copy waits for the same upload). */
+  awaits(videoId: string): boolean {
+    return this.uploads.has(videoId);
+  }
+
+  /** The upload `itemId` (of `room`) is the item of, if still awaited. */
+  uploadOf(room: RoomId, itemId: string): PendingUpload | undefined {
+    const upload = this.findUpload(room, itemId);
+    return upload ? copyUpload(upload) : undefined;
   }
 
   // -------------------------------------------------------------------------
@@ -240,6 +274,9 @@ export class JamStore {
         requestedBy,
         deadline: now + this.uploadTimeoutMs,
         receiving: false,
+        fetcher: null,
+        assignments: 0,
+        tried: [],
       });
     }
     const state = this.ensure(room);
@@ -409,20 +446,48 @@ export class JamStore {
   // -------------------------------------------------------------------------
 
   /**
-   * Claims the upload of `itemId` for `userId`. Rejects with `item_not_found` (neither queued nor
-   * awaited), `not_requester` or `already_uploaded` (ready, waiting for someone else's upload,
-   * or being received already).
+   * Claims the upload of `itemId` for `userId`: its requester, or the fetcher asked to download
+   * it. Rejects with `item_not_found` (neither queued nor awaited), `not_requester` or
+   * `already_uploaded` (ready, waiting for someone else's upload, or being received already).
    */
   beginUpload(room: RoomId, itemId: string, userId: string): PendingUpload {
-    const upload = [...this.uploads.values()].find(
-      (candidate) => candidate.itemId === itemId && candidate.room === room,
-    );
+    const upload = this.findUpload(room, itemId);
     const item = this.item(room, itemId);
     if (!item && !upload) throw new JamError('item_not_found');
-    if ((item?.requestedBy ?? upload?.requestedBy) !== userId) throw new JamError('not_requester');
+    // Whoever sends it (a fetcher that lost the race included): the audio is here already.
+    if (item?.status === 'ready') throw new JamError('already_uploaded');
+    const requester = item?.requestedBy ?? upload?.requestedBy;
+    if (userId !== requester && userId !== upload?.fetcher?.userId) {
+      throw new JamError('not_requester');
+    }
     if (!upload || upload.receiving) throw new JamError('already_uploaded');
     upload.receiving = true;
-    return { ...upload };
+    return copyUpload(upload);
+  }
+
+  /**
+   * Asks `fetcher`'s app for the audio of `videoId` (in the requester's stead), counting the
+   * attempt. False when nobody awaits that song anymore.
+   */
+  assignFetcher(videoId: string, fetcher: { id: string; userId: string }): boolean {
+    const upload = this.uploads.get(videoId);
+    if (!upload) return false;
+    upload.fetcher = { userId: fetcher.userId, connectionId: fetcher.id, assignedAt: this.now() };
+    upload.assignments += 1;
+    if (!upload.tried.includes(fetcher.userId)) upload.tried.push(fetcher.userId);
+    return true;
+  }
+
+  /**
+   * The upload claimed by `beginUpload` was given up before anything of it was kept: the songs
+   * keep waiting and someone else may send it. The upload as it is now, or undefined when nobody
+   * awaits it anymore.
+   */
+  releaseUpload(upload: Pick<PendingUpload, 'videoId' | 'itemId'>): PendingUpload | undefined {
+    const current = this.uploads.get(upload.videoId);
+    if (!current || current.itemId !== upload.itemId) return undefined;
+    current.receiving = false;
+    return copyUpload(current);
   }
 
   /** True while `upload` is still the one songs wait for (not timed out, not abandoned). */
@@ -516,11 +581,16 @@ export class JamStore {
   // Persistence
   // -------------------------------------------------------------------------
 
+  /** The fetcher asked, if any, is not saved: its connection will not outlive the process. */
   toJSON(): PersistedJam {
     return {
       version: 1,
       rooms: [...this.rooms.values()].map((state) => structuredClone(state)),
-      uploads: [...this.uploads.values()].map((upload) => ({ ...upload, receiving: false })),
+      uploads: [...this.uploads.values()].map((upload) => ({
+        ...copyUpload(upload),
+        receiving: false,
+        fetcher: null,
+      })),
     };
   }
 
@@ -532,7 +602,7 @@ export class JamStore {
     this.rooms.clear();
     this.uploads.clear();
     for (const upload of data.uploads) {
-      this.uploads.set(upload.videoId, { ...upload, receiving: false });
+      this.uploads.set(upload.videoId, { ...copyUpload(upload), receiving: false, fetcher: null });
     }
     for (const state of data.rooms) {
       const queue = state.queue.filter(
@@ -558,6 +628,12 @@ export class JamStore {
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
+
+  private findUpload(room: RoomId, itemId: string): PendingUpload | undefined {
+    return [...this.uploads.values()].find(
+      (candidate) => candidate.itemId === itemId && candidate.room === room,
+    );
+  }
 
   private ensure(room: RoomId): RoomJam {
     let state = this.rooms.get(room);

@@ -87,6 +87,7 @@ function setup(overrides: Partial<JamUploadsDeps> = {}) {
       }
     }),
     jamRemove: vi.fn<JamUploadsDeps['api']['jamRemove']>(async () => undefined),
+    jamFetchDecline: vi.fn<JamUploadsDeps['api']['jamFetchDecline']>(async () => undefined),
   };
   const feeds: JamDownloadFeed[] = [];
   const startDownload = vi.fn((_exePath: string, videoId: string) => {
@@ -130,6 +131,14 @@ function setup(overrides: Partial<JamUploadsDeps> = {}) {
 
 function inQueue(...items: JamItem[]): JamState {
   return { room: 'sala-1', current: null, queue: items };
+}
+
+/** A server that answers `err` after the first bytes, before the rest. */
+function answeredWith(err: Error) {
+  return vi.fn<JamUploadsDeps['api']['jamUpload']>(async (_room, _itemId, body) => {
+    if (body instanceof ReadableStream) await body.getReader().read();
+    throw err;
+  });
 }
 
 afterEach(() => {
@@ -503,5 +512,220 @@ describe('createJamUploads', () => {
     expect(uploads.list()).toHaveLength(1);
     vi.advanceTimersByTime(1);
     expect(uploads.list()).toEqual([]);
+  });
+});
+
+describe('delegated jobs (songs sent at the server’s request)', () => {
+  it('sends the audio like any other job, without a word to anyone', async () => {
+    const { uploads, api, feeds, startDownload, statuses, sent } = setup();
+    uploads.start('sala-1', jamItem('a'), { delegated: true });
+    expect(statuses).toEqual([]);
+    expect(uploads.list()).toEqual([]);
+    // Still a download in progress: prefetching the same song would be wasted.
+    expect(uploads.isSending('4D7u5KF7SP8')).toBe(true);
+    await settle();
+    expect(startDownload).toHaveBeenCalledWith('yt-dlp.exe', '4D7u5KF7SP8');
+    feeds[0]?.push(HEAD);
+    await settle();
+    expect(api.jamUpload).toHaveBeenCalledWith(
+      'sala-1',
+      'a',
+      expect.any(ReadableStream),
+      expect.any(AbortSignal),
+    );
+    finish(feeds[0], TAIL);
+    await settle();
+    expect(sent()).toEqual(Buffer.concat([HEAD, TAIL]));
+    expect(statuses).toEqual([]);
+    expect(uploads.list()).toEqual([]);
+    expect(uploads.isSending('4D7u5KF7SP8')).toBe(false);
+    expect(api.jamRemove).not.toHaveBeenCalled();
+    expect(api.jamFetchDecline).not.toHaveBeenCalled();
+    // Asked for the same song again while it is remembered: nothing starts twice.
+    uploads.start('sala-1', jamItem('a'), { delegated: true });
+    expect(startDownload).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes over the prefetch of its song', async () => {
+    const prefetched = fakeDownload('4D7u5KF7SP8');
+    finish(prefetched, HEAD, TAIL);
+    const take = vi.fn((): PrefetchedAudio | null => ({
+      download: prefetched.download,
+      revision: 1,
+    }));
+    const { uploads, ytdlp, startDownload, statuses, sent } = setup({ prefetches: { take } });
+    uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    expect(take).toHaveBeenCalledWith('4D7u5KF7SP8');
+    expect(ytdlp.ensure).not.toHaveBeenCalled();
+    expect(startDownload).not.toHaveBeenCalled();
+    expect(sent()).toEqual(Buffer.concat([HEAD, TAIL]));
+    expect(statuses).toEqual([]);
+  });
+
+  it('declines the fetch instead of removing the song when it fails', async () => {
+    const blocked = setup();
+    blocked.uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    blocked.feeds[0]?.fail('blocked');
+    await settle();
+    expect(blocked.api.jamFetchDecline).toHaveBeenCalledWith(
+      'sala-1',
+      'a',
+      'download failed: blocked',
+    );
+    expect(blocked.api.jamRemove).not.toHaveBeenCalled();
+    expect(blocked.api.jamUpload).not.toHaveBeenCalled();
+    expect(blocked.statuses).toEqual([]);
+    expect(blocked.uploads.list()).toEqual([]);
+    expect(blocked.uploads.isSending('4D7u5KF7SP8')).toBe(false);
+
+    const noYtDlp = setup();
+    noYtDlp.ytdlp.ensure.mockRejectedValue(new YtDlpError('Sem yt-dlp.'));
+    noYtDlp.uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    expect(noYtDlp.api.jamFetchDecline).toHaveBeenCalledWith('sala-1', 'a', 'yt-dlp unavailable');
+    expect(noYtDlp.statuses).toEqual([]);
+
+    // The server's answer is final here too, but the reason goes to its log instead of a toast.
+    const refused = setup();
+    refused.api.jamUpload = answeredWith(new ApiClientError('http', 'x', 422, 'invalid_audio'));
+    refused.uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    refused.feeds[0]?.push(HEAD);
+    await settle();
+    expect(refused.api.jamFetchDecline).toHaveBeenCalledWith(
+      'sala-1',
+      'a',
+      'upload failed: invalid_audio',
+    );
+    expect(refused.api.jamUpload).toHaveBeenCalledTimes(1);
+    expect(refused.api.jamRemove).not.toHaveBeenCalled();
+
+    const timedOut = setup();
+    timedOut.api.jamUpload = answeredWith(new ApiClientError('timeout', 'Demorou.'));
+    timedOut.uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    timedOut.feeds[0]?.push(HEAD);
+    await settle();
+    expect(timedOut.api.jamFetchDecline).toHaveBeenCalledWith(
+      'sala-1',
+      'a',
+      'upload failed: timeout',
+    );
+
+    const unexpected = setup();
+    unexpected.api.jamUpload = answeredWith(new Error('boom'));
+    unexpected.uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    unexpected.feeds[0]?.push(HEAD);
+    await settle();
+    expect(unexpected.api.jamFetchDecline).toHaveBeenCalledWith(
+      'sala-1',
+      'a',
+      'unexpected failure',
+    );
+    expect(unexpected.statuses).toEqual([]);
+  });
+
+  it('has nothing to decline when the song is gone or already uploaded', async () => {
+    const gone = setup();
+    gone.api.jamUpload = answeredWith(new ApiClientError('http', 'x', 404, 'item_not_found'));
+    gone.uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    gone.feeds[0]?.push(HEAD);
+    await settle();
+    expect(gone.api.jamFetchDecline).not.toHaveBeenCalled();
+    expect(gone.api.jamRemove).not.toHaveBeenCalled();
+    expect(gone.feeds[0]?.download.error?.reason).toBe('cancelled');
+    expect(gone.uploads.isSending('4D7u5KF7SP8')).toBe(false);
+
+    const already = setup();
+    already.api.jamUpload = answeredWith(new ApiClientError('http', 'x', 409, 'already_uploaded'));
+    already.uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    already.feeds[0]?.push(HEAD);
+    await settle();
+    expect(already.api.jamFetchDecline).not.toHaveBeenCalled();
+    expect(already.api.jamRemove).not.toHaveBeenCalled();
+    expect(already.uploads.isSending('4D7u5KF7SP8')).toBe(false);
+  });
+
+  it('lets a refused decline go (the song moved on, or the server is unreachable)', async () => {
+    const { uploads, api, feeds, statuses } = setup();
+    api.jamFetchDecline.mockRejectedValueOnce(
+      new ApiClientError('http', 'x', 404, 'item_not_found'),
+    );
+    uploads.start('sala-1', jamItem('a'), { delegated: true });
+    await settle();
+    feeds[0]?.fail('blocked');
+    await settle();
+    api.jamFetchDecline.mockRejectedValueOnce(new ApiClientError('network', 'offline'));
+    uploads.start('sala-1', jamItem('b'), { delegated: true });
+    await settle();
+    feeds[1]?.fail('network');
+    await settle();
+    expect(api.jamFetchDecline).toHaveBeenCalledTimes(2);
+    expect(statuses).toEqual([]);
+    expect(uploads.isSending('4D7u5KF7SP8')).toBe(false);
+  });
+
+  it('stops when the song leaves the queue, telling nobody', async () => {
+    const { uploads, feeds, store, statuses, api } = setup();
+    const item = jamItem('a');
+    store.apply({
+      type: 'jam_snapshot',
+      data: { available: true, rooms: { 'sala-1': inQueue(item) }, serverTime: 1 },
+    });
+    uploads.start('sala-1', item, { delegated: true });
+    await settle();
+    feeds[0]?.push(HEAD);
+    await settle();
+    store.apply({ type: 'jam_snapshot', data: { available: true, rooms: {}, serverTime: 2 } });
+    await settle();
+    expect(feeds[0]?.download.error?.reason).toBe('cancelled');
+    expect(statuses).toEqual([]);
+    expect(api.jamRemove).not.toHaveBeenCalled();
+    // Gone already: there is nothing to decline.
+    expect(api.jamFetchDecline).not.toHaveBeenCalled();
+    expect(uploads.isSending('4D7u5KF7SP8')).toBe(false);
+  });
+
+  it('hands its songs back to the server on logout or quit', async () => {
+    const { uploads, feeds, statuses, api, slots } = setup();
+    uploads.start('sala-1', jamItem('a'), { delegated: true });
+    uploads.start('sala-1', jamItem('b', 'xxxxxxxxxxx'));
+    await settle();
+    feeds[0]?.push(HEAD);
+    await settle();
+    const before = statuses.length;
+    uploads.cancelAll();
+    await settle();
+    expect(feeds.map((feed) => feed.download.error?.reason)).toEqual(['cancelled', 'cancelled']);
+    // The delegated song is reassigned by the server; the app's own one is removed, as always.
+    expect(api.jamFetchDecline).toHaveBeenCalledTimes(1);
+    expect(api.jamFetchDecline).toHaveBeenCalledWith('sala-1', 'a', 'app stopped');
+    expect(api.jamRemove).toHaveBeenCalledTimes(1);
+    expect(api.jamRemove).toHaveBeenCalledWith('sala-1', 'b');
+    expect(statuses).toHaveLength(before);
+    expect(statuses.every((status) => status.itemId === 'b')).toBe(true);
+    expect(uploads.list()).toEqual([]);
+    expect(uploads.isSending('4D7u5KF7SP8')).toBe(false);
+    expect(slots.busy).toBe(0);
+  });
+
+  it('keeps out of the list, next to the app’s own songs', async () => {
+    const { uploads, feeds, statuses } = setup();
+    uploads.start('sala-1', jamItem('a'), { delegated: true });
+    uploads.start('sala-1', jamItem('b', 'xxxxxxxxxxx'));
+    expect(uploads.list().map((status) => status.itemId)).toEqual(['b']);
+    expect(uploads.isSending('4D7u5KF7SP8')).toBe(true);
+    expect(uploads.isSending('xxxxxxxxxxx')).toBe(true);
+    await settle();
+    finish(feeds[0], HEAD);
+    finish(feeds[1], HEAD);
+    await settle();
+    expect(uploads.list()).toEqual([expect.objectContaining({ itemId: 'b', state: 'done' })]);
+    expect(statuses.map((status) => status.itemId)).toEqual(['b', 'b', 'b']);
   });
 });

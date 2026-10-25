@@ -3,6 +3,8 @@
  * watched stream or on your own previews, the keyboard shortcuts that open it, and keeping it
  * inside the viewport.
  */
+import type { ClientCapabilities } from '../../preload/api';
+import { capabilities } from './capabilities';
 import type { StreamKind } from './streamKey';
 
 /** The stream in destaque, a watched stream in the strip, or a tile of the grid. */
@@ -15,6 +17,8 @@ export type WatchMenuAction =
   | 'return'
   | 'pip-open'
   | 'pip-close'
+  /** The browser's own picture-in-picture of this stream (`lib/nativePip.ts`, web client). */
+  | 'native-pip'
   | 'mute'
   | 'unmute'
   | 'stats'
@@ -43,34 +47,41 @@ export interface WatchMenuOptions {
   pipOpen: boolean;
   /** Shown by another window (the pop-out, the picture-in-picture) instead of this one. */
   elsewhere: boolean;
+  /** What this client can do (the bridge's by default; tests pass their own). */
+  capabilities?: Pick<ClientCapabilities, 'popout' | 'pip' | 'nativeVideoPip'>;
 }
 
 /**
  * Items of the menu opened on a watched stream. A tile of the grid or the strip can go in
  * destaque; the destaque can go back to the grid. A screen share opens in the pop-out (or comes
- * back from it), a webcam opens or closes the cameras' picture-in-picture. Mute and statistics
- * only apply to what plays in this window. "Parar de assistir" stays last, below a divider,
- * like other destructive actions.
+ * back from it), a webcam opens or closes the cameras' picture-in-picture; the web client has
+ * neither window and offers the browser's picture-in-picture of the stream instead. Mute and
+ * statistics only apply to what plays in this window. "Parar de assistir" stays last, below a
+ * divider, like other destructive actions.
  */
 export function watchMenuItems(options: WatchMenuOptions): WatchMenuItem[] {
   const { tile, kind, muted, hasAudio, canShowGrid, pipOpen, elsewhere } = options;
+  const can = options.capabilities ?? capabilities();
   const items: WatchMenuItem[] = [];
   if (tile !== 'focused') items.push({ action: 'focus', label: 'Colocar em destaque' });
   if (tile === 'focused' && canShowGrid) {
     items.push({ action: 'grid', label: 'Voltar para a grade' });
   }
-  if (kind === 'screen') {
+  if (kind === 'screen' && can.popout) {
     items.push(
       elsewhere
         ? { action: 'return', label: 'Trazer para esta janela' }
         : { action: 'popout', label: 'Abrir em pop-out' },
     );
-  } else {
+  } else if (kind === 'camera' && can.pip) {
     items.push(
       pipOpen
         ? { action: 'pip-close', label: 'Fechar picture-in-picture' }
         : { action: 'pip-open', label: 'Abrir câmeras em picture-in-picture' },
     );
+  }
+  if (can.nativeVideoPip && !elsewhere) {
+    items.push({ action: 'native-pip', label: 'Picture-in-picture' });
   }
   if (!elsewhere) {
     if (kind === 'screen' && hasAudio) {

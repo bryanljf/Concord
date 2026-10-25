@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UserInfo } from '@concord/shared';
+import { isWeb } from '../lib/capabilities';
 import { concord, toErrorMessage } from '../lib/concord';
 import { sameUser } from '../lib/user';
 
@@ -13,6 +14,11 @@ interface SessionState {
   onboarding: OnboardingMode;
   /** Only set when the session itself could not be loaded (bridge/IPC failure). */
   error: string | null;
+  /**
+   * Web client: the sign-in that just failed (`?login_error`, surfaced by `getSession()`
+   * rejecting once). Shown on the Discord screen, which is also the way to try again.
+   */
+  loginError: string | null;
 }
 
 export interface UseSession extends SessionState {
@@ -35,6 +41,7 @@ const INITIAL: SessionState = {
   user: null,
   onboarding: 'full',
   error: null,
+  loginError: null,
 };
 
 export function useSession(): UseSession {
@@ -56,10 +63,17 @@ export function useSession(): UseSession {
             user: session.user,
             onboarding: session.user ? 'none' : 'full',
             error: null,
+            loginError: null,
           });
         },
         (err: unknown) => {
           if (!active) return;
+          // The browser has nothing stored: a rejection means "not signed in", with the reason
+          // (a refused Discord login) to show next to the button that tries again.
+          if (isWeb()) {
+            setState({ ...INITIAL, loading: false, loginError: toErrorMessage(err) });
+            return;
+          }
           setState((prev) => ({ ...prev, loading: false, error: toErrorMessage(err) }));
         },
       );
@@ -89,6 +103,7 @@ export function useSession(): UseSession {
             user: session.user,
             onboarding: session.user ? 'none' : 'full',
             error: null,
+            loginError: null,
           };
         });
       }),
@@ -99,7 +114,7 @@ export function useSession(): UseSession {
     localLogin.current = true;
     try {
       const user = await concord().login(serverUrl, key);
-      setState((prev) => ({ ...prev, serverUrl, user, error: null }));
+      setState((prev) => ({ ...prev, serverUrl, user, error: null, loginError: null }));
       return user;
     } finally {
       localLogin.current = false;
@@ -110,7 +125,7 @@ export function useSession(): UseSession {
     localLogin.current = true;
     try {
       const user = await concord().loginWithDiscord(serverUrl);
-      setState((prev) => ({ ...prev, serverUrl, user, error: null }));
+      setState((prev) => ({ ...prev, serverUrl, user, error: null, loginError: null }));
       return user;
     } finally {
       localLogin.current = false;
@@ -130,12 +145,12 @@ export function useSession(): UseSession {
 
   const logout = useCallback(async () => {
     await concord().logout();
-    setState((prev) => ({ ...prev, user: null, onboarding: 'full' }));
+    setState((prev) => ({ ...prev, user: null, onboarding: 'full', loginError: null }));
   }, []);
 
   const startRekey = useCallback(async () => {
     await concord().logout();
-    setState((prev) => ({ ...prev, user: null, onboarding: 'rekey' }));
+    setState((prev) => ({ ...prev, user: null, onboarding: 'rekey', loginError: null }));
   }, []);
 
   return {

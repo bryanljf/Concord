@@ -26,8 +26,9 @@ import {
 let setup: JamSetup | undefined;
 let app: FastifyInstance | undefined;
 
+/** Alice and Bob run the desktop app (able to download), as a fetch-enabled stream would say. */
 async function jamApp(options: JamSetupOptions = {}) {
-  setup = await jamSetup(options);
+  setup = await jamSetup({ downloaders: ['alice', 'bob'], ...options });
   await setup.service.start();
   app = testApp({ jam: setup.service, presence: setup.presence }).app;
   return { app, s: setup };

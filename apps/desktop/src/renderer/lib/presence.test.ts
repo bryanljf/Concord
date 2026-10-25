@@ -3,6 +3,7 @@ import type { PresenceParticipant, PresenceSnapshot } from '@concord/shared';
 import {
   knownParticipants,
   mergeRoomIds,
+  mutablePeople,
   participantsOf,
   presenceProfiles,
   resolveFocus,
@@ -127,6 +128,38 @@ describe('presence profiles', () => {
   it('returns the same array when nothing changes', () => {
     const streams = [{ participantId: 'beto', name: 'Beto', avatarUrl: null }];
     expect(withPresenceProfiles(streams, profiles)).toBe(streams);
+  });
+
+  it('resolves a person only present from the phone by their user id too', () => {
+    const web = presenceProfiles({
+      rooms: {
+        geral: [{ ...ana, id: 'ana~web', name: 'Aninha', avatarUrl }],
+      },
+    });
+    expect(web.get('ana~web')).toEqual({ name: 'Aninha', avatarUrl });
+    expect(web.get('ana')).toEqual({ name: 'Aninha', avatarUrl });
+  });
+
+  it('lets the desktop identity win over the phone fallback, whatever the order', () => {
+    const both = presenceProfiles({
+      rooms: {
+        geral: [{ ...ana, id: 'ana~web', name: 'No celular' }],
+        jogos: [{ ...ana, name: 'No PC' }],
+      },
+    });
+    expect(both.get('ana')?.name).toBe('No PC');
+    expect(both.get('ana~web')?.name).toBe('No celular');
+  });
+});
+
+describe('mutablePeople', () => {
+  it('lists each person once, whatever the devices, then the muted ids nobody is online for', () => {
+    const people = mutablePeople([{ ...ana, id: 'ana~web' }, ana, beto], ['beto', 'zoe']);
+    expect(people).toEqual([
+      { id: 'ana', name: 'Ana', avatarUrl: null },
+      { id: 'beto', name: 'Beto', avatarUrl: null },
+      { id: 'zoe', name: 'zoe', avatarUrl: null },
+    ]);
   });
 });
 

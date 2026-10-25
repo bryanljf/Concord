@@ -568,6 +568,63 @@
   }
 }
 
+/* Phones: the dialog fills the screen (the keyboard takes the rest). */
+@media (max-width: 767px) {
+  .jam-modal-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .jam-modal {
+    width: 100%;
+    max-height: none;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-radius: 0;
+  }
+
+  .jam-modal__header {
+    padding: 10px 8px 8px 14px;
+  }
+
+  .jam-compact {
+    margin: 0 12px 12px;
+  }
+
+  .jam-search {
+    padding: 0 12px 16px;
+  }
+}
+
+/* Touch screens: the controls, the queue's × and the results at a finger's size. */
+@media (pointer: coarse) {
+  .icon-btn.jam-controls__btn {
+    width: 44px;
+    height: 36px;
+  }
+
+  .icon-btn.jam-queue__remove {
+    width: 36px;
+    height: 36px;
+  }
+
+  .jam-queue__item {
+    padding: 8px 4px;
+  }
+
+  .btn.jam-panel__add {
+    height: 36px;
+  }
+
+  .jam-result {
+    padding: 10px;
+  }
+
+  .jam-result__action {
+    height: 36px;
+  }
+}
+
 /* "Música anterior" stays in place (keeping the controls centered) but dimmed until a song was
    played before in this Jam. */
 .icon-btn.jam-controls__btn:disabled,

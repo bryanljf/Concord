@@ -15,7 +15,7 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['apps/desktop/src/renderer/**/*.{ts,tsx}'],
+    files: ['apps/desktop/src/renderer/**/*.{ts,tsx}', 'apps/desktop/src/web/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
     languageOptions: { globals: globals.browser },
   },

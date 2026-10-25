@@ -1,4 +1,11 @@
-import type { PresenceEvent, PresenceParticipant, PresenceSnapshot, RoomId } from '@concord/shared';
+import {
+  participantClientOf,
+  userIdOf,
+  type PresenceEvent,
+  type PresenceParticipant,
+  type PresenceSnapshot,
+  type RoomId,
+} from '@concord/shared';
 import type { ProfileResolver } from './profiles';
 
 export interface ParticipantIdentity {
@@ -40,6 +47,7 @@ function toParticipant(entry: Entry): PresenceParticipant {
     joinedAt: entry.joinedAt,
     avatarUrl: entry.avatarUrl,
     camera: entry.cameraTracks.size > 0,
+    client: participantClientOf(entry.id),
   };
 }
 
@@ -83,6 +91,30 @@ export class PresenceStore {
   participant(room: RoomId, participantId: string): PresenceParticipant | undefined {
     const entry = this.rooms.get(room)?.get(participantId);
     return entry ? toParticipant(entry) : undefined;
+  }
+
+  /** Whether the person `userId` is in `room` from any client (desktop `bryan`, web `bryan~web`). */
+  hasUser(room: RoomId, userId: string): boolean {
+    const entries = this.rooms.get(room);
+    if (!entries) return false;
+    for (const id of entries.keys()) {
+      if (userIdOf(id) === userId) return true;
+    }
+    return false;
+  }
+
+  /** Rooms the person `userId` is in, from any client. */
+  roomsOf(userId: string): RoomId[] {
+    const rooms: RoomId[] = [];
+    for (const [room, entries] of this.rooms) {
+      for (const id of entries.keys()) {
+        if (userIdOf(id) === userId) {
+          rooms.push(room);
+          break;
+        }
+      }
+    }
+    return rooms;
   }
 
   /** Adds a participant; a repeated join only refreshes the display name. */
@@ -131,17 +163,18 @@ export class PresenceStore {
 
   /**
    * Re-resolves a user's name and avatar and emits `participant_updated` in every room where
-   * they are present and something visible changed.
+   * they are present (from any client) and something visible changed.
    */
   refreshUser(userId: string): void {
     for (const [room, entries] of this.rooms) {
-      const entry = entries.get(userId);
-      if (!entry) continue;
-      const { name, avatarUrl } = this.resolve(entry.id, entry.livekitName);
-      if (name === entry.name && avatarUrl === entry.avatarUrl) continue;
-      entry.name = name;
-      entry.avatarUrl = avatarUrl;
-      this.emit({ type: 'participant_updated', room, participant: toParticipant(entry) });
+      for (const entry of entries.values()) {
+        if (userIdOf(entry.id) !== userId) continue;
+        const { name, avatarUrl } = this.resolve(entry.id, entry.livekitName);
+        if (name === entry.name && avatarUrl === entry.avatarUrl) continue;
+        entry.name = name;
+        entry.avatarUrl = avatarUrl;
+        this.emit({ type: 'participant_updated', room, participant: toParticipant(entry) });
+      }
     }
   }
 
@@ -149,7 +182,7 @@ export class PresenceStore {
   refreshAll(): void {
     const ids = new Set<string>();
     for (const entries of this.rooms.values()) {
-      for (const id of entries.keys()) ids.add(id);
+      for (const id of entries.keys()) ids.add(userIdOf(id));
     }
     for (const id of ids) this.refreshUser(id);
   }
@@ -229,7 +262,8 @@ export class PresenceStore {
   }
 
   private resolve(id: string, livekitName: string): { name: string; avatarUrl: string | null } {
-    const profile = this.resolveProfile?.(id);
+    // The web identity (`bryan~web`) shows the same name and avatar as the person's desktop.
+    const profile = this.resolveProfile?.(userIdOf(id));
     return { name: profile?.name ?? livekitName, avatarUrl: profile?.avatarUrl ?? null };
   }
 

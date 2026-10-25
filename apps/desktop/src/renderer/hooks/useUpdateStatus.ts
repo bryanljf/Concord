@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { UpdateStatus } from '../../preload/api';
+import { capabilities } from '../lib/capabilities';
 import { concord, toErrorMessage } from '../lib/concord';
-import { DEV_BUILD_REASON } from '../lib/updates';
+import { DEV_BUILD_REASON, WEB_UPDATE_STATUS } from '../lib/updates';
 
 export interface UseUpdateStatus {
   status: UpdateStatus;
@@ -13,11 +14,19 @@ export interface UseUpdateStatus {
 
 const UNSUPPORTED: UpdateStatus = { state: 'unsupported', reason: DEV_BUILD_REASON };
 
-/** Auto-update state from main (`electron-updater`), kept fresh through `onUpdateStatus`. */
+/**
+ * Auto-update state from main (`electron-updater`), kept fresh through `onUpdateStatus`. A client
+ * without an updater (`capabilities.updates`, the web) stays `unsupported` without asking the
+ * bridge, so the banner and the sidebar's arrow never show there.
+ */
 export function useUpdateStatus(): UseUpdateStatus {
-  const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' });
+  const supported = capabilities().updates;
+  const [status, setStatus] = useState<UpdateStatus>(
+    supported ? { state: 'idle' } : WEB_UPDATE_STATUS,
+  );
 
   useEffect(() => {
+    if (!supported) return;
     let active = true;
     const unsubscribe = concord().onUpdateStatus((next) => setStatus(next));
     concord()
@@ -35,9 +44,10 @@ export function useUpdateStatus(): UseUpdateStatus {
       active = false;
       unsubscribe();
     };
-  }, []);
+  }, [supported]);
 
   const check = useCallback(async () => {
+    if (!supported) return;
     setStatus({ state: 'checking' });
     try {
       setStatus(await concord().checkForUpdates());
@@ -47,11 +57,12 @@ export function useUpdateStatus(): UseUpdateStatus {
         message: toErrorMessage(err, 'o aplicativo não respondeu.'),
       });
     }
-  }, []);
+  }, [supported]);
 
   const install = useCallback(async () => {
+    if (!supported) return;
     await concord().installUpdate();
-  }, []);
+  }, [supported]);
 
   return { status, check, install };
 }

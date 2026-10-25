@@ -10,6 +10,8 @@ import { SettingsSection } from './SettingsSection';
 
 interface CameraSectionProps {
   settings: Settings;
+  /** This client has the cameras' picture-in-picture window (`capabilities.pip`). */
+  pip?: boolean;
   onUpdate(patch: Partial<Settings>): void;
 }
 
@@ -82,8 +84,11 @@ function useCameraTest(
   return result.state;
 }
 
-/** "Câmera e picture-in-picture": webcam device, test preview and PiP behaviour. */
-export function CameraSection({ settings, onUpdate }: CameraSectionProps) {
+/**
+ * "Câmera e picture-in-picture": webcam device, test preview and PiP behaviour (just "Câmera"
+ * on a client without the PiP window).
+ */
+export function CameraSection({ settings, pip = true, onUpdate }: CameraSectionProps) {
   const { devices, refresh } = useVideoInputs();
   const [testing, setTesting] = useState(false);
   // Every press of "Testar câmera" is a new run (a failed one can be retried).
@@ -106,7 +111,7 @@ export function CameraSection({ settings, onUpdate }: CameraSectionProps) {
   }
 
   return (
-    <SettingsSection id="camera" title="Câmera e picture-in-picture">
+    <SettingsSection id="camera" title={pip ? 'Câmera e picture-in-picture' : 'Câmera'}>
       <div className="field">
         <label className="field__label" htmlFor="settings-camera-device">
           Câmera
@@ -158,57 +163,61 @@ export function CameraSection({ settings, onUpdate }: CameraSectionProps) {
         )}
       </div>
 
-      <h3 className="settings__subheading">Picture-in-picture das câmeras</h3>
-      <label className="switch">
-        <span className="switch__text">
-          <span className="switch__title">Por cima de tudo, inclusive jogos em tela cheia</span>
-          <span className="switch__desc">
-            Desligado, a janelinha vira uma janela comum e pode ficar atrás das outras.
-          </span>
-        </span>
-        <input
-          type="checkbox"
-          checked={settings.pipAlwaysOnTop}
-          onChange={(event) => onUpdate({ pipAlwaysOnTop: event.target.checked })}
-        />
-      </label>
-      <fieldset className="settings__fieldset">
-        <legend className="field__label">Disposição das câmeras</legend>
-        <div className="radio-group radio-group--inline">
-          {LAYOUTS.map((layout) => (
-            <label key={layout.id} className="radio">
-              <input
-                type="radio"
-                name="pip-layout"
-                value={layout.id}
-                checked={settings.pipLayout === layout.id}
-                onChange={() => onUpdate({ pipLayout: layout.id })}
-              />
-              <span className="radio__text">
-                <span className="radio__title">{layout.label}</span>
-                <span className="radio__desc">{layout.desc}</span>
+      {pip && (
+        <>
+          <h3 className="settings__subheading">Picture-in-picture das câmeras</h3>
+          <label className="switch">
+            <span className="switch__text">
+              <span className="switch__title">Por cima de tudo, inclusive jogos em tela cheia</span>
+              <span className="switch__desc">
+                Desligado, a janelinha vira uma janela comum e pode ficar atrás das outras.
               </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <div className="settings__actions">
-        <button
-          type="button"
-          className="btn btn--sm"
-          disabled={settings.pipPosition === null}
-          data-tooltip={
-            settings.pipPosition === null ? 'Já está no canto superior direito' : undefined
-          }
-          onClick={() => onUpdate({ pipPosition: null })}
-        >
-          Voltar o picture-in-picture ao canto superior direito
-        </button>
-      </div>
-      <p className="field__hint">
-        Jogos em tela cheia exclusiva ficam por cima do picture-in-picture; use tela cheia sem
-        bordas. O picture-in-picture não aparece nas suas transmissões nem em capturas de tela.
-      </p>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.pipAlwaysOnTop}
+              onChange={(event) => onUpdate({ pipAlwaysOnTop: event.target.checked })}
+            />
+          </label>
+          <fieldset className="settings__fieldset">
+            <legend className="field__label">Disposição das câmeras</legend>
+            <div className="radio-group radio-group--inline">
+              {LAYOUTS.map((layout) => (
+                <label key={layout.id} className="radio">
+                  <input
+                    type="radio"
+                    name="pip-layout"
+                    value={layout.id}
+                    checked={settings.pipLayout === layout.id}
+                    onChange={() => onUpdate({ pipLayout: layout.id })}
+                  />
+                  <span className="radio__text">
+                    <span className="radio__title">{layout.label}</span>
+                    <span className="radio__desc">{layout.desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="settings__actions">
+            <button
+              type="button"
+              className="btn btn--sm"
+              disabled={settings.pipPosition === null}
+              data-tooltip={
+                settings.pipPosition === null ? 'Já está no canto superior direito' : undefined
+              }
+              onClick={() => onUpdate({ pipPosition: null })}
+            >
+              Voltar o picture-in-picture ao canto superior direito
+            </button>
+          </div>
+          <p className="field__hint">
+            Jogos em tela cheia exclusiva ficam por cima do picture-in-picture; use tela cheia sem
+            bordas. O picture-in-picture não aparece nas suas transmissões nem em capturas de tela.
+          </p>
+        </>
+      )}
     </SettingsSection>
   );
 }

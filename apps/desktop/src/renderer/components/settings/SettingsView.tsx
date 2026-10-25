@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PresenceParticipant, RoomId, UserInfo } from '@concord/shared';
+import type { ClientCapabilities } from '../../../preload/api';
+import { audioOutputSelectable, capabilities } from '../../lib/capabilities';
 import type { Settings } from '../../lib/concord';
 import { CloseIcon } from '../icons';
 import { AboutSection } from './AboutSection';
@@ -24,6 +26,27 @@ const SECTIONS = [
 ] as const;
 
 export type SettingsSectionId = (typeof SECTIONS)[number]['id'];
+
+/**
+ * Which sections exist on this client: the web keeps Conta, Sons, Câmera and Sobre, plus Áudio
+ * where the browser lets the output device be chosen.
+ */
+function sectionShown(id: SettingsSectionId, can: ClientCapabilities, audioOutput: boolean) {
+  switch (id) {
+    case 'inicializacao':
+      return can.tray;
+    case 'atalho':
+      return can.shortcut;
+    case 'transmissao':
+      return can.screenShare;
+    case 'audio':
+      return audioOutput;
+    case 'camera':
+      return can.camera;
+    default:
+      return true;
+  }
+}
 
 interface SettingsViewProps {
   settings: Settings;
@@ -61,6 +84,9 @@ export function SettingsView({
   onSetNickname,
 }: SettingsViewProps) {
   const [active, setActive] = useState<SettingsSectionId>(initialSection);
+  const can = capabilities();
+  const audioOutput = audioOutputSelectable();
+  const shown = (id: SettingsSectionId): boolean => sectionShown(id, can, audioOutput);
 
   // Opening straight on another section: scroll it into view once, on mount.
   const initialRef = useRef(initialSection);
@@ -88,7 +114,7 @@ export function SettingsView({
         <h1 id="settings-title" className="settings__nav-title">
           Configurações
         </h1>
-        {SECTIONS.map((section) => (
+        {SECTIONS.filter((section) => shown(section.id)).map((section) => (
           <button
             key={section.id}
             type="button"
@@ -107,23 +133,27 @@ export function SettingsView({
         )}
         <AccountSection
           user={user}
-          serverUrl={settings.serverUrl}
+          serverUrl={can.serverChoice ? settings.serverUrl : null}
           focusNickname={focusNickname}
           onRekey={onRekey}
           onSetNickname={onSetNickname}
         />
-        <StartupSection settings={settings} onUpdate={onUpdate} />
-        <ShortcutSection settings={settings} platform={platform} onUpdate={onUpdate} />
-        <StreamingSection settings={settings} onUpdate={onUpdate} />
+        {shown('inicializacao') && <StartupSection settings={settings} onUpdate={onUpdate} />}
+        {shown('atalho') && (
+          <ShortcutSection settings={settings} platform={platform} onUpdate={onUpdate} />
+        )}
+        {shown('transmissao') && <StreamingSection settings={settings} onUpdate={onUpdate} />}
         <NotificationsSection
           settings={settings}
           rooms={rooms}
           participants={participants}
           onUpdate={onUpdate}
         />
-        <AudioSection settings={settings} onUpdate={onUpdate} />
-        <CameraSection settings={settings} onUpdate={onUpdate} />
-        <AboutSection version={version} platform={platform} />
+        {shown('audio') && (
+          <AudioSection settings={settings} popout={can.popout} onUpdate={onUpdate} />
+        )}
+        {shown('camera') && <CameraSection settings={settings} pip={can.pip} onUpdate={onUpdate} />}
+        <AboutSection version={version} platform={platform} updates={can.updates} />
       </div>
       <div className="settings__close">
         <button

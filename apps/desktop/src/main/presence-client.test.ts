@@ -1,7 +1,14 @@
-import type { JamEvent, PresenceEvent } from '@concord/shared';
+import type { JamEvent, JamItem, PresenceEvent } from '@concord/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PresenceConnectionStatus } from '../preload/api';
-import { backoffDelay, BACKOFF_MAX_MS, BACKOFF_MIN_MS, PresenceClient } from './presence-client';
+import { ApiClientError, type ApiClient } from './api-client';
+import {
+  backoffDelay,
+  BACKOFF_MAX_MS,
+  BACKOFF_MIN_MS,
+  PresenceClient,
+  type PresenceClientOptions,
+} from './presence-client';
 
 describe('backoffDelay', () => {
   it('doubles from 1 s and caps at 30 s', () => {
@@ -63,7 +70,7 @@ describe('PresenceClient', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  function setup(fetchImpl: typeof fetch) {
+  function setup(fetchImpl: typeof fetch, options: Partial<PresenceClientOptions> = {}) {
     const client = new PresenceClient({
       getServerUrl: () => 'http://127.0.0.1:3000',
       getKey: () => 'key',
@@ -71,6 +78,7 @@ describe('PresenceClient', () => {
       stallTimeoutMs: 1_000,
       connectTimeoutMs: 500,
       backoff: (attempt) => attempt * 100,
+      ...options,
     });
     const statuses: PresenceConnectionStatus[] = [];
     const events: PresenceEvent[] = [];
@@ -261,5 +269,133 @@ describe('PresenceClient', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(client.jam.get().available).toBe(false);
     client.disconnect('no_session');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Delegated fetches (downloads the server asks this app to do for other clients)
+  // ---------------------------------------------------------------------------
+
+  describe('delegated fetches', () => {
+    const item: JamItem = {
+      id: 'item-1',
+      track: {
+        videoId: '4D7u5KF7SP8',
+        title: 'Get Lucky',
+        artists: 'Daft Punk',
+        album: null,
+        durationMs: 370_000,
+        artworkUrl: null,
+      },
+      requestedBy: 'ana',
+      addedAt: 1,
+      status: 'downloading',
+    };
+
+    /** A connected fetch-enabled client, its stream and everything it may have emitted. */
+    async function connectFetching(options: Partial<PresenceClientOptions> = {}) {
+      const streams: ReturnType<typeof sseResponse>[] = [];
+      const urls: string[] = [];
+      const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        urls.push(String(input));
+        const stream = sseResponse(init?.signal ?? undefined);
+        streams.push(stream);
+        return stream.response;
+      });
+      const jamFetchPong = vi.fn<ApiClient['jamFetchPong']>(async () => undefined);
+      const { client, events, statuses } = setup(fetchImpl as typeof fetch, {
+        fetch: () => true,
+        api: { jamFetchPong },
+        ...options,
+      });
+      const jamEvents: JamEvent[] = [];
+      client.jam.onEvent((event) => jamEvents.push(event));
+      const requests: [string, JamItem][] = [];
+      client.onFetchRequest((room, requested) => requests.push([room, requested]));
+      client.connect();
+      await vi.advanceTimersByTimeAsync(0);
+      const push = async (payload: unknown): Promise<void> => {
+        streams[0]?.push(`data: ${JSON.stringify(payload)}\n\n`);
+        await vi.advanceTimersByTimeAsync(0);
+      };
+      return { client, fetchImpl, urls, events, statuses, jamEvents, requests, jamFetchPong, push };
+    }
+
+    it('asks for the fetch requests only where downloading is possible', async () => {
+      let windows = false;
+      const { client, urls } = await connectFetching({ fetch: () => windows });
+      expect(urls).toEqual(['http://127.0.0.1:3000/api/presence?jam=1']);
+      // Checked on every connection, not once.
+      windows = true;
+      client.reconnect();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(urls[1]).toBe('http://127.0.0.1:3000/api/presence?jam=1&fetch=1');
+      client.disconnect('no_session');
+
+      const never = await connectFetching({ fetch: undefined });
+      expect(never.urls).toEqual(['http://127.0.0.1:3000/api/presence?jam=1']);
+      never.client.disconnect('no_session');
+    });
+
+    it('answers the pings at once and only logs when it cannot', async () => {
+      const { client, events, jamEvents, requests, jamFetchPong, push, statuses } =
+        await connectFetching();
+      await push({ type: 'jam_fetch_ping', nonce: 'n1' });
+      expect(jamFetchPong).toHaveBeenCalledWith('n1');
+      // A failed pong is nobody's problem but the server's ranking.
+      jamFetchPong.mockRejectedValueOnce(new ApiClientError('network', 'offline'));
+      await push({ type: 'jam_fetch_ping', nonce: 'n2' });
+      expect(jamFetchPong).toHaveBeenCalledTimes(2);
+      // Malformed pings are dropped.
+      await push({ type: 'jam_fetch_ping' });
+      await push({ type: 'jam_fetch_ping', nonce: 'has space' });
+      await push({ type: 'jam_fetch_ping', nonce: 42 });
+      expect(jamFetchPong).toHaveBeenCalledTimes(2);
+      // Nothing of this is a presence or jam event, and the stream goes on.
+      expect(events).toEqual([]);
+      expect(jamEvents).toEqual([]);
+      expect(requests).toEqual([]);
+      expect(client.getSnapshot()).toEqual({ rooms: {} });
+      expect(statuses.at(-1)).toEqual({ state: 'connected' });
+      client.disconnect('no_session');
+    });
+
+    it('drops the pings when there is no api client to answer them', async () => {
+      const { client, push, statuses } = await connectFetching({ api: undefined });
+      await push({ type: 'jam_fetch_ping', nonce: 'n1' });
+      expect(statuses.at(-1)).toEqual({ state: 'connected' });
+      client.disconnect('no_session');
+    });
+
+    it('emits validated fetch requests and drops malformed ones', async () => {
+      const { client, events, jamEvents, requests, jamFetchPong, push } = await connectFetching();
+      await push({ type: 'jam_fetch', room: 'sala-1', item: { ...item, extra: 1 } });
+      await push({ type: 'jam_fetch', room: 'sala com espaço', item });
+      await push({ type: 'jam_fetch', room: 'sala-1', item: { ...item, id: '' } });
+      await push({ type: 'jam_fetch', room: 'sala-1', item: { ...item, requestedBy: 'Not A' } });
+      await push({ type: 'jam_fetch', room: 'sala-1' });
+      await push({ type: 'jam_fetch', item });
+      // Unknown fields dropped, the rest as the server sent it.
+      expect(requests).toEqual([['sala-1', item]]);
+      expect(events).toEqual([]);
+      expect(jamEvents).toEqual([]);
+      expect(jamFetchPong).not.toHaveBeenCalled();
+      expect(client.jam.get()).toEqual({ available: false, rooms: {}, serverTime: 0 });
+
+      // Presence and jam events keep flowing around them.
+      await push(snapshotEvent);
+      await push({ type: 'jam_fetch', room: 'sala-2', item: { ...item, id: 'item-2' } });
+      expect(events.map((event) => event.type)).toEqual(['snapshot']);
+      expect(requests).toHaveLength(2);
+      expect(requests[1]).toEqual(['sala-2', { ...item, id: 'item-2' }]);
+
+      // Unsubscribed listeners hear nothing more.
+      const late = vi.fn();
+      const unsubscribe = client.onFetchRequest(late);
+      unsubscribe();
+      await push({ type: 'jam_fetch', room: 'sala-1', item: { ...item, id: 'item-3' } });
+      expect(late).not.toHaveBeenCalled();
+      expect(requests).toHaveLength(3);
+      client.disconnect('no_session');
+    });
   });
 });

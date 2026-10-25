@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import type { JamTrack, RoomId } from '@concord/shared';
+import type { JamEvent, JamFetchEvent, JamTrack, PresenceEvent, RoomId } from '@concord/shared';
 import {
   JamBotError,
   type BotConnectRequest,
@@ -281,6 +281,11 @@ export class FakeBot implements JamBot {
 export interface JamSetupOptions {
   /** Who is in each room (presence). */
   people?: Record<RoomId, string[]>;
+  /**
+   * Users whose desktop app can download (registered as fetchers, as a presence stream with
+   * `?jam=1&fetch=1` would): they upload their own songs. Nobody by default.
+   */
+  downloaders?: string[];
   /** False: no bot (the Jam is unavailable). */
   withBot?: boolean;
   tracks?: JamTrack[];
@@ -332,8 +337,8 @@ export async function jamSetup(options: JamSetupOptions = {}): Promise<JamSetup>
     for (const id of ids) presence.join(room, { id, name: id, joinedAt: 0 });
   }
   let nextId = 0;
-  const build = (): JamService =>
-    new JamService({
+  const build = (): JamService => {
+    const service = new JamService({
       rooms: ROOMS,
       presence,
       youtube,
@@ -351,6 +356,11 @@ export async function jamSetup(options: JamSetupOptions = {}): Promise<JamSetup>
       persistDebounceMs: 10,
       ...options.service,
     });
+    for (const userId of options.downloaders ?? []) {
+      service.fetchers.register({ userId, send: () => undefined });
+    }
+    return service;
+  };
   const setup: JamSetup = {
     service: build(),
     bot,
@@ -371,6 +381,35 @@ export async function jamSetup(options: JamSetupOptions = {}): Promise<JamSetup>
     },
   };
   return setup;
+}
+
+export type SseEvent = PresenceEvent | JamEvent | JamFetchEvent;
+
+/** Collects the `data:` events of an SSE response as they arrive (until it is aborted). */
+export function collectSse(body: ReadableStream<Uint8Array>): SseEvent[] {
+  const events: SseEvent[] = [];
+  void (async () => {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return;
+        buffer += decoder.decode(value, { stream: true });
+        let end = buffer.indexOf('\n\n');
+        while (end !== -1) {
+          const frame = buffer.slice(0, end);
+          buffer = buffer.slice(end + 2);
+          if (frame.startsWith('data: ')) events.push(JSON.parse(frame.slice(6)) as SseEvent);
+          end = buffer.indexOf('\n\n');
+        }
+      }
+    } catch {
+      // aborted
+    }
+  })();
+  return events;
 }
 
 /** A request body stream, like Fastify hands the upload route. */

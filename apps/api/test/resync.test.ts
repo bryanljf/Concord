@@ -12,6 +12,7 @@ const alicePresence = {
   joinedAt: 10_000,
   avatarUrl: null,
   camera: false,
+  client: 'desktop',
 };
 
 function fakeRoomService(listRooms: () => Promise<Room[]>) {

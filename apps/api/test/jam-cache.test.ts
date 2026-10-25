@@ -223,8 +223,45 @@ describe('parseJamStateFile', () => {
         requestedBy: 'bob',
         deadline: 5,
         receiving: false,
+        fetcher: null,
+        assignments: 0,
+        tried: [],
       },
     ]);
+  });
+
+  it('restores a delegated upload without its fetcher, keeping the attempts made', () => {
+    const upload = {
+      videoId: VIDEO_A,
+      itemId: 'i9',
+      room: 'geral',
+      requestedBy: 'web',
+      deadline: 5,
+    };
+    const json = JSON.stringify({
+      version: 1,
+      rooms: [],
+      uploads: [
+        {
+          ...upload,
+          fetcher: { userId: 'bob', connectionId: 'c1' },
+          assignments: 2,
+          tried: ['bob', 3],
+        },
+      ],
+    });
+    expect(parseJamStateFile(json, ['geral']).uploads).toEqual([
+      { ...upload, receiving: false, fetcher: null, assignments: 2, tried: ['bob'] },
+    ]);
+    const odd = JSON.stringify({
+      version: 1,
+      rooms: [],
+      uploads: [{ ...upload, assignments: -1 }],
+    });
+    expect(parseJamStateFile(odd, ['geral']).uploads[0]).toMatchObject({
+      assignments: 0,
+      tried: [],
+    });
   });
 
   it.each(['{ nope', '[]', '{"version":2,"rooms":[]}', '{"version":1}'])(

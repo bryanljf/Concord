@@ -14,6 +14,10 @@ import { useElementSize } from '../hooks/useElementSize';
 import type { RemoteStream } from '../hooks/useRemoteStreams';
 import type { RoomConnectionState } from '../hooks/useRoom';
 import type { StreamAudio } from '../hooks/useStreamAudio';
+import { useToast } from '../hooks/useToast';
+import { useViewport } from '../hooks/useViewport';
+import { capabilities } from '../lib/capabilities';
+import { toErrorMessage } from '../lib/concord';
 import {
   localPreviewMenuItems,
   watchMenuItems,
@@ -21,9 +25,11 @@ import {
   type WatchedTileKind,
 } from '../lib/contextMenu';
 import { fitGrid } from '../lib/gridLayout';
+import { NATIVE_PIP_UNAVAILABLE, requestNativePip } from '../lib/nativePip';
 import type { StageLayout, StripItem, WatchedTile } from '../lib/stageLayout';
 import { liveCardsTitle, stageTitles } from '../lib/stageText';
 import { musicKey, type StreamKind } from '../lib/streamKey';
+import { fitColumn, gridColumns } from '../lib/touch';
 import type { Viewer } from '../lib/viewers';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { Spinner } from './Spinner';
@@ -139,19 +145,27 @@ interface StageGridProps {
   /** Grid tiles, in order; the free slot (if any) goes last. */
   tiles: ReactNode[];
   slot: ReactNode | null;
+  /** One column (a phone held upright: the tiles stack and scroll) or the usual two. */
+  columns: 1 | 2;
 }
 
-/** 2 columns of equal 16:9 tiles, the largest that fit, centered in the stage. */
-function StageGrid({ tiles, slot }: StageGridProps) {
+/**
+ * 2 columns of equal 16:9 tiles, the largest that fit, centered in the stage. On a phone held
+ * upright, one column as wide as the stage, scrolling when the tiles do not fit (no free slot).
+ */
+function StageGrid({ tiles, slot, columns }: StageGridProps) {
   const [ref, size] = useElementSize<HTMLDivElement>();
-  const fit = fitGrid(tiles.length, size.width, size.height, GRID_GAP);
+  const column = columns === 1;
+  const fit = column
+    ? { ...fitColumn(size.width), cols: 1, slot: false }
+    : fitGrid(tiles.length, size.width, size.height, GRID_GAP);
   const style: CSSProperties = {
     gridTemplateColumns: `repeat(${fit.cols}, ${fit.tileWidth}px)`,
     gridAutoRows: `${fit.tileHeight}px`,
     gap: `${GRID_GAP}px`,
   };
   return (
-    <div ref={ref} className="stage__grid">
+    <div ref={ref} className={column ? 'stage__grid stage__grid--column' : 'stage__grid'}>
       <ul className="stage__grid-cells" style={style} aria-label="Transmissões assistidas">
         {tiles}
         {fit.slot && slot && <li key="slot">{slot}</li>}
@@ -229,6 +243,20 @@ export function Stage({
 }: StageProps) {
   const contextMenu = useContextMenu<MenuTarget>(focusedTileElement);
   const byKey = useMemo(() => new Map(streams.map((stream) => [stream.key, stream])), [streams]);
+  const toast = useToast();
+  const { phone, portrait, touch } = useViewport();
+  // The web client has no pop-out nor PiP window: the browser's own picture-in-picture instead.
+  const can = capabilities();
+
+  // "Picture-in-picture" of a stream's <video> (web): the menu item and the tile's button.
+  const nativePip = useCallback(
+    (key: string) => {
+      requestNativePip(key).catch((err: unknown) => {
+        toast.show(toErrorMessage(err, NATIVE_PIP_UNAVAILABLE), { tone: 'error' });
+      });
+    },
+    [toast],
+  );
 
   const runMenuAction = useCallback(
     (action: WatchMenuAction, stream: RemoteStream) => {
@@ -250,6 +278,9 @@ export function Stage({
           break;
         case 'pip-close':
           onClosePip();
+          break;
+        case 'native-pip':
+          nativePip(stream.key);
           break;
         case 'mute':
           audio.setMuted(stream.participantId, true);
@@ -273,6 +304,7 @@ export function Stage({
       onClosePopout,
       onOpenPip,
       onClosePip,
+      nativePip,
       onStats,
       onUnwatch,
     ],
@@ -421,9 +453,14 @@ export function Stage({
     if (!stream) return null;
     if (tile.elsewhere) return elsewhereTile(stream, 'focused');
     // Volume and mute only exist for a screen share with audio; "another window" is the pop-out
-    // for a screen share and the cameras' picture-in-picture for a webcam.
+    // for a screen share and the cameras' picture-in-picture for a webcam (the browser's own
+    // picture-in-picture where the client has no such windows).
     const screen = stream.kind === 'screen';
     const withAudio = screen && stream.audio !== null;
+    let popout: (() => void) | undefined;
+    if (screen && can.popout) popout = () => onPopout(stream.participantId);
+    else if (!screen && can.pip) popout = onOpenPip;
+    else if (can.nativeVideoPip) popout = () => nativePip(stream.key);
     return (
       <FocusedStreamTile
         key={stream.key}
@@ -434,7 +471,8 @@ export function Stage({
         onToggleMute={withAudio ? () => audio.toggleMute(stream.participantId) : undefined}
         fullscreen={fullscreen}
         onToggleFullscreen={onToggleFullscreen}
-        onPopout={screen ? () => onPopout(stream.participantId) : onOpenPip}
+        onPopout={popout}
+        popoutNative={can.nativeVideoPip && !(screen ? can.popout : can.pip)}
         onStopWatching={() => onUnwatch(stream.key)}
         onShowGrid={layout.canShowGrid ? onShowGrid : undefined}
         {...watchedMenu('focused', stream.key)}
@@ -538,6 +576,7 @@ export function Stage({
       main = (
         <StageGrid
           tiles={tiles}
+          columns={gridColumns(phone, portrait)}
           slot={
             layout.main.slot ? (
               <GridSlotTile
@@ -570,10 +609,14 @@ export function Stage({
       }
       main = (
         <EmptyState icon={<MonitorOffIcon size={64} />} title={titles.nobodyLive}>
-          <p>
-            Pressione <kbd>{shortcutLabel}</kbd> ou clique em <strong>Transmitir</strong> para
-            compartilhar sua tela.
-          </p>
+          {can.screenShare ? (
+            <p>
+              Pressione <kbd>{shortcutLabel}</kbd> ou clique em <strong>Transmitir</strong> para
+              compartilhar sua tela.
+            </p>
+          ) : (
+            <p>Quando alguém transmitir ou ligar a câmera, aparece aqui.</p>
+          )}
         </EmptyState>
       );
       break;
@@ -625,7 +668,7 @@ export function Stage({
           onClick={onEnableAudio}
         >
           <HeadphonesIcon size={16} />
-          Clique para ativar o áudio das transmissões
+          {touch ? 'Toque' : 'Clique'} para ativar o áudio das transmissões
         </button>
       )}
       {live && (

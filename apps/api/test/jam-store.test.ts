@@ -77,6 +77,9 @@ describe('JamStore', () => {
           requestedBy: 'alice',
           deadline: expect.any(Number),
           receiving: false,
+          fetcher: null,
+          assignments: 0,
+          tried: [],
         },
       ]);
     });

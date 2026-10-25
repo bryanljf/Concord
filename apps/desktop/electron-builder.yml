@@ -17,8 +17,10 @@ directories:
   buildResources: resources
 
 # electron-vite writes the bundles to out/; production node_modules are added automatically.
+# out/web is the web client (vite.web.config.ts), served by the VM, never part of the installer.
 files:
   - out/**
+  - '!out/web/**'
   - package.json
 
 # Native prebuilds must stay outside the asar so Node can dlopen them.

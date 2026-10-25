@@ -525,6 +525,62 @@
   }
 }
 
+/*
+ * Phones: the drawer is a bottom sheet as wide as the screen, sliding up over the bottom bar
+ * (the component drops its inline widths there). "Recentes" takes the sheet over (the × is a back
+ * arrow then) instead of widening it.
+ */
+@media (max-width: 767px) {
+  .music-drawer {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
+    max-height: 80dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transform: translateY(100%);
+  }
+
+  .music-drawer--open {
+    transform: none;
+  }
+
+  .music-drawer__body {
+    flex: 1;
+    width: auto;
+  }
+
+  .music-drawer--recent {
+    height: 70dvh;
+  }
+
+  .music-drawer--recent .music-drawer__body {
+    display: none;
+  }
+
+  .music-drawer__side {
+    flex: 1;
+    width: auto;
+  }
+}
+
+/* Touch screens: the player's and the volume's buttons at a finger's size. */
+@media (pointer: coarse) {
+  .music-drawer__close,
+  .music-volume__mute {
+    width: 40px;
+    height: 40px;
+  }
+
+  .music-progress__bar {
+    height: 24px;
+  }
+}
+
 /* --- Music card on the stage (components/music/MusicCard.tsx) ------------------------------ */
 .music-card-stage__cover {
   flex: none;

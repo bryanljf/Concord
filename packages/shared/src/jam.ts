@@ -60,6 +60,54 @@ export const JAM_SEARCH_LIMIT = 20;
 /** Query string that makes `GET /api/presence` also stream the jam events (old apps omit it). */
 export const PRESENCE_JAM_QUERY = 'jam=1';
 
+// ---------------------------------------------------------------------------
+// Delegated downloads ("fetchers")
+// ---------------------------------------------------------------------------
+//
+// A client that cannot run yt-dlp (the web client on a phone) still adds songs: the api asks a
+// desktop app to download and upload the audio instead, silently (nothing in anyone's UI). A
+// desktop app able to download opens its presence stream with `?jam=1&fetch=1`: that stream then
+// also carries `jam_fetch_ping` (answered with `POST /api/jam/fetch/pong`, which is how the api
+// measures each app's round trip) and `jam_fetch` (download `item` and PUT its audio exactly like
+// a song you added yourself). The api ranks the candidates: apps whose person is in the song's
+// room first, then everyone else, lowest round trip first (unknown last), fewest fetches in
+// progress as the tie-break. If the chosen app declines, disconnects or sends nothing within
+// JAM_FETCH_START_TIMEOUT_MS, the next one is asked, at most JAM_FETCH_MAX_ASSIGNMENTS times; with
+// nobody left the song leaves the queue. Nobody available at enqueue time: 503 `no_downloader`.
+// A desktop requester with such a stream always downloads its own songs (`upload: true`).
+
+/** Query string that makes `GET /api/presence` also deliver fetch requests to this app. */
+export const PRESENCE_FETCH_QUERY = 'fetch=1';
+
+/** Interval between the round-trip pings sent on a fetch-enabled presence stream. */
+export const JAM_FETCH_PING_MS = 30_000;
+
+/** A fetcher that has not started uploading this long after being asked is replaced. */
+export const JAM_FETCH_START_TIMEOUT_MS = 45_000;
+
+/** How many apps are asked for one song before it is given up. */
+export const JAM_FETCH_MAX_ASSIGNMENTS = 3;
+
+/** Streamed by `GET /api/presence?jam=1&fetch=1` next to the presence and jam events. */
+export type JamFetchEvent =
+  { type: 'jam_fetch'; room: RoomId; item: JamItem } | { type: 'jam_fetch_ping'; nonce: string };
+
+export type JamFetchEventType = JamFetchEvent['type'];
+
+/** `POST /api/jam/fetch/pong` body: the nonce of the `jam_fetch_ping` being answered. */
+export interface JamFetchPongRequest {
+  nonce: string;
+}
+
+/**
+ * `POST /api/rooms/:room/jam/items/:itemId/fetch/decline` body (assigned fetcher only): this app
+ * cannot download the song (yt-dlp failed, not on Windows…); the api asks another one.
+ */
+export interface JamFetchDeclineRequest {
+  /** Free text for the server log (no UI), at most 200 characters. */
+  reason?: string;
+}
+
 /** YouTube video ids: 11 characters of the URL-safe base64 alphabet. */
 export const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
@@ -205,7 +253,11 @@ export function parseYouTubeVideoId(input: string): string | null {
 // GET    /api/jam                                          → JamSnapshot
 // POST   /api/rooms/:room/jam/queue           JamEnqueueRequest → JamEnqueueResponse
 // PUT    /api/rooms/:room/jam/items/:itemId/audio  (audio/webm body, may be chunked/streamed;
-//        requester only) → 204 once the whole body arrived (the song may already be playing)
+//        requester or the fetcher the api assigned) → 204 once the whole body arrived (the song
+//        may already be playing)
+// POST   /api/jam/fetch/pong                  JamFetchPongRequest                  → 204
+// POST   /api/rooms/:room/jam/items/:itemId/fetch/decline  JamFetchDeclineRequest  → 204
+//        (assigned fetcher only; 404 item_not_found when the song is gone or reassigned)
 // DELETE /api/rooms/:room/jam/items/:itemId   (the current one = skip)              → 204
 // POST   /api/rooms/:room/jam/skip            JamSkipRequest                        → 204
 // POST   /api/rooms/:room/jam/seek            JamSeekRequest                        → 204
@@ -216,7 +268,8 @@ export function parseYouTubeVideoId(input: string): string | null {
 // Error codes (ApiErrorResponse.error): jam_unavailable (503), unknown_room (400),
 // not_in_room (403), invalid_query (400), search_failed (502), invalid_video (400),
 // track_not_found (404), too_long (422), queue_full (409), item_not_found (404),
-// not_requester (403), already_uploaded (409), invalid_audio (422), stale (409).
+// not_requester (403), already_uploaded (409), invalid_audio (422), stale (409),
+// no_downloader (503: the requester cannot download and no desktop app is connected to do it).
 
 export interface JamSearchResponse {
   results: JamTrack[];
@@ -245,7 +298,10 @@ export interface JamEnqueueRequest {
 
 export interface JamEnqueueResponse {
   item: JamItem;
-  /** True: this app must download the audio and PUT it; false: the server already has it. */
+  /**
+   * True: this app must download the audio and PUT it; false: the server already has it, or
+   * another app was asked to fetch it (the item then stays `downloading` until it arrives).
+   */
   upload: boolean;
 }
 

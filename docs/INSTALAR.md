@@ -5,7 +5,8 @@ Concord só transmite a tela, com o som do jogo. Ele fica na bandeja do Windows 
 com visual parecido com o do Discord para assistir ou transmitir.
 
 Requisitos: Windows 10 ou 11 de 64 bits e uma conta Discord **liberada pelo administrador** do
-grupo. Não precisa de conta de administrador do Windows.
+grupo. Não precisa de conta de administrador do Windows. Pelo **celular** (ou por qualquer
+navegador) dá para usar sem instalar nada: seção 8.
 
 ## 1. Baixar o instalador
 
@@ -116,15 +117,44 @@ próxima vez que você sair do app. Não precisa desinstalar nada para atualizar
 **Configurações do Windows → Aplicativos → Aplicativos instalados → Concord → Desinstalar**.
 Para apagar também suas preferências e o login, exclua a pasta `%APPDATA%\Concord` depois.
 
+## 8. No celular (ou em qualquer navegador)
+
+O Concord também abre no navegador, sem instalar nada: é o **mesmo endereço** que o administrador
+te passou para o app, aberto no Safari (iPhone) ou no Chrome (Android), com `https://` na frente.
+
+1. Abra o endereço e toque em **Entrar com Discord** (a mesma conta liberada; com o app do
+   Discord instalado, ele confirma por lá). Você fica logado nesse navegador por 30 dias.
+2. Para ter um ícone na tela inicial e abrir como app: no **iPhone**, botão de compartilhar do
+   Safari → **Adicionar à Tela de Início**; no **Android**, menu **⋮** do Chrome → **Adicionar à
+   tela inicial** (ou **Instalar app**).
+3. O botão **☰** no canto superior esquerdo abre a lista de salas. Na sala, toque numa live ou
+   câmera para **Assistir**; na primeira vez o celular pede **Toque para ativar o som**. Um toque
+   na live mostra os controles (volume, tela cheia) por alguns segundos e o segundo toque usa;
+   segurar o dedo abre o menu do botão direito (destaque, picture-in-picture do navegador,
+   silenciar, parar de assistir). **Câmera** liga a câmera do celular para a sala; a **Jam**
+   funciona igual ao PC.
+
+O que fica só no PC: **transmitir a tela**, o som por aplicativo, o pop-out e a janelinha de
+câmeras. Se você trocar de app ou bloquear a tela, o navegador pausa a página: ao voltar, a live
+e a lista de quem está na sala reconectam sozinhas em alguns segundos. Uma música que você
+adiciona pelo celular é baixada pelo Concord de alguém que está com o app aberto no PC (de
+preferência alguém da mesma sala), sem que ele perceba; se ninguém estiver com o app aberto,
+aparece um aviso e a música não entra na fila. Dá para usar o PC e o celular ao mesmo tempo (você
+aparece duas vezes na sala, com um ícone de celular). O site se atualiza sozinho: não tem o que
+instalar nem atualizar.
+
 ## Problemas comuns
 
-| O que aparece                                   | O que fazer                                                                                                                                                          |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| "Esta conta não está autorizada"                | Sua conta Discord ainda não foi liberada: mande o seu ID do Discord para o administrador.                                                                            |
-| "Não foi possível conectar ao servidor …"       | Confira se o endereço do servidor é o que o administrador passou e avise-o se continuar.                                                                             |
-| Não ouço uma live                               | No destaque só a live destacada tem som: clique na miniatura dela. Confira também o volume e o mudo.                                                                 |
-| Uma live trava ou perde quadros                 | Botão direito nela → **Estatísticas da transmissão** → **Copiar diagnóstico** e mande para o administrador.                                                          |
-| A Jam não aparece                               | O servidor está com a Jam desligada no momento: avise o administrador.                                                                                               |
-| A música some da fila logo depois de adicionada | O download não deu certo (internet, vídeo bloqueado ou indisponível, música com mais de 20 minutos): o app mostra o motivo. Tente de novo ou outra versão da música. |
-| A música para no meio e sai da fila             | Quase sempre a internet de quem a adicionou caiu enquanto ela ainda era enviada. Adicione de novo.                                                                   |
-| A atualização não chega                         | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima.                                                                |
+| O que aparece                                                                  | O que fazer                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Esta conta não está autorizada"                                               | Sua conta Discord ainda não foi liberada: mande o seu ID do Discord para o administrador.                                                                                                          |
+| "Não foi possível conectar ao servidor …"                                      | Confira se o endereço do servidor é o que o administrador passou e avise-o se continuar.                                                                                                           |
+| Não ouço uma live                                                              | No destaque só a live destacada tem som: clique na miniatura dela. Confira também o volume e o mudo.                                                                                               |
+| Uma live trava ou perde quadros                                                | Botão direito nela → **Estatísticas da transmissão** → **Copiar diagnóstico** e mande para o administrador.                                                                                        |
+| A Jam não aparece                                                              | O servidor está com a Jam desligada no momento: avise o administrador.                                                                                                                             |
+| A música some da fila logo depois de adicionada                                | O download não deu certo (internet, vídeo bloqueado ou indisponível, música com mais de 20 minutos): o app mostra o motivo. Tente de novo ou outra versão da música.                               |
+| A música para no meio e sai da fila                                            | Quase sempre a internet de quem a adicionou caiu enquanto ela ainda era enviada. Adicione de novo.                                                                                                 |
+| A atualização não chega                                                        | Saia pelo menu da bandeja e abra de novo; se persistir, baixe o instalador mais novo e rode por cima.                                                                                              |
+| No celular: "Ninguém com o Concord aberto no PC para baixar essa música agora" | A música pedida pelo celular é baixada pelo Concord de alguém com o app aberto no PC. Peça para alguém abrir o Concord no PC (ou abra o seu) e tente de novo.                                      |
+| No celular, a live ou a sala "congelou"                                        | O navegador pausou a página enquanto você estava em outro app ou com a tela bloqueada: volte para o site, ele reconecta sozinho em alguns segundos. Sem som: toque em **Toque para ativar o som**. |
+| No celular não aparece Transmitir                                              | Transmitir a tela é só no app do PC; no celular dá para assistir, ligar a câmera e usar a Jam.                                                                                                     |

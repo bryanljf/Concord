@@ -4,9 +4,9 @@ import { Writable } from 'node:stream';
 import type { FastifyInstance } from 'fastify';
 import type { BuildAppOptions } from '../src/app';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { ApiErrorResponse, JamEvent, PresenceEvent } from '@concord/shared';
+import type { ApiErrorResponse } from '@concord/shared';
 import { ALICE, BOB, bearer, testApp, waitFor } from './helpers';
-import { jamSetup, VIDEO_A, type JamSetup } from './jam-helpers';
+import { collectSse as collect, jamSetup, VIDEO_A, type JamSetup } from './jam-helpers';
 
 let setup: JamSetup | undefined;
 let app: FastifyInstance | undefined;
@@ -32,33 +32,6 @@ async function listen(
   await app.listen({ host: '127.0.0.1', port: 0 });
   const { port } = app.server.address() as AddressInfo;
   return { baseUrl: `http://127.0.0.1:${port}`, s: setup };
-}
-
-/** Collects the `data:` events of an SSE response as they arrive. */
-function collect(body: ReadableStream<Uint8Array>): (PresenceEvent | JamEvent)[] {
-  const events: (PresenceEvent | JamEvent)[] = [];
-  void (async () => {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    try {
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) return;
-        buffer += decoder.decode(value, { stream: true });
-        let end = buffer.indexOf('\n\n');
-        while (end !== -1) {
-          const frame = buffer.slice(0, end);
-          buffer = buffer.slice(end + 2);
-          if (frame.startsWith('data: ')) events.push(JSON.parse(frame.slice(6)));
-          end = buffer.indexOf('\n\n');
-        }
-      }
-    } catch {
-      // aborted
-    }
-  })();
-  return events;
 }
 
 describe('GET /api/presence?jam=1', () => {

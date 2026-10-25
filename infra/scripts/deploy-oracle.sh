@@ -40,6 +40,26 @@ if [ "$(cat "$LIVEKIT_HASH_FILE" 2>/dev/null || true)" != "$livekit_hash" ]; the
   docker compose -f infra/docker-compose.yml restart livekit
   echo "$livekit_hash" > "$LIVEKIT_HASH_FILE"
 fi
+
+# Same trick for the Caddyfile (also a bind mount). A graceful `caddy reload` inside the running
+# container applies it without dropping connections; the api and LiveKit are not touched. An
+# invalid Caddyfile makes the reload fail (and this deploy with it, so the hash is not recorded
+# and the next deploy tries again) while the previous configuration stays up.
+readonly CADDY_HASH_FILE="$HOME/.concord-caddyfile.sha256"
+caddy_hash="$(sha256sum infra/Caddyfile | cut -d ' ' -f 1)"
+if [ "$(cat "$CADDY_HASH_FILE" 2>/dev/null || true)" != "$caddy_hash" ]; then
+  echo "infra/Caddyfile changed: reloading caddy"
+  docker compose -f infra/docker-compose.yml exec -T caddy \
+    caddy reload --config /etc/caddy/Caddyfile
+  echo "$caddy_hash" > "$CADDY_HASH_FILE"
+fi
+
+# The web app is static files in web/current (untracked), uploaded by the Deploy Oracle workflow
+# before this script runs (by hand: infra/README-deploy.md, section 6.3). Missing only means
+# https://<domain>/ answers 404; the desktop app does not depend on it, so this is a warning.
+if [ ! -f web/current/index.html ]; then
+  echo "warning: web/current/index.html is missing: the web app is not deployed (infra/README-deploy.md)" >&2
+fi
 docker compose -f infra/docker-compose.yml ps
 
 for attempt in $(seq 1 30); do

@@ -84,6 +84,37 @@ describe('watchMenuItems', () => {
     ]);
   });
 
+  it('on the web: no pop-out nor PiP window, the browser picture-in-picture instead', () => {
+    const web = { popout: false, pip: false, nativeVideoPip: true };
+    expect(watchMenuItems({ ...screen, capabilities: web }).map((item) => item.label)).toEqual([
+      'Picture-in-picture',
+      'Silenciar',
+      'Estatísticas da transmissão',
+      'Parar de assistir',
+    ]);
+    expect(actions({ kind: 'camera', hasAudio: false, capabilities: web })).toEqual([
+      'native-pip',
+      'stats',
+      'stop',
+    ]);
+    expect(actions({ tile: 'grid', capabilities: web })).toEqual([
+      'focus',
+      'native-pip',
+      'mute',
+      'stats',
+      'stop',
+    ]);
+  });
+
+  it('offers nothing window-related when the client has none of it', () => {
+    const none = { popout: false, pip: false, nativeVideoPip: false };
+    expect(actions({ capabilities: none })).toEqual(['mute', 'stats', 'stop']);
+    expect(actions({ kind: 'camera', hasAudio: false, capabilities: none })).toEqual([
+      'stats',
+      'stop',
+    ]);
+  });
+
   it('keeps "Parar de assistir" last, destructive and below a divider', () => {
     for (const tile of ['focused', 'mini', 'grid'] as const) {
       for (const kind of ['screen', 'camera'] as const) {

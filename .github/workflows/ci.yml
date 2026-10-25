@@ -32,6 +32,9 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      # The web client (second Vite build of apps/desktop, served by Caddy on the VM) must build;
+      # Deploy Oracle rebuilds it on its own runner from the same commit.
+      - run: pnpm --filter @concord/desktop build:web
 
   # The jam bot (Go). Deploy Oracle only runs after a fully green CI, so this job also gates it.
   jam-bot:

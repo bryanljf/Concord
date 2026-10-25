@@ -129,6 +129,19 @@ describe('computeStageLayout: single stream and grid', () => {
     });
   });
 
+  it('leaves the odd cell empty when the client cannot share its screen (web)', () => {
+    const result = layout({
+      liveKeys: ['ana', 'beto', 'carla'],
+      watchedKeys: ['ana', 'beto', 'carla'],
+      canStream: false,
+    });
+    expect(result.main).toEqual({
+      kind: 'grid',
+      tiles: [tile('ana'), tile('beto'), tile('carla')],
+      slot: false,
+    });
+  });
+
   it('marks grid tiles shown by another window', () => {
     const result = layout({
       liveKeys: ['ana', 'beto'],

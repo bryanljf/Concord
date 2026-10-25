@@ -11,7 +11,10 @@ import {
   expectYouTubeVideoId,
   expectYouTubeVideoIds,
   IpcValidationError,
+  isPipParticipantId,
   JAM_SEEK_MAX_MS,
+  MAX_PIP_PARTICIPANTS,
+  parsePipTarget,
   UserFacingError,
 } from './validation';
 
@@ -41,13 +44,53 @@ describe('expectNickname', () => {
 });
 
 describe('expectOptionalTokenPurpose', () => {
-  it('accepts main, popout, pip and undefined', () => {
+  it('accepts main, popout, pip, web and undefined', () => {
     expect(expectOptionalTokenPurpose(undefined)).toBeUndefined();
     expect(expectOptionalTokenPurpose('main')).toBe('main');
     expect(expectOptionalTokenPurpose('popout')).toBe('popout');
     expect(expectOptionalTokenPurpose('pip')).toBe('pip');
+    expect(expectOptionalTokenPurpose('web')).toBe('web');
     expect(() => expectOptionalTokenPurpose('camera')).toThrow(IpcValidationError);
     expect(() => expectOptionalTokenPurpose(null)).toThrow(IpcValidationError);
+  });
+});
+
+describe('parsePipTarget', () => {
+  it('accepts user ids and web identities, dropping duplicates in watch order', () => {
+    expect(
+      parsePipTarget({
+        room: 'sala-1',
+        participantIds: ['bryan', 'ana~web', 'bryan', 'bryan~web', 'ana~web'],
+      }),
+    ).toEqual({ room: 'sala-1', participantIds: ['bryan', 'ana~web', 'bryan~web'] });
+    expect(parsePipTarget({ room: 'sala-1', participantIds: [] })).toEqual({
+      room: 'sala-1',
+      participantIds: [],
+    });
+    expect(isPipParticipantId('bryan')).toBe(true);
+    expect(isPipParticipantId('bryan~web')).toBe(true);
+  });
+
+  it('rejects hidden identities, bad ids, too many of them and bad shapes', () => {
+    const bad = (participantIds: unknown, room: unknown = 'sala-1') =>
+      expect(() => parsePipTarget({ room, participantIds })).toThrow(IpcValidationError);
+    // The pop-out and PiP windows never publish a camera.
+    bad(['bryan~popout']);
+    bad(['bryan~pip']);
+    bad(['bryan~']);
+    bad(['~web']);
+    bad(['bryan~web~web']);
+    bad(['Bryan']);
+    bad(['b']);
+    bad(['bryan', 42]);
+    bad('bryan');
+    bad(Array.from({ length: MAX_PIP_PARTICIPANTS + 1 }, (_, i) => `user${i}`));
+    bad(['bryan'], 'sala com espaço');
+    expect(() => parsePipTarget(null)).toThrow(IpcValidationError);
+    expect(() => parsePipTarget({ participantIds: ['bryan'] })).toThrow(
+      'Parâmetro inválido: room.',
+    );
+    expect(isPipParticipantId('bryan~pip')).toBe(false);
   });
 });
 
