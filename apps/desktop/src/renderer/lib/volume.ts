@@ -2,8 +2,11 @@
 
 export const MIN_VOLUME = 0;
 export const MAX_VOLUME = 100;
-/** Every live starts at half volume (watching, and in the pop-out). */
-export const DEFAULT_VOLUME = 50;
+/**
+ * Every live (and the Jam) starts here: 70 % plays at gain ≈ 0.49, as loud as the old linear 50 %
+ * did, leaving the upper part of the slider room to get louder.
+ */
+export const DEFAULT_VOLUME = 70;
 export const VOLUME_STEP = 1;
 
 export interface VolumeSetting {
@@ -14,7 +17,7 @@ export interface VolumeSetting {
 
 export const DEFAULT_VOLUME_SETTING: VolumeSetting = { volume: DEFAULT_VOLUME, muted: false };
 
-/** Clamps to 0–100 and rounds; anything that is not a finite number becomes the default (50). */
+/** Clamps to 0–100 and rounds; anything that is not a finite number becomes the default (70). */
 export function clampVolume(volume: number): number {
   if (!Number.isFinite(volume)) return DEFAULT_VOLUME;
   return Math.min(MAX_VOLUME, Math.max(MIN_VOLUME, Math.round(volume)));
@@ -26,10 +29,15 @@ export function normalizeVolumeSetting(setting: VolumeSetting): VolumeSetting {
   return volume === setting.volume ? setting : { ...setting, volume };
 }
 
-/** Gain for a `GainNode`: 50 % → 0.5, 100 % → 1 (the maximum), muted → 0. */
+/**
+ * Gain for a `GainNode` on a perceptual (squared) curve: 50 % → 0.25, 70 % → 0.49, 100 % → 1 (the
+ * maximum), muted → 0. Loudness is heard logarithmically: with a linear gain everything above 50 %
+ * spans only 6 dB and barely changes; squared, the whole slider makes audible steps.
+ */
 export function volumeToGain(setting: VolumeSetting): number {
   if (setting.muted) return 0;
-  return clampVolume(setting.volume) / 100;
+  const fraction = clampVolume(setting.volume) / 100;
+  return fraction * fraction;
 }
 
 /**

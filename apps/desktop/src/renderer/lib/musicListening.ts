@@ -81,7 +81,7 @@ export interface MusicProgress {
   fraction: number;
 }
 
-/** Volume of each music by participant (0–100 % in steps of 1, 50 % by default). */
+/** Volume of each music by participant (0–100 % in steps of 1, 70 % by default). */
 export type MusicVolumes = ReadonlyMap<string, VolumeSetting>;
 
 export function musicVolumeOf(volumes: MusicVolumes, id: string): VolumeSetting {

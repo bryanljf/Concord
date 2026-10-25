@@ -65,8 +65,8 @@ describe('pendingListenReady', () => {
 describe('music volume', () => {
   const none: MusicVolumes = new Map();
 
-  it('starts at 50 %, unmuted', () => {
-    expect(musicVolumeOf(none, 'ana')).toEqual({ volume: 50, muted: false });
+  it('starts at 70 %, unmuted', () => {
+    expect(musicVolumeOf(none, 'ana')).toEqual({ volume: 70, muted: false });
   });
 
   it('moves in steps of 1 % between 0 and 100 %', () => {
@@ -82,7 +82,7 @@ describe('music volume', () => {
   it('keeps each music apart and never mutates the previous map', () => {
     const next = withMusicVolume(none, 'ana', 80);
     expect(none.size).toBe(0);
-    expect(musicVolumeOf(next, 'beto').volume).toBe(50);
+    expect(musicVolumeOf(next, 'beto').volume).toBe(70);
   });
 
   it('mutes keeping the volume; moving the slider above zero unmutes', () => {

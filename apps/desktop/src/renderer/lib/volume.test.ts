@@ -13,10 +13,10 @@ import {
 } from './volume';
 
 describe('defaults', () => {
-  it('starts every live at 50 % and caps at 100 %', () => {
-    expect(DEFAULT_VOLUME).toBe(50);
+  it('starts every live at 70 % and caps at 100 %', () => {
+    expect(DEFAULT_VOLUME).toBe(70);
     expect(MAX_VOLUME).toBe(100);
-    expect(DEFAULT_VOLUME_SETTING).toEqual({ volume: 50, muted: false });
+    expect(DEFAULT_VOLUME_SETTING).toEqual({ volume: 70, muted: false });
   });
 });
 
@@ -26,8 +26,8 @@ describe('clampVolume', () => {
     expect(clampVolume(150)).toBe(100);
     expect(clampVolume(200)).toBe(100);
     expect(clampVolume(49.6)).toBe(50);
-    expect(clampVolume(Number.NaN)).toBe(50);
-    expect(clampVolume(Number.POSITIVE_INFINITY)).toBe(50);
+    expect(clampVolume(Number.NaN)).toBe(70);
+    expect(clampVolume(Number.POSITIVE_INFINITY)).toBe(70);
   });
 });
 
@@ -46,8 +46,9 @@ describe('normalizeVolumeSetting', () => {
 });
 
 describe('volumeToGain', () => {
-  it('maps percent to linear gain, 1.0 at most', () => {
-    expect(volumeToGain(DEFAULT_VOLUME_SETTING)).toBe(0.5);
+  it('maps percent on a squared (perceptual) curve, 1.0 at most', () => {
+    expect(volumeToGain(DEFAULT_VOLUME_SETTING)).toBeCloseTo(0.49);
+    expect(volumeToGain({ volume: 50, muted: false })).toBe(0.25);
     expect(volumeToGain({ volume: 100, muted: false })).toBe(1);
     expect(volumeToGain({ volume: 200, muted: false })).toBe(1);
     expect(volumeToGain({ volume: 0, muted: false })).toBe(0);
@@ -66,8 +67,8 @@ describe('toggleMuteSetting', () => {
   });
 
   it('brings a slider left at 0 back at the default', () => {
-    expect(toggleMuteSetting({ volume: 0, muted: false })).toEqual({ volume: 50, muted: false });
-    expect(toggleMuteSetting({ volume: 0, muted: true })).toEqual({ volume: 50, muted: false });
+    expect(toggleMuteSetting({ volume: 0, muted: false })).toEqual({ volume: 70, muted: false });
+    expect(toggleMuteSetting({ volume: 0, muted: true })).toEqual({ volume: 70, muted: false });
   });
 
   it('clamps an old out-of-range volume on the way', () => {

@@ -4,16 +4,24 @@ export interface AutoHide {
   visible: boolean;
   /** Mouse moved / key pressed: show now and restart the timer. */
   poke(): void;
-  /** While true (pointer over the controls, slider being dragged) nothing hides. */
+  /** While true (a slider being dragged) nothing hides. */
   hold(held: boolean): void;
   hide(): void;
 }
 
-/** Visibility of overlay controls that fade out after `timeoutMs` without activity. */
-export function useAutoHide(timeoutMs = 2500, enabled = true): AutoHide {
+/**
+ * Visibility of overlay controls that fade out after `timeoutMs` without activity. When the timer
+ * runs out, `keep()` says whether the pointer still rests on the controls (checked live with
+ * `:hover`, so a lost mouseleave can never leave them stuck on screen); if so it waits again.
+ */
+export function useAutoHide(timeoutMs = 2500, enabled = true, keep?: () => boolean): AutoHide {
   const [visible, setVisible] = useState(false);
   const held = useRef(false);
   const timer = useRef<number | undefined>(undefined);
+  const keepRef = useRef(keep);
+  useEffect(() => {
+    keepRef.current = keep;
+  }, [keep]);
 
   const clear = useCallback(() => {
     if (timer.current !== undefined) {
@@ -25,7 +33,15 @@ export function useAutoHide(timeoutMs = 2500, enabled = true): AutoHide {
   const arm = useCallback(() => {
     clear();
     if (held.current) return;
-    timer.current = window.setTimeout(() => setVisible(false), timeoutMs);
+    const expire = (): void => {
+      timer.current = undefined;
+      if (keepRef.current?.()) {
+        timer.current = window.setTimeout(expire, timeoutMs);
+        return;
+      }
+      setVisible(false);
+    };
+    timer.current = window.setTimeout(expire, timeoutMs);
   }, [clear, timeoutMs]);
 
   const poke = useCallback(() => {
@@ -49,6 +65,7 @@ export function useAutoHide(timeoutMs = 2500, enabled = true): AutoHide {
 
   const hide = useCallback(() => {
     clear();
+    held.current = false;
     setVisible(false);
   }, [clear]);
 

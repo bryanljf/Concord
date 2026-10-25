@@ -1,4 +1,10 @@
-import type { KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react';
+import {
+  useRef,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
 import { useAutoHide } from '../hooks/useAutoHide';
 import type { RemoteStream } from '../hooks/useRemoteStreams';
 import { useStreamStats } from '../hooks/useStreamStats';
@@ -85,13 +91,18 @@ export function FocusedStreamTile({
   onKeyDown,
   children,
 }: FocusedTileProps) {
-  const controls = useAutoHide(3000);
+  const tile = useRef<HTMLDivElement>(null);
+  // The bars stay while the pointer rests on them (checked live when the timer runs out).
+  const controls = useAutoHide(3000, true, () =>
+    Boolean(tile.current?.querySelector('.tile__top:hover, .tile__controls:hover')),
+  );
   const stats = useStreamStats(stream.videoTrack, controls.visible);
   const statsText = stats ? formatStats(stats) : null;
   const camera = stream.kind === 'camera';
 
   return (
     <div
+      ref={tile}
       className={tileClass(
         controls.visible ? 'tile tile--focused tile--controls' : 'tile tile--focused',
         stream,
@@ -115,8 +126,6 @@ export function FocusedStreamTile({
       <StreamStatus stream={stream} />
       <div
         className={onDragStart ? 'tile__top tile__top--drag' : 'tile__top'}
-        onMouseEnter={() => controls.hold(true)}
-        onMouseLeave={() => controls.hold(false)}
         onPointerDown={onDragStart}
       >
         <KindBadge stream={stream} />
@@ -128,11 +137,7 @@ export function FocusedStreamTile({
           {statsText ?? 'medindo…'}
         </span>
       </div>
-      <div
-        className="tile__controls"
-        onMouseEnter={() => controls.hold(true)}
-        onMouseLeave={() => controls.hold(false)}
-      >
+      <div className="tile__controls">
         <div className="tile__bottom-left">
           {volume && onVolume && onToggleMute && (
             <VolumeControl
