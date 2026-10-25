@@ -50,6 +50,12 @@ interface UseMusicListeningOptions {
   join(roomId: RoomId): Promise<boolean>;
   /** Resumes playback from the click (the browser may have blocked audio). */
   startAudio(): Promise<void>;
+  /**
+   * Play the music through its own <audio> element instead of the room's Web Audio mix (the web
+   * client: phones keep an element playing in the background, never a suspended AudioContext).
+   * The volume then sets the element's (iOS ignores it: the phone's own volume applies).
+   */
+  directAudio?: boolean;
 }
 
 interface ListeningState {
@@ -69,7 +75,7 @@ const NONE: readonly string[] = [];
  * ends).
  */
 export function useMusicListening(options: UseMusicListeningOptions): MusicListening {
-  const { currentRoom, connected, music, sticky = NONE, join, startAudio } = options;
+  const { currentRoom, connected, music, sticky = NONE, join, startAudio, directAudio } = options;
   const [state, setState] = useState<ListeningState>({
     room: currentRoom,
     ids: NONE,
@@ -130,6 +136,8 @@ export function useMusicListening(options: UseMusicListeningOptions): MusicListe
       if (!item.track || !ids.includes(item.participantId)) continue;
       live.add(item.track);
       if (!attached.current.has(item.track)) {
+        // Out of the Web Audio mix before the element exists, so it plays by itself.
+        if (directAudio) item.track.setAudioContext(undefined);
         item.track.attach();
         attached.current.add(item.track);
       }
@@ -140,7 +148,7 @@ export function useMusicListening(options: UseMusicListeningOptions): MusicListe
         attached.current.delete(track);
       }
     }
-  }, [music, ids]);
+  }, [music, ids, directAudio]);
 
   useEffect(() => {
     const tracks = attached.current;

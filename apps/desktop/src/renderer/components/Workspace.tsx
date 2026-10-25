@@ -28,6 +28,7 @@ import { useJam, useJamUploads } from '../hooks/useJam';
 import { useJamRecent } from '../hooks/useJamRecent';
 import { useJamStartedSound } from '../hooks/useJamStartedSound';
 import { useLiveStartedSound } from '../hooks/useLiveStartedSound';
+import { useJamMediaSession } from '../hooks/useJamMediaSession';
 import { useMusicListening } from '../hooks/useMusicListening';
 import { usePublishStats } from '../hooks/usePublishStats';
 import { useRoomSounds } from '../hooks/useRoomSounds';
@@ -46,7 +47,7 @@ import { useToast } from '../hooks/useToast';
 import { useViewerSounds } from '../hooks/useViewerSounds';
 import { useWatchedLiveEndedSound } from '../hooks/useWatchedLiveEndedSound';
 import { usePublishWatching, useViewers } from '../hooks/useViewers';
-import { capabilities, selfIdentity } from '../lib/capabilities';
+import { capabilities, isWeb, selfIdentity } from '../lib/capabilities';
 import { DEFAULT_SHORTCUT } from '../lib/constants';
 import { installEncoderPreference, setEncoderPreference } from '../lib/encoderPreference';
 import { formatShortcut } from '../lib/format';
@@ -475,8 +476,11 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
     sticky: jamSticky,
     join: enterRoom,
     startAudio,
+    directAudio: isWeb(),
   });
   const listeningJam = listening.listening.includes(JAM_BOT_IDENTITY);
+  // On the phone: the lock screen shows (and controls) the Jam, and the page keeps playing it.
+  useJamMediaSession(isWeb() && listeningJam, currentRoom, currentJam);
   // The room's Jam as a stage card ("Ouvir" / "Parar de ouvir"), like the lives' cards (never as
   // a person).
   const musicCards = useMemo<readonly MusicCardItem[]>(() => {
