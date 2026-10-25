@@ -296,7 +296,7 @@ describe('createJamBotClient', () => {
     }).events({ onConnect, onEvent: () => undefined });
     try {
       // 1st: reconcile fails; 2nd: goes silent; 3rd: and so on.
-      await waitFor(() => connections >= 3);
+      await waitFor(() => connections >= 3 && onConnect.mock.calls.length >= 3);
       expect(onConnect.mock.calls.length).toBeGreaterThanOrEqual(3);
     } finally {
       stream.stop();
