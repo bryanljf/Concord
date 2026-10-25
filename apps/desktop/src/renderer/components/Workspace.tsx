@@ -56,7 +56,6 @@ import {
   jamPerson,
   jamRoomIdle,
   jamsElsewhere,
-  jamTrackLine,
   jamUploadErrorMessage,
 } from '../lib/jam';
 import { JAM_RECENT_REFRESH_MS, jamRecentButtonShown } from '../lib/jamRecent';
@@ -460,7 +459,8 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
       {
         participantId: JAM_BOT_IDENTITY,
         artUrl: jamArtworkSrc(track?.artworkUrl),
-        line: track ? jamTrackLine(track) : 'Preparando a primeira música…',
+        title: track?.title || 'Preparando a primeira música…',
+        artists: track?.artists || null,
         listening: listeningJam,
       },
     ];

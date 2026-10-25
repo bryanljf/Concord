@@ -2,12 +2,11 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { roomLabel, type JamState, type PresenceParticipant, type RoomId } from '@concord/shared';
 import { pluralize } from '../lib/format';
-import { jamIndicatorLabel, jamPlaying } from '../lib/jam';
+import { jamIndicatorLabel } from '../lib/jam';
 import { roomIndicators } from '../lib/presence';
 import { roomShortLabel } from '../lib/roomShortLabel';
 import { Avatar } from './Avatar';
 import { CameraIcon, HeadphonesIcon } from './icons';
-import { Equalizer } from './music/Equalizer';
 
 interface RoomIconProps {
   room: RoomId;
@@ -16,8 +15,6 @@ interface RoomIconProps {
   /** The room's Jam; null without one (or without the Jam). */
   jam: JamState | null;
   onJoin(room: RoomId): void;
-  /** The headphones beside a room with a Jam open and close the music drawer. */
-  onToggleMusic(): void;
 }
 
 /**
@@ -41,19 +38,11 @@ function anchorOf(button: HTMLElement): Anchor {
 
 /**
  * A room in the collapsed sidebar, like a Discord server icon: its short label in a rounded
- * square, the current room marked by a pill on the column's left edge. A green dot when someone
- * is in it, a blinking red one when someone is live, headphones with the playing bars beside it
- * while it has a Jam. Hovering it (or reaching it with the keyboard) shows who is there; a click
- * joins it.
+ * square, the current room marked by a pill on the column's left edge, and only one marker: a
+ * green dot when someone is in it (lives and the Jam show in the popover and the room's details).
+ * Hovering it (or reaching it with the keyboard) shows who is there; a click joins it.
  */
-export function RoomIcon({
-  room,
-  participants,
-  current,
-  jam,
-  onJoin,
-  onToggleMusic,
-}: RoomIconProps) {
+export function RoomIcon({ room, participants, current, jam, onJoin }: RoomIconProps) {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const popoverId = useId();
   const label = roomLabel(room);
@@ -105,25 +94,10 @@ export function RoomIcon({
         <span className="room-icon__label" aria-hidden="true">
           {roomShortLabel(room)}
         </span>
-        {live && <span className="room-icon__live" aria-hidden="true" />}
         {online && <span className="room-icon__online" aria-hidden="true" />}
       </button>
       {/* After the button: its hover and focus styles reach the pill with `~`. */}
       <span className="room-icon__pill" aria-hidden="true" />
-      {jamLabel && (
-        // Plain headphones over the playing bars (no button look, no counter), yet the way to
-        // the music drawer while collapsed.
-        <button
-          type="button"
-          className="room-icon__music"
-          aria-label={`Jam em ${label}: abrir o painel de música`}
-          title={jamLabel}
-          onClick={onToggleMusic}
-        >
-          <HeadphonesIcon size={12} />
-          <Equalizer paused={!jamPlaying(jam)} />
-        </button>
-      )}
       {anchor && (
         <RoomPopover
           id={popoverId}

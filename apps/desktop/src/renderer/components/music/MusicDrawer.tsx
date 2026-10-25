@@ -56,7 +56,7 @@ interface MusicDrawerProps {
  * (closing here first would make them reopen it), and the Jam's search dialog opens over it from
  * "Adicionar música" (the drawer is still there, with the new song, once it closes).
  */
-const KEEPS_OPEN = '.music-button, .room-icon__music, .jam-modal-backdrop, .music-card-stage';
+const KEEPS_OPEN = '.music-button, .jam-modal-backdrop, .music-card-stage';
 
 /** A bit more than the drawer's width animation: the "Recentes" column leaves once it is hidden. */
 const RECENT_LEAVE_MS = 300;

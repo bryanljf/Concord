@@ -341,9 +341,9 @@
   white-space: nowrap;
 }
 
-/* Status dots on the icon's corners, cut out of it by a ring in the sidebar's color. */
-.room-icon__online,
-.room-icon__live {
+/* The only marker on a collapsed room: someone is in it (a dot on the icon's corner, cut out of
+   it by a ring in the sidebar's color). */
+.room-icon__online {
   position: absolute;
   right: -3px;
   width: 14px;
@@ -355,25 +355,6 @@
 .room-icon__online {
   bottom: -3px;
   background: var(--online);
-}
-
-/* Someone is live: the red dot blinks (steady with reduced motion). */
-.room-icon__live {
-  top: -3px;
-  background: var(--live);
-  animation: room-icon-blink 1.2s ease-in-out infinite;
-}
-
-@keyframes room-icon-blink {
-  50% {
-    background-color: var(--bg-secondary);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .room-icon__live {
-    animation: none;
-  }
 }
 
 /* Discord's pill on the column's left edge: a nub on hover or focus, tall for the current room. */
@@ -396,35 +377,6 @@
 
 .room-icon__button[aria-current='true'] ~ .room-icon__pill {
   height: 36px;
-}
-
-/* The room has a Jam: the headphones over the playing bars beside the icon, no counter (the
-   drawer opens expanded). Both fit the column's 12 px. */
-.room-icon__music {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  width: 12px;
-  margin-left: 2px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.room-icon__music:hover,
-.room-icon__music:focus-visible {
-  outline: none;
-  color: var(--text-strong);
-}
-
-.room-icon__music .music-eq {
-  gap: 1px;
-  width: 10px;
-  height: 7px;
 }
 
 /* Who is in a collapsed room: a card right of the column (portal, position set in RoomIcon). */

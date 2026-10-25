@@ -10,8 +10,10 @@ export interface MusicCardItem {
   participantId: string;
   /** Cover of the song playing (a link); a note when there is none. */
   artUrl: string | null;
-  /** "Get Lucky — Daft Punk", or that the first song is on its way. */
-  line: string | null;
+  /** The song playing ("Get Lucky"), or that the first song is on its way. */
+  title: string;
+  /** Its artists ("Daft Punk"); null while unknown. */
+  artists: string | null;
   /** You are listening to it. */
   listening: boolean;
 }
@@ -94,10 +96,11 @@ export function MusicCard({
           <MusicIcon size={strip ? 16 : 32} />
         </span>
       )}
-      <span className="live-card__name" title="Jam">
-        Jam
-      </span>
-      {item.line && !strip && <Marquee className="music-card-stage__playing" text={item.line} />}
+      {/* The green "JAM" badge says what it is: the card names the song and its artists. */}
+      <Marquee className="live-card__name music-card-stage__title" text={item.title} />
+      {item.artists && !strip && (
+        <Marquee className="music-card-stage__playing" text={item.artists} />
+      )}
       {item.listening ? (
         <button
           type="button"

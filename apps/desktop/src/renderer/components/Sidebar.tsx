@@ -151,7 +151,6 @@ export function Sidebar({
                 current={room === currentRoom}
                 jam={jamRooms[room] ?? null}
                 onJoin={onJoin}
-                onToggleMusic={onToggleMusic}
               />
             ))}
           </ul>
