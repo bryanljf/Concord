@@ -21,6 +21,7 @@ import type { SessionManager } from './session';
 import { SettingsValidationError, type SettingsStore } from './settings';
 import { parseStreamingState, type StreamingStore } from './streaming';
 import type { Updater } from './updater';
+import { getWindowCaptureCrop } from './window-crop';
 import {
   expectBoolean,
   expectJamItemId,
@@ -164,6 +165,11 @@ export function registerIpc(deps: IpcDeps): () => void {
   handle(IPC.SELECT_CAPTURE_SOURCE, (_ctx, selection) => {
     capture.select(parseCaptureSelection(selection));
   });
+  handle(IPC.GET_CAPTURE_CROP, (_ctx, sourceId) =>
+    typeof sourceId === 'string' && sourceId.startsWith('window:')
+      ? getWindowCaptureCrop(sourceId)
+      : null,
+  );
   handle(IPC.SET_STREAMING_STATE, (_ctx, state) => {
     streaming.set(parseStreamingState(state));
   });

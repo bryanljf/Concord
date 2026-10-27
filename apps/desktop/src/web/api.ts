@@ -142,6 +142,7 @@ export function createWebApi(env: WebEnv = browserEnv()): ConcordApi {
 
     getCaptureSources: async () => [],
     selectCaptureSource: unsupported,
+    getCaptureCrop: async () => null,
     setStreamingState: unsupported,
     getStreamingState: async () => INACTIVE_STREAMING,
     onStreamingStateChanged: noSubscription,

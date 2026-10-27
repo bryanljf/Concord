@@ -114,6 +114,21 @@ export interface CaptureSelection {
   systemAudio: boolean;
 }
 
+/**
+ * The part of a captured window that is the app itself, without the Windows title bar and borders
+ * (window capture delivers the whole window frame). Physical pixels of the captured image.
+ */
+export interface CaptureCrop {
+  /** Size of the whole captured window image the rectangle below refers to. */
+  frameWidth: number;
+  frameHeight: number;
+  /** The client area inside that image. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /** What this instance is currently publishing; owned by the renderer, mirrored by main. */
 export interface StreamingState {
   active: boolean;
@@ -314,6 +329,13 @@ export interface ConcordApi {
    * next display-media request with this source (and loopback audio when `systemAudio`).
    */
   selectCaptureSource(selection: CaptureSelection): Promise<void>;
+  /**
+   * Where the app's own content sits inside a captured window (`window:<hwnd>:0`), so the renderer
+   * can crop the title bar and borders away. Null for screens, windows that are gone, and windows
+   * with nothing to crop (borderless, fullscreen). Asked again whenever the captured frame size
+   * changes. The web client always resolves null.
+   */
+  getCaptureCrop(sourceId: string): Promise<CaptureCrop | null>;
   /** The renderer reports what it publishes; main updates tray/tooltip and pop-outs. */
   setStreamingState(state: StreamingState): Promise<void>;
   getStreamingState(): Promise<StreamingState>;

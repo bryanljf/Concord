@@ -24,6 +24,7 @@ export const IPC = {
   SET_FULLSCREEN: 'window:set-fullscreen',
   GET_CAPTURE_SOURCES: 'capture:sources',
   SELECT_CAPTURE_SOURCE: 'capture:select',
+  GET_CAPTURE_CROP: 'capture:crop',
   SET_STREAMING_STATE: 'streaming:set',
   GET_STREAMING_STATE: 'streaming:get',
   OPEN_POPOUT: 'popout:open',

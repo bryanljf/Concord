@@ -12,6 +12,7 @@ import type {
   UserInfo,
 } from '@concord/shared';
 import type {
+  CaptureCrop,
   CaptureSource,
   ConcordApi,
   JamUploadStatus,
@@ -133,6 +134,7 @@ const api: ConcordApi = {
 
   getCaptureSources: () => invoke<CaptureSource[]>(IPC.GET_CAPTURE_SOURCES),
   selectCaptureSource: (selection) => invoke<void>(IPC.SELECT_CAPTURE_SOURCE, selection),
+  getCaptureCrop: (sourceId) => invoke<CaptureCrop | null>(IPC.GET_CAPTURE_CROP, sourceId),
   setStreamingState: (state) => invoke<void>(IPC.SET_STREAMING_STATE, state),
   getStreamingState: () => invoke<StreamingState>(IPC.GET_STREAMING_STATE),
   onStreamingStateChanged: (listener) =>

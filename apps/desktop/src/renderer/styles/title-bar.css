@@ -1,0 +1,38 @@
+/*
+ * The desktop main window's frame: a bar the colour of the darkest chrome, drawn by us, with the
+ * native window buttons (titleBarOverlay, same colour) over its right end. The rest of the window
+ * takes what is left.
+ */
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-frame__content {
+  flex: 1;
+  min-height: 0;
+}
+
+.title-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: var(--titlebar-height);
+  /* Symmetric side room (the native buttons' width, ~138 px) keeps the title centered in the window
+     and clear of the buttons when the window is narrow. */
+  padding: 0 calc(100vw - env(titlebar-area-width, calc(100vw - 138px)));
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  -webkit-app-region: drag;
+}
+
+.title-bar__text {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

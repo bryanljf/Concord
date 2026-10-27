@@ -90,6 +90,8 @@ interface WorkspaceProps {
   onRekey(): void;
   /** Changes the display name (null = Discord name); rejects with a pt-BR message. */
   onSetNickname(nickname: string | null): Promise<UserInfo>;
+  /** The window title: the current room's label, null outside a room. */
+  onTitleChange?(title: string | null): void;
 }
 
 const END_MESSAGES: Record<BroadcastEndReason, string | null> = {
@@ -188,7 +190,7 @@ function AudioUnlockBanner({ onEnable }: { onEnable(): void }) {
 }
 
 /** The main UI once a session exists: wires presence, rooms, settings, media and main's requests. */
-export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
+export function Workspace({ user, onRekey, onSetNickname, onTitleChange }: WorkspaceProps) {
   const toast = useToast();
   // What this client can do (fixed for its lifetime): the web hides the desktop-only parts.
   const can = capabilities();
@@ -923,6 +925,13 @@ export function Workspace({ user, onRekey, onSetNickname }: WorkspaceProps) {
 
   // Global shortcut / tray "Transmitir…" keep meaning start/stop.
   useStreamToggle({ streaming, onStart: openPicker, onStop: stopBroadcast });
+
+  useEffect(() => {
+    const title = currentRoom ? roomLabel(currentRoom) : null;
+    onTitleChange?.(title);
+    document.title = title ? `${title} - Concord` : 'Concord';
+    return () => onTitleChange?.(null);
+  }, [currentRoom, onTitleChange]);
 
   const changeFullscreen = useCallback(
     (enabled: boolean) => {

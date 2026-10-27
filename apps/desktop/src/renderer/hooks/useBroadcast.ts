@@ -13,6 +13,7 @@ import type { StreamingState } from '../../preload/api';
 import { createProcessAudioTrack, type ProcessAudioTrack } from '../audio/processAudioTrack';
 import { displayMediaErrorMessage } from '../lib/capture';
 import { concord, errorCode, toErrorMessage, type Settings } from '../lib/concord';
+import { createCroppedTrack, isCropSupported } from '../lib/cropTrack';
 import { displayMediaConstraints, encodingParams } from '../lib/encoding';
 import { audioSwitchAction, planSourceSwitch } from '../lib/sourceSwitch';
 
@@ -105,6 +106,29 @@ function audioPublishOptions(sourceName: string, params: EncodingParams): TrackP
     forceStereo: true,
     audioPreset: params.audioPreset,
   };
+}
+
+/**
+ * A window capture arrives with its title bar and borders: the returned track is the same capture
+ * cropped to the client area (see `lib/cropTrack.ts`). Screens, and any failure of the crop
+ * pipeline, keep the original track: a live must never fail because of the crop. Stopping the
+ * returned track stops the original.
+ */
+async function cropWindowCapture(
+  video: MediaStreamTrack,
+  sourceId: string,
+): Promise<MediaStreamTrack> {
+  if (!sourceId.startsWith('window:') || !isCropSupported()) return video;
+  try {
+    const cropped = await createCroppedTrack(video, {
+      getCrop: () => concord().getCaptureCrop(sourceId),
+      onError: (message, err) => console.warn(`[broadcast] ${message}`, err),
+    });
+    return cropped.track;
+  } catch (err) {
+    console.warn('[broadcast] window crop unavailable, publishing the whole window', err);
+    return video;
+  }
 }
 
 function stopTrack(track: MediaStreamTrack | null): void {
@@ -285,6 +309,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
       const params = encodingParams(request.quality);
       let stream: MediaStream | null = null;
       let processAudio: ProcessAudioTrack | null = null;
+      let publishable: MediaStreamTrack | null = null;
       try {
         const inRoom =
           currentRoomRef.current === request.room && room.state === ConnectionState.Connected;
@@ -310,9 +335,12 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         } catch (err) {
           throw new Error(displayMediaErrorMessage(err), { cause: err });
         }
-        const video = stream.getVideoTracks()[0];
-        if (!video) throw new Error('A captura não retornou vídeo.');
+        const captured = stream.getVideoTracks()[0];
+        if (!captured) throw new Error('A captura não retornou vídeo.');
+        captured.contentHint = params.contentHint;
+        const video = await cropWindowCapture(captured, request.sourceId);
         video.contentHint = params.contentHint;
+        publishable = video;
 
         let audio: MediaStreamTrack | null = null;
         if (audioMode === 'system') {
@@ -380,6 +408,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
           await release(true);
         } else {
           for (const track of stream?.getTracks() ?? []) stopTrack(track);
+          stopTrack(publishable);
           await processAudio?.stop().catch(() => undefined);
         }
         setState({ status: 'idle' });
@@ -444,6 +473,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
       // Main runs one process capture at a time: the old one goes first when replaced by another.
       let oldProcessStopped = false;
       let videoSwapped = false;
+      let publishable: MediaStreamTrack | null = null;
       try {
         if (plan.stopOldProcessAudioFirst && current.processAudio) {
           await current.processAudio.stop().catch(() => undefined);
@@ -464,9 +494,12 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         } catch (err) {
           throw new Error(displayMediaErrorMessage(err), { cause: err });
         }
-        const video = stream.getVideoTracks()[0];
-        if (!video) throw new Error('A captura não retornou vídeo.');
+        const captured = stream.getVideoTracks()[0];
+        if (!captured) throw new Error('A captura não retornou vídeo.');
+        captured.contentHint = params.contentHint;
+        const video = await cropWindowCapture(captured, request.sourceId);
         video.contentHint = params.contentHint;
+        publishable = video;
         let audio: MediaStreamTrack | null = null;
         if (audioMode === 'system') {
           audio = stream.getAudioTracks()[0] ?? null;
@@ -592,6 +625,7 @@ export function useBroadcast(options: UseBroadcastOptions): Broadcast {
         if (!videoSwapped) {
           // Keep the previous source live: drop what was captured for the new one.
           for (const track of stream?.getTracks() ?? []) stopTrack(track);
+          stopTrack(publishable);
           await processAudio?.stop().catch(() => undefined);
           if (oldProcessStopped) await restoreProcessAudio(current);
         }

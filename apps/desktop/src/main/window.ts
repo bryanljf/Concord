@@ -17,6 +17,11 @@ export { isHttpUrl } from './windows';
 
 const logger = log('window');
 
+// Keep in sync with `--bg-tertiary`, `--text-muted` and `--titlebar-height` (renderer/theme.css).
+const TITLE_BAR_COLOR = '#1e1f22';
+const TITLE_BAR_SYMBOL_COLOR = '#949ba4';
+const TITLE_BAR_HEIGHT = 32;
+
 export interface MainWindowDeps {
   settings: SettingsStore;
   notifier: Notifier;
@@ -46,6 +51,14 @@ export function createMainWindow(deps: MainWindowDeps): MainWindow {
     icon: resourcePath('icon.png'),
     show: false,
     autoHideMenuBar: true,
+    // Custom title bar drawn by the renderer (`TitleBar`); Windows keeps drawing the native
+    // minimize/maximize/close buttons (Snap Layouts included) over its right end.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: TITLE_BAR_COLOR,
+      symbolColor: TITLE_BAR_SYMBOL_COLOR,
+      height: TITLE_BAR_HEIGHT,
+    },
     webPreferences: rendererWebPreferences('main'),
   });
   const entry = rendererEntry();
